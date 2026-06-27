@@ -1,0 +1,1 @@
+"""Batua backend application package."""

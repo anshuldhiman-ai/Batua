@@ -1,0 +1,119 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 150 20% 99%;
+    --foreground: 160 30% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 30% 10%;
+    --primary: 162 94% 24%;        /* emerald #047857 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 16% 96%;
+    --secondary-foreground: 160 30% 14%;
+    --muted: 150 14% 95%;
+    --muted-foreground: 160 10% 42%;
+    --accent: 152 60% 94%;
+    --accent-foreground: 162 94% 18%;
+    --destructive: 350 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 14% 90%;
+    --input: 150 14% 88%;
+    --ring: 162 94% 30%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 165 30% 6%;
+    --foreground: 150 14% 96%;
+    --card: 165 26% 9%;
+    --card-foreground: 150 14% 96%;
+    --primary: 158 84% 39%;        /* emerald #10B981 */
+    --primary-foreground: 165 40% 6%;
+    --secondary: 165 18% 14%;
+    --secondary-foreground: 150 14% 92%;
+    --muted: 165 16% 14%;
+    --muted-foreground: 150 8% 62%;
+    --accent: 165 24% 16%;
+    --accent-foreground: 158 84% 60%;
+    --destructive: 350 70% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 165 16% 18%;
+    --input: 165 16% 20%;
+    --ring: 158 84% 45%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: "Plus Jakarta Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-family: "Outfit", sans-serif;
+  }
+
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -12px hsl(var(--primary) / 0.25);
+  }
+
+  .kpi-number {
+    font-family: "Outfit", sans-serif;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Shimmer skeleton */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--foreground) / 0.06),
+      transparent
+    );
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+/* Thin scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
