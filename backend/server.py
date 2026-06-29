@@ -10,13 +10,13 @@ from dotenv import load_dotenv
 # importing any module that reads env vars at import time (e.g. ai.py).
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from fastapi import FastAPI, APIRouter
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, APIRouter  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-import storage as storage_mod
-import ai
-from app.dependencies import set_storage
-from app.routes import (
+import storage as storage_mod  # noqa: E402
+import ai  # noqa: E402
+from app.dependencies import set_storage  # noqa: E402
+from app.routes import (  # noqa: E402
     transactions,
     analytics,
     dashboard,

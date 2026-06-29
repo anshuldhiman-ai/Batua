@@ -10,7 +10,6 @@ The module has three layers, in order of confidence:
 3. Gemini fallback (handled in parser.py) — only for ambiguous cases.
 """
 import logging
-import os
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple

@@ -155,9 +155,10 @@ def _gemini_insights(metrics: dict, timeline: list, cats: list) -> list[str] | N
         "You are a concise personal finance coach for an Indian user (currency "
         "INR ₹). All numbers below refer to the SAME month "
         f"({safe_metrics['current_month']}). Do NOT mix in all-time numbers. "
-        "Return 3-4 short, specific, actionable coaching lines that reference "
-        "the actual numbers. Keep each line under 140 chars. Return JSON: "
-        '{"insights": ["...", "..."]}. No fluff, no preamble.'
+        "Return exactly 3 short, specific, actionable coaching lines. "
+        "Focus on: 1) Savings rate health, 2) Top spending category, 3) One trend insight. "
+        "Keep each line under 100 characters. No fluff, no preamble. "
+        "Return JSON: {\"insights\": [\"line1\", \"line2\", \"line3\"]}"
     )
     data = ai.chat_json(system, payload)
     if not data or not isinstance(data, dict):
@@ -174,10 +175,10 @@ def _gemini_insights(metrics: dict, timeline: list, cats: list) -> list[str] | N
         text = line.strip()
         # Remove markdown bold formatting (**text**)
         text = text.replace("**", "")
-        if not text or len(text) > 200:
+        if not text or len(text) > 150:
             continue
         cleaned.append(text)
-        if len(cleaned) >= 4:
+        if len(cleaned) >= 3:
             break
 
     # If Gemini gave us 0 usable lines, treat as failure → rules fallback.
@@ -199,32 +200,44 @@ def _rule_based_insights(metrics: dict, cats: list, txns: list) -> list[str]:
             y, m = current_month.split("-")
             from datetime import datetime
             month_label = datetime(int(y), int(m), 1).strftime("%B %Y")
-        except:
+        except Exception:
             month_label = current_month
+    else:
+        # Fallback: calculate from actual transactions if current_month is missing
+        from app.helpers import month_key
+        months = sorted({month_key(t["date"]) for t in txns if t.get("date")})
+        if months:
+            current_month = months[-1]  # Use latest month
+            try:
+                y, m = current_month.split("-")
+                from datetime import datetime
+                month_label = datetime(int(y), int(m), 1).strftime("%B %Y")
+            except Exception:
+                month_label = current_month
     
+    # Focus on 3 key insights: savings, top category, trend
     sr = metrics.get("savings_rate", 0)
     if sr >= 20:
-        out.append(f"Strong month in {month_label} — you saved {sr}% of your income. Keep it up.")
+        out.append(f"Strong month: saved {sr}% of income in {month_label}.")
     elif sr > 0:
-        out.append(f"You saved {sr}% in {month_label}. Aim for 20% by trimming the top category.")
+        out.append(f"Saved {sr}% in {month_label}. Aim for 20%.")
     elif sr == 0 and metrics.get("income", 0) > 0:
-        out.append(f"You broke even in {month_label} — push for a positive savings rate next month.")
+        out.append(f"Broke even in {month_label}. Push for positive savings.")
     else:
-        out.append(f"You're spending more than you earn in {month_label}. Review discretionary spends.")
+        out.append(f"Spending exceeds income in {month_label}. Review expenses.")
 
     if cats:
         top = cats[0]
-        out.append(f"Biggest expense: {top['category']} at ₹{top['amount']:,.0f}.")
+        out.append(f"Top expense: {top['category']} ₹{top['amount']:,.0f}.")
+
     ec = metrics.get("expense_change", 0)
     if ec > 15:
-        out.append(f"Expenses rose {ec}% vs last month — watch the trend.")
+        out.append(f"Expenses up {ec}% vs last month.")
     elif ec < -10:
-        out.append(f"Nice — expenses fell {abs(ec)}% vs last month.")
-    if len(cats) >= 3:
-        out.append(f"Consider setting a budget for {cats[1]['category']} and {cats[2]['category']}.")
+        out.append(f"Expenses down {abs(ec)}% vs last month.")
     
     # Ensure we always return at least some insights
     if not out:
-        out.append(f"Your spending for {month_label}: ₹{metrics.get('expense', 0):,.0f}.")
+        out.append(f"Spending in {month_label}: ₹{metrics.get('expense', 0):,.0f}.")
     
-    return out[:4]
+    return out[:3]

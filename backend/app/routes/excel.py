@@ -193,7 +193,6 @@ async def _run_upload_task(task_id: str, content: bytes, filename: str,
             skipped = len(rows) - len(new_rows)
 
         # Insert in batches with progress updates
-        batch_size = 500
         total_rows = len(new_rows)
         inserted_count = 0
         
