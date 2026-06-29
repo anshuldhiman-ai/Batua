@@ -14,8 +14,9 @@ describe("utils-finance", () => {
       const formatted = formatINR(15000, { compact: true });
       const normalized = formatted.replace(/\s/g, " ");
       expect(normalized).toContain("₹");
-      // "15T" or "15K" or "15 L" depending on standard locale compact settings in node environment
-      expect(normalized).toMatch(/15[a-zA-Z]/);
+      // "15K", "15.0K", "15 L", etc. depending on locale compact settings
+      // and ICU version in the node environment (decimals are allowed).
+      expect(normalized).toMatch(/15(\.\d+)?\s?[a-zA-Z]/);
     });
 
     it("handles zero and undefined values gracefully", () => {
