@@ -37,7 +37,12 @@ jobs:
       run: |
         cd backend
         ruff check .
-    
+
+    - name: Build training data
+      run: |
+        cd backend
+        python scripts/build_training_data.py
+
     - name: Run pytest
       run: |
         cd backend
