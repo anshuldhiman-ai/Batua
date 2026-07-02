@@ -16,9 +16,9 @@ function Dialog({ open, onOpenChange, children }) {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 py-6 sm:items-center [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-up"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fade-up"
         onClick={() => onOpenChange?.(false)}
         data-testid="dialog-overlay"
       />
@@ -33,7 +33,7 @@ const DialogContent = React.forwardRef(
       ref={ref}
       role="dialog"
       className={cn(
-        "relative z-10 w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl animate-fade-up",
+        "relative z-10 my-auto max-h-[calc(100dvh-3rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl animate-fade-up sm:p-6",
         className
       )}
       {...props}
