@@ -1701,7 +1701,6 @@ class TransactionClassifier:
         inferred from keyword matches against each row's description cell.
         """
         try:
-            import os
             import pandas as pd
 
             candidate_paths = [
