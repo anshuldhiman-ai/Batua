@@ -10,12 +10,27 @@ backend/data/store.db
 backend/data/store.db-shm
 backend/data/store.db-wal
 backend/data/*.db*
+backend/data/classifier.joblib
 
 # Node
 node_modules/
 frontend/build/
 npm-debug.log*
 yarn-error.log*
+package-lock.json
+frontend/package-lock.json
+
+# Local frontend assets generated or copied during development
+frontend/public/app-icon-*.png
+frontend/public/apple-touch-icon.png
+frontend/public/favicon.ico
+frontend/public/logo.png
+frontend/public/manifest.json
+
+# Local images and scratch files
+ChatGPT Image*.png
+a505b0cb-*-cover.png
+logo*.png
 
 # Env — single project-root .env (keep .env.example, never commit real keys)
 /.env
@@ -23,6 +38,9 @@ yarn-error.log*
 # (legacy per-folder env files, in case any linger)
 backend/.env
 frontend/.env
+
+# Local backend data files
+backend/data/
 
 # OS / editors
 .DS_Store
