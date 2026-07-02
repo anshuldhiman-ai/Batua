@@ -110,6 +110,8 @@ async def create_recurring(payload: RecurringCreate):
     seen = {_txn_key(t) for t in existing}
     
     docs = []
+    invalid = 0       # months that couldn't be parsed into a date
+    duplicates = 0    # entries skipped because they already exist
     for ym in payload.months:
         try:
             y, m = int(ym[:4]), int(ym[5:7])
@@ -117,6 +119,7 @@ async def create_recurring(payload: RecurringCreate):
             day = min(max(payload.day, 1), last)
             date_str = f"{y:04d}-{m:02d}-{day:02d}"
         except Exception:
+            invalid += 1
             continue
         txn = Transaction(
             date=date_str,
@@ -130,10 +133,17 @@ async def create_recurring(payload: RecurringCreate):
         # Skip if this transaction already exists (idempotency check)
         if _txn_key(txn.model_dump()) not in seen:
             docs.append(txn.model_dump())
-    
+        else:
+            duplicates += 1
+
     inserted = await storage.insert_many("transactions", docs)
     invalidate_analytics_cache()  # Invalidate cache on recurring insert
-    return {"inserted": inserted, "months": len(docs), "skipped": len(payload.months) - len(docs)}
+    return {
+        "inserted": inserted,
+        "months": len(docs),
+        "skipped": duplicates,
+        "invalid": invalid,
+    }
 
 
 @router.put("/{txn_id}")

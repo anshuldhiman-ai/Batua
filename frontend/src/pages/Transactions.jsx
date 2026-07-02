@@ -11,7 +11,6 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Database,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +28,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { api, apiUrl, formatINR, formatDate, categoryColor } from "@/lib/utils-finance";
+import { sortTransactions } from "@/lib/analytics-utils";
 import { DateInput } from "@/components/ui/date-input";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -53,7 +53,11 @@ export default function Transactions() {
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [uploadMessage, setUploadMessage] = React.useState("");
   const [aiCategorize, setAiCategorize] = useLocalStorage("batua-import-ai", false);
-  const [storageInfo, setStorageInfo] = React.useState(null);
+  const [sortBy, setSortBy] = React.useState("date");
+  const [sortOrder, setSortOrder] = React.useState("desc");
+  const [paymentMethodFilter, setPaymentMethodFilter] = React.useState("All");
+  const [transactionTypeFilter, setTransactionTypeFilter] = React.useState("All");
+  const [dateRange, setDateRange] = React.useState({ start: "", end: "" });
 
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
@@ -66,16 +70,26 @@ export default function Transactions() {
         params: {
           search: debouncedSearch || undefined,
           category: category !== "All" ? category : undefined,
+          payment_method: paymentMethodFilter !== "All" ? paymentMethodFilter : undefined,
+          txn_type:
+            transactionTypeFilter === "credit"
+              ? "income"
+              : transactionTypeFilter === "debit"
+                ? "expense"
+                : undefined,
+          start_date: dateRange.start || undefined,
+          end_date: dateRange.end || undefined,
           page,
           page_size: PAGE_SIZE,
         },
       });
-      setData(data);
+      const sorted = sortTransactions(data.items || [], sortBy, sortOrder);
+      setData({ ...data, items: sorted });
       setSelected(new Set());
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, category, page]);
+  }, [debouncedSearch, category, page, sortBy, sortOrder, paymentMethodFilter, transactionTypeFilter, dateRange]);
 
   React.useEffect(() => {
     load();
@@ -83,13 +97,21 @@ export default function Transactions() {
 
   React.useEffect(() => {
     api.get("/categories/").then((r) => setCategories(r.data.categories));
-    api.get("/").then((r) => setStorageInfo(r.data)).catch(() => {});
   }, []);
 
   // Reset to page 1 when filters change
   React.useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, category]);
+  }, [debouncedSearch, category, paymentMethodFilter, transactionTypeFilter, dateRange, sortBy, sortOrder]);
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
+  };
 
   const onDrop = React.useCallback(async (files) => {
     if (!files.length) return;
@@ -256,23 +278,9 @@ export default function Transactions() {
 
   return (
     <div className="space-y-5">
-      {/* Local persistence notice */}
-      <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm">
-        <Database className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-        <div>
-          <p className="font-medium text-emerald-800 dark:text-emerald-300">
-            Your data stays saved locally
-          </p>
-          <p className="text-muted-foreground">
-            {data.total > 0
-              ? `${data.total} transactions stored on this machine — no need to re-upload your file each time.`
-              : "Import once or add entries below; everything is kept on this machine between sessions."}
-            {storageInfo?.storage && (
-              <span className="ml-1 text-xs">({storageInfo.storage === "json-file" ? "JSON file" : storageInfo.storage})</span>
-            )}
-          </p>
-        </div>
-      </div>
+      <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+        Transactions
+      </h1>
 
       <NLInputBar onSaved={load} />
 
@@ -342,7 +350,7 @@ export default function Transactions() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -365,8 +373,45 @@ export default function Transactions() {
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
+          <select
+            value={transactionTypeFilter}
+            onChange={(e) => setTransactionTypeFilter(e.target.value)}
+            className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="All">All types</option>
+            <option value="credit">Credit</option>
+            <option value="debit">Debit</option>
+          </select>
+          <select
+            value={paymentMethodFilter}
+            onChange={(e) => setPaymentMethodFilter(e.target.value)}
+            className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="All">All payment methods</option>
+            <option value="UPI">UPI</option>
+            <option value="Cash">Cash</option>
+            <option value="Card">Card</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-2">
+            <span className="text-xs text-muted-foreground">From:</span>
+            <input
+              type="date"
+              value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              className="h-8 w-32 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <span className="text-xs text-muted-foreground">To:</span>
+            <input
+              type="date"
+              value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              className="h-8 w-32 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
           {selected.size > 0 && (
             <Button variant="destructive" size="sm" onClick={bulkDelete} data-testid="bulk-delete-btn">
               <Trash2 className="h-4 w-4" /> Delete ({selected.size})
@@ -392,12 +437,24 @@ export default function Transactions() {
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="w-10 p-3"><Checkbox checked={allChecked} onCheckedChange={toggleAll} /></th>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Description</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Payment</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("date")}>
+                    Date {sortBy === "date" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
+                  <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("description")}>
+                    Description {sortBy === "description" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
+                  <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("category")}>
+                    Category {sortBy === "category" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
+                  <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("payment_method")}>
+                    Payment {sortBy === "payment_method" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
+                  <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("amount")}>
+                    Type {sortBy === "amount" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
+                  <th className="p-3 text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("amount")}>
+                    Amount {sortBy === "amount" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
                   <th className="w-20 p-3 text-right">Actions</th>
                 </tr>
               </thead>

@@ -594,57 +594,67 @@ def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str) -
 _VALID_CATEGORIES = [
     "Income", "Food & Dining", "Food Delivery", "Groceries", "Transportation",
     "Fuel", "Shopping", "Utilities", "Subscriptions", "Entertainment", "Health",
-    "Education", "Housing/Rent", "Personal Care", "Snacks", "Other",
+    "Education", "Investments", "Housing/Rent", "Personal Care", "Snacks", "Other",
 ]
 
 
 def _ai_categorize(rows: list[dict], progress_cb=None, use_ai: bool = False) -> None:
-    """Categorize unknown merchants using AI or local ML in chunks for speed.
+    """Categorize unknown merchants using local ML (batched) then optional AI.
 
-    ``progress_cb(fraction)`` — if given — is called with a 0..1 value after
-    each chunk so callers can drive a progress bar through the (potentially
-    slow) categorization stage.
-    
+    ``progress_cb(fraction)`` — if given — is called with a 0..1 value as
+    categorization proceeds so callers can drive a progress bar.
+
     ``use_ai`` — if False, only uses local ML (much faster). If True, falls back
     to AI for remaining uncategorized items.
     """
-    # Process in chunks of 100 for better performance
+    # ── Local ML in ONE batched, de-duplicated pass ─────────────────────
+    # Only rows still marked "Other" need the model; unique descriptions are
+    # classified once and the result fanned back out to every matching row.
+    try:
+        import ml_nlp
+        todo = [r for r in rows if r.get("category", "Other") == "Other"
+                and r.get("description") and r["description"] != "Transaction"]
+        if todo:
+            mapping = ml_nlp.classify_many([r["description"] for r in todo])
+            for r in todo:
+                cat = mapping.get(r["description"])
+                if cat and cat != "Other":
+                    r["category"] = cat
+    except Exception:
+        pass  # Continue if ML fails
+    if progress_cb:
+        progress_cb(0.6 if use_ai else 1.0)
+
+    if not use_ai:
+        return
+
+    # ── Optional AI pass for whatever ML left as "Other" ────────────────
+    if not ai.is_enabled():
+        if progress_cb:
+            progress_cb(1.0)
+        return
+    _ai_categorize_remaining(rows, progress_cb=progress_cb)
+
+
+def _ai_categorize_remaining(rows: list[dict], progress_cb=None) -> None:
+    """AI fallback for rows local ML couldn't confidently place."""
     chunk_size = 100
     total = len(rows) or 1
     for i in range(0, len(rows), chunk_size):
         chunk = rows[i:i + chunk_size]
-        _categorize_chunk(chunk, use_ai=use_ai)
+        _categorize_chunk_ai(chunk)
         if progress_cb:
-            progress_cb(min(1.0, (i + chunk_size) / total))
+            # AI pass occupies the back 40% of the categorizing band.
+            progress_cb(min(1.0, 0.6 + 0.4 * (i + chunk_size) / total))
 
 
-def _categorize_chunk(rows: list[dict], use_ai: bool = False) -> None:
-    """Categorize a chunk of transactions.
-    
-    Args:
-        rows: List of transaction dicts to categorize
-        use_ai: If True, falls back to AI for uncategorized items. If False, only uses local ML.
-    """
-    # Try local ML first (faster, no API call)
-    try:
-        import ml_nlp
-        for r in rows:
-            if r.get("category", "Other") == "Other":
-                ml_category = ml_nlp.classify_transaction(r["description"])
-                if ml_category and ml_category != "Other":
-                    r["category"] = ml_category
-    except Exception:
-        pass  # Continue if ML fails
-    
-    # Only use AI if explicitly requested and there are still uncategorized items
-    if not use_ai:
-        return
-        
+def _categorize_chunk_ai(rows: list[dict]) -> None:
+    """AI-categorize the still-uncategorized rows in one chunk."""
     unknown = sorted({r["description"] for r in rows if r.get("category", "Other") == "Other"})
     unknown = [u for u in unknown if u and u != "Transaction"][:10]  # Reduced per chunk for speed
     if not unknown:
         return
-    
+
     if not ai.is_enabled():
         return
     system = (
@@ -686,10 +696,12 @@ def try_load_excel(content: bytes, filename: str = "", use_ai: bool = False,
     """
     rows: list[dict] = []
     sheet_count = 0
-    total_sheets = len(_read_sheets(content, filename))
-    max_sheets = min(total_sheets, 5)  # Limit to first 5 sheets
-    
-    for sheet_name, df in _read_sheets(content, filename):
+    # Read the workbook ONCE (parsing it twice just to count sheets doubled the
+    # slowest part of the import for multi-sheet .xlsx files).
+    sheets = _read_sheets(content, filename)
+    max_sheets = min(len(sheets), 5)  # Limit to first 5 sheets
+
+    for sheet_name, df in sheets:
         if df is None or df.empty:
             continue
         sheet_count += 1

@@ -157,24 +157,42 @@ class SpendingPatternAnalyzer:
             return {"clusters": []}
     
     def _detect_seasonal_patterns(self, df: pd.DataFrame) -> Dict:
-        """Detect seasonal spending patterns."""
-        df['month_num'] = df['date'].dt.month
-        monthly_avg = df.groupby('month_num')['amount'].mean()
-        
-        # Find peak and low months
-        peak_month = monthly_avg.idxmax()
-        low_month = monthly_avg.idxmin()
-        
+        """Rank months by *total* spend to surface the real peak / quietest month.
+
+        Previously this grouped by calendar month-of-year (1-12) and took the
+        *mean* transaction amount, so "peak month" was whichever month had the
+        biggest average transaction rather than the most total spend — a month
+        with one large purchase wrongly outranked a month with many smaller
+        ones (e.g. reporting November when March was actually the heaviest).
+        We now rank by the summed spend of each real calendar month (YYYY-MM).
+        """
+        monthly_total = df.groupby('month')['amount'].sum()
+        if monthly_total.empty:
+            return {
+                "peak_spending_month": None,
+                "lowest_spending_month": None,
+                "monthly_totals": {},
+            }
+
+        peak = monthly_total.idxmax()  # a pandas Period, e.g. Period('2025-03', 'M')
+        low = monthly_total.idxmin()
+
         month_names = {
             1: 'January', 2: 'February', 3: 'March', 4: 'April',
             5: 'May', 6: 'June', 7: 'July', 8: 'August',
-            9: 'September', 10: 'October', 11: 'November', 12: 'December'
+            9: 'September', 10: 'October', 11: 'November', 12: 'December',
         }
-        
+        # Month-of-year totals kept as genuine *seasonal* context (e.g. festive
+        # months running high), distinct from the headline peak month above.
+        season = df.groupby(df['date'].dt.month)['amount'].sum()
+
         return {
-            "peak_spending_month": month_names[peak_month],
-            "lowest_spending_month": month_names[low_month],
-            "monthly_averages": {month_names[m]: float(monthly_avg[m]) for m in monthly_avg.index},
+            "peak_spending_month": peak.strftime('%B %Y'),
+            "peak_spending_amount": float(monthly_total.loc[peak]),
+            "lowest_spending_month": low.strftime('%B %Y'),
+            "lowest_spending_amount": float(monthly_total.loc[low]),
+            "monthly_totals": {str(p): float(v) for p, v in monthly_total.items()},
+            "seasonal_by_month": {month_names[m]: float(season[m]) for m in season.index},
         }
 
 

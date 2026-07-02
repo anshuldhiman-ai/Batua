@@ -35,8 +35,29 @@ export default function UploadProgress({ stage, progress = 0, message }) {
   const isComplete = stage === "complete";
   const isError = stage === "error";
 
+  const pct = Math.max(0, Math.min(100, Math.round(progress)));
+  const eta = useEta(progress, stage);
+
   return (
     <div className="w-full space-y-3">
+      {/* Percentage + time-left readout */}
+      <div className="flex items-baseline justify-between">
+        <span
+          className={cn(
+            "kpi-number text-lg font-bold tabular-nums",
+            isError ? "text-rose-500" : isComplete ? "text-emerald-600" : "text-primary"
+          )}
+          data-testid="upload-percent"
+        >
+          {isComplete ? 100 : pct}%
+        </span>
+        {!isComplete && !isError && (
+          <span className="text-xs font-medium text-muted-foreground" data-testid="upload-eta">
+            {eta == null ? "estimating…" : eta <= 1 ? "almost done" : `~${formatEta(eta)} left`}
+          </span>
+        )}
+      </div>
+
       {/* Animated bar */}
       <div className="relative h-2 w-full overflow-hidden rounded-full bg-border">
         <div
@@ -106,4 +127,59 @@ function StageIcon({ state, Icon }) {
   if (state === "error") return <AlertTriangle className="h-3.5 w-3.5 shrink-0" />;
   if (state === "active") return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />;
   return <Icon className="h-3.5 w-3.5 shrink-0 opacity-60" />;
+}
+
+/**
+ * Estimate seconds remaining from how fast progress has been moving.
+ * Anchors on the first real movement, extrapolates linearly to 100%, and
+ * ticks the number down once a second so it feels live between polls.
+ */
+function useEta(progress, stage) {
+  const anchorRef = React.useRef(null);
+  const [eta, setEta] = React.useState(null);
+
+  // Reset when a fresh upload begins.
+  React.useEffect(() => {
+    if (stage === "uploading" && progress <= 1) {
+      anchorRef.current = null;
+      setEta(null);
+    }
+  }, [stage, progress]);
+
+  React.useEffect(() => {
+    if (stage === "complete" || stage === "error") {
+      setEta(null);
+      return;
+    }
+    const now = Date.now();
+    if (anchorRef.current == null && progress > 0) {
+      anchorRef.current = { t: now, p: progress };
+      return;
+    }
+    const a = anchorRef.current;
+    if (a && progress > a.p) {
+      const elapsed = (now - a.t) / 1000;
+      const rate = (progress - a.p) / elapsed; // percent per second
+      if (rate > 0) setEta((100 - progress) / rate);
+    }
+  }, [progress, stage]);
+
+  // Smoothly count the estimate down between server polls.
+  React.useEffect(() => {
+    if (eta == null) return undefined;
+    const id = setInterval(() => {
+      setEta((e) => (e != null && e > 1 ? e - 1 : e));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [eta == null]);
+
+  return eta;
+}
+
+function formatEta(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem ? `${m}m ${rem}s` : `${m}m`;
 }

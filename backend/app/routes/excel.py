@@ -186,10 +186,13 @@ async def _run_upload_task(task_id: str, content: bytes, filename: str,
             new_rows = rows
             skipped = 0
         else:
-            # Use efficient database query instead of loading all transactions
-            row_ids = {_txn_key(r) for r in rows}
-            existing_ids = await storage.filter_existing("transactions", list(row_ids))
-            new_rows = [r for r in rows if _txn_key(r) not in existing_ids]
+            # De-duplicate by content fingerprint so re-uploading the same
+            # file is idempotent. We can't use filter_existing() here because
+            # that matches on the UUID `id` column, whereas incoming rows are
+            # matched by their (date, desc, amount, category, method) key.
+            existing = await get_all_txns()
+            seen = {_txn_key(t) for t in existing}
+            new_rows = [r for r in rows if _txn_key(r) not in seen]
             skipped = len(rows) - len(new_rows)
 
         # Insert in batches with progress updates

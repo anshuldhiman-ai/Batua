@@ -52,6 +52,10 @@ export default function Budgets() {
 
   return (
     <div className="space-y-5">
+      <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+        Budgets
+      </h1>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

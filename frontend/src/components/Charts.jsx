@@ -10,6 +10,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Sector,
   BarChart,
   Bar,
   Treemap,
@@ -21,6 +22,8 @@ import { cn } from "@/lib/utils";
 
 const AXIS = "hsl(var(--muted-foreground))";
 const GRID = "hsl(var(--border))";
+const INCOME_COLOR = "hsl(var(--chart-income))";
+const EXPENSE_COLOR = "hsl(var(--chart-expense))";
 
 function TooltipBox({ active, payload, label, labelFormatter }) {
   if (!active || !payload || !payload.length) return null;
@@ -53,19 +56,19 @@ function Empty({ label = "No data yet" }) {
   );
 }
 
-export function TimelineChart({ data }) {
+export function TimelineChart({ data, height = 300 }) {
   if (!data || !data.length) return <Empty />;
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
         <defs>
           <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10B981" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+            <stop offset="0%" stopColor={INCOME_COLOR} stopOpacity={0.35} />
+            <stop offset="100%" stopColor={INCOME_COLOR} stopOpacity={0} />
           </linearGradient>
           <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.3} />
-            <stop offset="100%" stopColor="#f43f5e" stopOpacity={0} />
+            <stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={EXPENSE_COLOR} stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
@@ -75,8 +78,8 @@ export function TimelineChart({ data }) {
           stroke={AXIS}
           fontSize={11}
           tickLine={false}
-          interval={0}
-          minTickGap={0}
+          interval="preserveStartEnd"
+          minTickGap={24}
         />
         <YAxis
           stroke={AXIS}
@@ -87,34 +90,84 @@ export function TimelineChart({ data }) {
         />
         <Tooltip content={<TooltipBox labelFormatter={formatMonth} />} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Area type="monotone" dataKey="income" name="Income" stroke="#10B981" strokeWidth={2} fill="url(#gInc)" />
-        <Area type="monotone" dataKey="expense" name="Expense" stroke="#f43f5e" strokeWidth={2} fill="url(#gExp)" />
+        <Area type="monotone" dataKey="income" name="Income" stroke={INCOME_COLOR} strokeWidth={2} fill="url(#gInc)" />
+        <Area type="monotone" dataKey="expense" name="Expense" stroke={EXPENSE_COLOR} strokeWidth={2} fill="url(#gExp)" />
       </AreaChart>
     </ResponsiveContainer>
   );
 }
 
-export function CategoryDonut({ data }) {
+/**
+ * Active-slice renderer: slightly enlarges the hovered sector and draws a leader
+ * line outward to a label sitting in the open space *outside* the ring — so the
+ * hover text never overlaps the donut or the centre total.
+ */
+function renderActiveDonutShape(props) {
+  const RADIAN = Math.PI / 180;
+  const {
+    cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value,
+  } = props;
+  const cos = Math.cos(-RADIAN * midAngle);
+  const sin = Math.sin(-RADIAN * midAngle);
+  const dir = cos >= 0 ? 1 : -1;
+  // Leader line: arc edge -> elbow -> horizontal run, then text beyond it.
+  const sx = cx + (outerRadius + 4) * cos;
+  const sy = cy + (outerRadius + 4) * sin;
+  const mx = cx + (outerRadius + 18) * cos;
+  const my = cy + (outerRadius + 18) * sin;
+  const ex = mx + dir * 20;
+  const ey = my;
+  const textAnchor = dir > 0 ? "start" : "end";
+  const tx = ex + dir * 8;
+
+  return (
+    <g>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius + 5}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+      />
+      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} strokeWidth={1.5} fill="none" />
+      <circle cx={ex} cy={ey} r={2.5} fill={fill} stroke="none" />
+      <text x={tx} y={ey - 6} textAnchor={textAnchor} dominantBaseline="central" fill="hsl(var(--foreground))" fontSize={12} fontWeight={600}>
+        {payload.category}
+      </text>
+      <text x={tx} y={ey + 9} textAnchor={textAnchor} dominantBaseline="central" fill="hsl(var(--muted-foreground))" fontSize={11}>
+        {formatINR(value)} · {(percent * 100).toFixed(0)}%
+      </text>
+    </g>
+  );
+}
+
+export function CategoryDonut({ data, height = 300 }) {
+  const [activeIndex, setActiveIndex] = React.useState(-1);
   if (!data || !data.length) return <Empty />;
   const total = data.reduce((s, d) => s + d.amount, 0);
   return (
-    <div className="relative">
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
+    <div className="relative [&_.recharts-surface]:overflow-visible">
+      <ResponsiveContainer width="100%" height={height}>
+        <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <Pie
             data={data}
             dataKey="amount"
             nameKey="category"
-            innerRadius={70}
-            outerRadius={110}
+            innerRadius={62}
+            outerRadius={92}
             paddingAngle={2}
             stroke="none"
+            activeIndex={activeIndex >= 0 ? activeIndex : undefined}
+            activeShape={renderActiveDonutShape}
+            onMouseEnter={(_, i) => setActiveIndex(i)}
+            onMouseLeave={() => setActiveIndex(-1)}
           >
             {data.map((d) => (
-              <Cell key={d.category} fill={categoryColor(d.category)} />
+              <Cell key={d.category} fill={categoryColor(d.category)} className="cursor-pointer focus:outline-none" />
             ))}
           </Pie>
-          <Tooltip content={<TooltipBox />} />
         </PieChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">

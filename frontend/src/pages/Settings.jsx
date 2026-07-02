@@ -3,6 +3,7 @@ import { Moon, Sun, IndianRupee, AlertTriangle, Trash2, Database, Sparkles } fro
 import { toast } from "sonner";
 
 import { ThemeContext } from "@/App";
+import { ACCENTS, CUSTOM_ACCENT } from "@/lib/themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,9 @@ import {
 import { api } from "@/lib/utils-finance";
 
 export default function Settings() {
-  const { theme, toggle } = React.useContext(ThemeContext);
+  const { theme, toggle, accent, setAccent, customColor, setCustomColor } =
+    React.useContext(ThemeContext);
+  const customActive = accent === CUSTOM_ACCENT;
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [health, setHealth] = React.useState(null);
 
@@ -33,17 +36,80 @@ export default function Settings() {
 
   return (
     <div className="max-w-2xl space-y-5">
+      <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+        Settings
+      </h1>
+
       <Card>
         <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <div>
-            <div className="font-medium">Theme</div>
-            <div className="text-sm text-muted-foreground">Switch between light and dark mode</div>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">Theme</div>
+              <div className="text-sm text-muted-foreground">Switch between light and dark mode</div>
+            </div>
+            <Button variant="outline" onClick={toggle} data-testid="settings-theme-toggle">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </Button>
           </div>
-          <Button variant="outline" onClick={toggle} data-testid="settings-theme-toggle">
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </Button>
+
+          <div className="flex items-center justify-between border-t border-border/60 pt-5">
+            <div>
+              <div className="font-medium">Accent color</div>
+              <div className="text-sm text-muted-foreground">Choose the overall color theme of the app</div>
+            </div>
+            <div className="flex items-center gap-2" data-testid="accent-picker">
+              {ACCENTS.map((a) => {
+                const active = a.id === accent;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAccent(a.id)}
+                    title={a.label}
+                    aria-label={a.label}
+                    aria-pressed={active}
+                    data-testid={`accent-${a.id}`}
+                    className={
+                      "h-7 w-7 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background " +
+                      (active ? "ring-2 ring-ring ring-offset-2 ring-offset-background" : "")
+                    }
+                    style={{ backgroundColor: `hsl(${a.swatch})` }}
+                  />
+                );
+              })}
+
+              {/* Custom "any color" picker */}
+              <label
+                title="Custom color"
+                aria-label="Custom color"
+                data-testid="accent-custom"
+                className={
+                  "relative h-7 w-7 cursor-pointer overflow-hidden rounded-full transition-transform hover:scale-110 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background " +
+                  (customActive ? "ring-2 ring-ring ring-offset-2 ring-offset-background" : "")
+                }
+                style={
+                  customActive
+                    ? { backgroundColor: customColor }
+                    : {
+                        background:
+                          "conic-gradient(red, orange, yellow, lime, aqua, blue, magenta, red)",
+                      }
+                }
+              >
+                <input
+                  type="color"
+                  value={customColor}
+                  onChange={(e) => {
+                    setCustomColor(e.target.value);
+                    setAccent(CUSTOM_ACCENT);
+                  }}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

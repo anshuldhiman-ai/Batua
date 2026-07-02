@@ -2,7 +2,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 const Progress = React.forwardRef(
-  ({ className, value = 0, indicatorClassName, ...props }, ref) => (
+  ({ className, value = 0, indicatorClassName, indicatorStyle, ...props }, ref) => (
     <div
       ref={ref}
       className={cn(
@@ -13,7 +13,7 @@ const Progress = React.forwardRef(
     >
       <div
         className={cn("h-full rounded-full bg-primary transition-all", indicatorClassName)}
-        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        style={{ width: `${Math.min(100, Math.max(0, value))}%`, ...indicatorStyle }}
       />
     </div>
   )

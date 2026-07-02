@@ -58,8 +58,9 @@ async def category_breakdown(month: str | None = None):
     for t in txns:
         if month and month_key(t.get("date", "")) != month:
             continue
-        if t["amount"] < 0:
-            totals[t.get("category", "Other")] += -t["amount"]
+        amount = t.get("amount", 0)
+        if amount < 0:
+            totals[t.get("category", "Other")] += -amount
     data = sorted(
         ({"category": c, "amount": round(a, 2)} for c, a in totals.items()),
         key=lambda d: d["amount"],
@@ -73,8 +74,9 @@ async def top_merchants(limit: int = 10):
     txns = await get_all_txns()
     totals: dict[str, float] = defaultdict(float)
     for t in txns:
-        if t["amount"] < 0:
-            totals[t.get("description", "Unknown")] += -t["amount"]
+        amount = t.get("amount", 0)
+        if amount < 0:
+            totals[t.get("description", "Unknown")] += -amount
     data = sorted(
         ({"merchant": m, "amount": round(a, 2)} for m, a in totals.items()),
         key=lambda d: d["amount"],
@@ -90,12 +92,13 @@ async def heatmap():
     by_date: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)
     for t in txns:
-        if t["amount"] >= 0:
+        amount = t.get("amount", 0)
+        if amount >= 0:
             continue
         d = (t.get("date") or "")[:10]
         if not _valid_date(d):
             continue
-        by_date[d] += -t["amount"]
+        by_date[d] += -amount
         counts[d] += 1
     days = [
         {"date": d, "amount": round(by_date[d], 2), "count": counts[d]}
@@ -113,9 +116,10 @@ async def payment_method_totals():
     totals = {"Online": 0.0, "Cash": 0.0}
     counts = {"Online": 0, "Cash": 0}
     for t in txns:
-        if t["amount"] >= 0:
+        amount = t.get("amount", 0)
+        if amount >= 0:
             continue
-        split = split_payment(t["amount"], t.get("payment_method"))
+        split = split_payment(amount, t.get("payment_method"))
         for bucket, val in split.items():
             if val > 0:
                 totals[bucket] += val
@@ -133,10 +137,11 @@ async def treemap():
     txns = await get_all_txns()
     nested: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for t in txns:
-        if t["amount"] < 0:
+        amount = t.get("amount", 0)
+        if amount < 0:
             cat = t.get("category", "Other")
             merch = t.get("description", "Unknown")
-            nested[cat][merch] += -t["amount"]
+            nested[cat][merch] += -amount
     data = []
     for cat, merchants in nested.items():
         children = sorted(

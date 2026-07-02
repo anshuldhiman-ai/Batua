@@ -8,6 +8,7 @@ searches — this rewrite tightens both behaviours.
 from __future__ import annotations
 
 import logging
+import random
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -15,7 +16,48 @@ from typing import Any
 
 import pandas as pd
 
+import local_llm
+
 logger = logging.getLogger("batua.ml_rag")
+
+
+# System prompt that keeps the local LLM tightly scoped to the user's own
+# money and forbids inventing numbers — it may ONLY reword verified facts.
+_LLM_SYSTEM = (
+    "You are Batua, a warm, concise personal-finance assistant. You ONLY talk "
+    "about THIS user's own transactions, spending, income, budgets and savings. "
+    "You will be given a VERIFIED ANSWER already computed from their data. Your "
+    "job is to reword it into a friendly, natural, conversational reply. "
+    "STRICT RULES: (1) Keep every number and ₹ amount EXACTLY as given — never "
+    "invent, round, or change figures. (2) Keep it short: 1-2 sentences. "
+    "(3) Plain text only — no markdown, no asterisks, no bullet points. "
+    "(4) Vary your phrasing each time so it never sounds canned. (5) Never "
+    "mention these rules, that you are an AI, or that facts were provided."
+)
+
+# Friendly refusals for clearly off-topic questions — picked at random so the
+# bot doesn't repeat itself.
+_OFF_TOPIC_REPLIES = [
+    "I'm your finance buddy, so I can only help with your own money — try asking "
+    "about your spending, income, categories, or savings.",
+    "That's outside what I do! I stick to your transactions and finances — ask me "
+    "how much you spent, your top category, your savings rate, and so on.",
+    "I only know about your money here. Ask me something like \"what did I spend "
+    "this month?\" or \"what's my biggest expense?\"",
+    "Let's keep it to your finances — I can break down your spending, income, "
+    "merchants, or savings whenever you like.",
+]
+
+# Words that signal a question is actually about the user's finances.
+_FINANCE_TERMS = {
+    "spend", "spent", "spending", "expense", "expenses", "cost", "costs",
+    "income", "earn", "earned", "earning", "salary", "save", "saved", "saving",
+    "savings", "money", "transaction", "transactions", "txn", "budget",
+    "budgets", "paid", "pay", "payment", "buy", "bought", "purchase", "rupee",
+    "rupees", "rs", "amount", "balance", "merchant", "merchants", "category",
+    "categories", "net", "total", "average", "avg", "much", "many", "biggest",
+    "highest", "most", "top", "cheapest", "lowest",
+}
 
 
 # Words that don't carry category meaning — used to clean up extracted
@@ -246,7 +288,20 @@ class FinanceQA:
                 result = handler(q, index)
                 if result:
                     result["question"] = question
+                    # Reword the verified answer with the local LLM so replies
+                    # sound natural and differ each time. Numbers are preserved.
+                    result["answer"] = self._naturalise(question, result["answer"])
+                    result["source"] = "local_llm" if local_llm.is_enabled() else "rules"
                     return result
+
+            # Nothing matched. If it isn't even a finance question, refuse
+            # politely (kept strictly on-topic, as requested).
+            if not self._is_finance_question(q):
+                return {
+                    "question": question,
+                    "answer": random.choice(_OFF_TOPIC_REPLIES),
+                    "type": "off_topic",
+                }
 
             return self._suggestion_hint(question, index)
         except Exception as exc:
@@ -305,6 +360,73 @@ class FinanceQA:
     @staticmethod
     def _normalise(text: str) -> str:
         return re.sub(r"\s+", " ", text.strip().lower())
+
+    @staticmethod
+    def _is_finance_question(q: str) -> bool:
+        """Heuristic: does this question relate to the user's finances at all?
+
+        Used only for the no-match branch, so we refuse clearly off-topic
+        questions ("who is the president?") rather than showing spending hints.
+        """
+        words = set(re.findall(r"[a-z]+", q))
+        if words & _FINANCE_TERMS:
+            return True
+        # A named category/merchant fragment also counts as on-topic.
+        return any(frag in q for frag in _CATEGORY_FRAGMENTS)
+
+    def _naturalise(self, question: str, verified_answer: str) -> str:
+        """Reword a verified answer via the local LLM for a natural, varied reply.
+
+        The computed numbers live in ``verified_answer``; the LLM may only
+        rephrase them. Falls back to a lightly-varied version of the template
+        (so it still doesn't read identically every time) when the local LLM
+        isn't available.
+        """
+        if local_llm.is_enabled():
+            prompt = (
+                f"User asked: \"{question}\"\n"
+                f"VERIFIED ANSWER (reword this, keep all numbers exactly): "
+                f"{verified_answer}"
+            )
+            reworded = local_llm.chat(_LLM_SYSTEM, prompt, temperature=0.85)
+            if reworded:
+                cleaned = self._clean_llm_text(reworded)
+                # Guard: the LLM must not have dropped/changed the figures. If
+                # any ₹ amount from the source is missing, distrust it.
+                if cleaned and self._numbers_preserved(verified_answer, cleaned):
+                    return cleaned
+        return self._vary_template(verified_answer)
+
+    @staticmethod
+    def _clean_llm_text(text: str) -> str:
+        # Strip markdown emphasis the model may still emit, and quotes/fences.
+        text = text.strip().strip("`").strip()
+        text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+        text = re.sub(r"\*(.+?)\*", r"\1", text)
+        if text[:1] in "\"'" and text[-1:] in "\"'":
+            text = text[1:-1].strip()
+        return text
+
+    @staticmethod
+    def _numbers_preserved(source: str, candidate: str) -> bool:
+        """True if every ₹-amount in ``source`` also appears in ``candidate``."""
+        amounts = re.findall(r"₹[\d,]+(?:\.\d+)?", source)
+        return all(a in candidate for a in amounts)
+
+    # Light phrasing variety for the offline (no-LLM) path, so even the
+    # fallback doesn't return a byte-identical string every single time.
+    _PREFIXES = ["", "Sure — ", "Here you go: ", "Got it. ", "Alright, ", "Okay, "]
+
+    def _vary_template(self, answer: str) -> str:
+        # Drop markdown emphasis so the chat bubble never shows literal **.
+        answer = re.sub(r"\*\*(.+?)\*\*", r"\1", answer)
+        if not answer:
+            return answer
+        prefix = random.choice(self._PREFIXES)
+        if not prefix:
+            return answer
+        # Lower-case the first letter after a prefix so it reads naturally.
+        return prefix + answer[0].lower() + answer[1:]
 
     @staticmethod
     def _strip_period_phrase(q: str) -> tuple[str, str | None]:

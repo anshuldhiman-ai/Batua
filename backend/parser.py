@@ -281,12 +281,8 @@ def _detect_date(text: str, today: datetime) -> tuple[str, str]:
 
 
 def _detect_category(text: str) -> str:
-    lower = text.lower()
-    for category, keywords in CATEGORIES.items():
-        for kw in keywords:
-            if re.search(r"\b" + re.escape(kw) + r"\b", lower):
-                return category
-    return "Other"
+    """Classify using the shared ml_nlp keyword + ML dictionary."""
+    return ml_nlp.keyword_category(text) or "Other"
 
 
 def _clean_description(text: str, fallback: str) -> str:

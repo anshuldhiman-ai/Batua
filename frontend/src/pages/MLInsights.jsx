@@ -70,7 +70,7 @@ function ChartTooltip({ active, payload, label, labelFormatter }) {
 function EmptyState({ icon: Icon = Info, title, description }) {
   return (
     <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed bg-background/40 p-6 text-center">
-      <Icon className="mb-3 h-9 w-9 text-muted-foreground/60" />
+      <Icon className="mb-3 h-9 w-9 text-muted-foreground" />
       <div className="text-sm font-semibold">{title}</div>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">{description}</p>
     </div>
@@ -347,7 +347,7 @@ export default function MLInsights() {
             <Sparkles className="h-3.5 w-3.5" />
             AI-Powered Personal Finance
           </div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight">AI Insights &amp; Forecasting</h1>
+          <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">AI Insights &amp; Forecasting</h1>
           <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
             Get automated pattern analytics, cash flow forecasting, saving tips, and immediate conversational answers about your transactions.
           </p>
@@ -424,7 +424,11 @@ export default function MLInsights() {
                   <TrendingUp className="h-4 w-4 text-rose-500" />
                 </div>
                 <div className="mt-2 text-2xl font-bold">{seasonal_patterns?.peak_spending_month || "N/A"}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Highest seasonal spending month</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {seasonal_patterns?.peak_spending_amount != null
+                    ? `${formatINR(seasonal_patterns.peak_spending_amount, { compact: true })} spent in total`
+                    : "Month with your highest total spend"}
+                </p>
               </CardContent>
             </Card>
 
@@ -435,7 +439,11 @@ export default function MLInsights() {
                   <TrendingDown className="h-4 w-4 text-emerald-500" />
                 </div>
                 <div className="mt-2 text-2xl font-bold">{seasonal_patterns?.lowest_spending_month || "N/A"}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Lowest seasonal spending month</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {seasonal_patterns?.lowest_spending_amount != null
+                    ? `${formatINR(seasonal_patterns.lowest_spending_amount, { compact: true })} spent in total`
+                    : "Month with your lowest total spend"}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -698,14 +706,14 @@ export default function MLInsights() {
               <h3 className="text-lg font-bold">Personalized Savings Optimization</h3>
               <p className="text-sm text-muted-foreground">Automated audit of monthly categories indicating potential budget savings</p>
             </div>
-            <div className="flex items-center gap-4 shrink-0">
-              <div className="p-3 border rounded-xl bg-background/80 text-center min-w-[120px]">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 sm:shrink-0">
+              <div className="flex-1 p-3 border rounded-xl bg-background/80 text-center min-w-[120px]">
                 <div className="text-xs text-muted-foreground font-medium uppercase">Monthly Potential</div>
                 <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                   {formatINR(recs?.total_potential_monthly_savings || 0)}
                 </div>
               </div>
-              <div className="p-3 border rounded-xl bg-background/80 text-center min-w-[120px]">
+              <div className="flex-1 p-3 border rounded-xl bg-background/80 text-center min-w-[120px]">
                 <div className="text-xs text-muted-foreground font-medium uppercase">Annual Potential</div>
                 <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                   {formatINR(recs?.total_potential_annual_savings || 0)}
@@ -765,7 +773,7 @@ export default function MLInsights() {
               <div className="h-[300px] overflow-y-auto border rounded-xl p-4 bg-background/50 space-y-4 no-scrollbar">
                 {qaHistory.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center space-y-2">
-                    <MessageSquare className="h-10 w-10 text-muted-foreground/50 animate-pulse" />
+                    <MessageSquare className="h-10 w-10 text-muted-foreground animate-pulse" />
                     <span className="text-xs text-muted-foreground max-w-xs">Ask a question below or pick a preloaded suggested query to start!</span>
                   </div>
                 ) : (

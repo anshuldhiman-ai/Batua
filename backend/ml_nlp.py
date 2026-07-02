@@ -4,17 +4,28 @@ The module has three layers, in order of confidence:
 
 1. ``keyword_category`` — exact-phrase match against a curated merchant
    dictionary (very high confidence).
-2. ``TransactionClassifier`` — a TF-IDF + Naive Bayes model trained on a
+2. ``TransactionClassifier`` — a TF-IDF + Logistic Regression model trained on a
    curated dataset of realistic Indian transaction descriptions. Catches
    the long tail of merchants the keyword dict doesn't know about.
 3. Gemini fallback (handled in parser.py) — only for ambiguous cases.
 """
+import hashlib
+import json
 import logging
+import os
 import re
+from collections import OrderedDict
 from datetime import datetime, timedelta
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("batua.ml_nlp")
+
+_DATA_DIR = Path(__file__).resolve().parent / "data"
+_TRAINING_JSON = _DATA_DIR / "training_data.json"
+_MODEL_PATH = _DATA_DIR / "classifier.joblib"
+_PREDICT_CACHE_SIZE = 50_000
 
 
 # --------------------------------------------------------------------------- #
@@ -133,16 +144,28 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "vada", "paneer", "biryani", "pizza", "burger", "kfc", "mcdonald",
         "mcd", "dominos", "domino's", "dominoes", "thali", "lunch", "dinner",
         "breakfast", "meal", "meals", "buffet", "starbucks", "barbeque",
-        "nation", "barbeque nation", "chinese", "tandoor",
+        "nation", "barbeque nation", "chinese", "tandoor", "tadka",
         "mughlai", "north indian", "south indian", "street food", "chaat",
-        "paratha", "roti", "naan", "biryani zone", "behrouz biryani",
-        "oven story", "faasos", "lunch box", "tiffin", "mess", "canteen",
-        "food court", "dhaba", "baker", "bakery", "cake shop",
-        "eat fit", "eatfit", "slimmeal", "health kitchen",
-        "saravana bhavan", "sagar ratna", "mainland china",
-        "haldiram", "haldiram take away",
-        "cafe coffee day", "ccd", "barista", "blue tokai",
-        "third wave coffee", "chai point",
+        "paratha", "parantha", "paratntha", "aloo paratha", "aloo parantha",
+        "paneer paratha", "gobi paratha", "methi paratha", "mix paratha",
+        "roti", "naan", "kulcha", "bhature", "bhatura", "chole bhature",
+        "chole bhatura", "dal makhani", "dal tadka", "paneer butter masala",
+        "butter chicken", "chicken curry", "mutton curry", "fish curry",
+        "veg thali", "non veg thali", "punjabi thali", "south indian thali",
+        "biryani zone", "behrouz biryani", "punjabi tadka", "punjabi by nature",
+        "takatak", "taka tak", "bikanervala", "bikanerwala", "haldiram restaurant",
+        "sagar ratna", "saravana bhavan", "mtr", "nandini", "rajdhani thali",
+        "panchavati", "goli vada pav", "goli vada", "faasos", "lunch box",
+        "oven story", "tiffin", "mess", "canteen", "food court", "dhaba",
+        "baker", "bakery", "cake shop", "eat fit", "eatfit", "slimmeal",
+        "health kitchen", "mainland china", "haldiram", "haldiram take away",
+        "cafe coffee day", "ccd", "barista", "blue tokai", "third wave coffee",
+        "chai point", "wow momo", "momo", "momos", "roll", "kathi roll",
+        "frankie", "shawarma", "kebab", "tikka", "tandoori", "seekh kebab",
+        "pav bhaji", "misal pav", "vada pav", "dabeli", "dhokla", "khandvi",
+        "poha", "upma", "uttapam", "appam", "puttu", "idiyappam", "pesarattu",
+        "pongal", "rasam", "sambar", "curd rice", "lemon rice", "fried rice",
+        "noodles", "manchurian", "sizzler", "sizzlers", "soup", "salad bar",
     ],
     # Snacks AFTER Food & Dining so "starbucks coffee" doesn't get stolen.
     "Snacks": [
@@ -309,9 +332,37 @@ SUFFIX_MULTIPLIERS = {"k": 1e3, "l": 1e5, "lakh": 1e5, "lac": 1e5, "cr": 1e7, "c
 # Keyword classification
 # --------------------------------------------------------------------------- #
 
+# Common Indian food / restaurant typos seen in bank SMS and UPI descriptions.
+_FOOD_TYPO_FIXES: Tuple[Tuple[re.Pattern, str], ...] = (
+    (re.compile(r"\bparanthas?\b", re.I), "paratha"),
+    (re.compile(r"\bparatntha\b", re.I), "paratha"),
+    (re.compile(r"\bparota\b", re.I), "paratha"),
+    (re.compile(r"\bbhaturas?\b", re.I), "bhature"),
+    (re.compile(r"\bchole\s+bhaturas?\b", re.I), "chole bhature"),
+    (re.compile(r"\btaka\s*tak\b", re.I), "takatak"),
+    (re.compile(r"\bpunjabi\s+tadkas?\b", re.I), "punjabi tadka"),
+    (re.compile(r"\bdosa[s]?\b", re.I), "dosa"),
+    (re.compile(r"\bidli[s]?\b", re.I), "idli"),
+    (re.compile(r"\bvada[s]?\b", re.I), "vada"),
+    (re.compile(r"\bmomo[s]?\b", re.I), "momo"),
+)
 
+
+def normalize_for_classification(text: str) -> str:
+    """Fix frequent food-description typos before keyword / ML classification."""
+    if not text:
+        return text
+    out = text.lower().strip()
+    for pattern, replacement in _FOOD_TYPO_FIXES:
+        out = pattern.sub(replacement, out)
+    return out
+
+
+@lru_cache(maxsize=8192)
 def _keyword_pattern(keyword: str) -> re.Pattern:
     # Escape, then re-allow internal spaces by replacing escaped "\ " with \s+.
+    # Cached: the same ~960 keyword patterns are matched against every row, so
+    # recompiling them per call dominated bulk-import time.
     escaped = re.escape(keyword).replace(r"\ ", r"\s+")
     return re.compile(r"(?<!\w)" + escaped + r"(?!\w)", re.IGNORECASE)
 
@@ -320,12 +371,13 @@ def keyword_category(description: str) -> Optional[str]:
     """Return a high-confidence category from curated transaction keywords."""
     if not description:
         return None
+    text = normalize_for_classification(description)
     # Categories at the top of the dict win on ties. Keep "Income" first so
     # "salary credit to account" classifies as Income, not as something else
     # that has "credit" in it.
     for category, keywords in CATEGORY_KEYWORDS.items():
         for keyword in keywords:
-            if _keyword_pattern(keyword).search(description):
+            if _keyword_pattern(keyword).search(text):
                 return category
     return None
 
@@ -1560,9 +1612,45 @@ TRAINING_DATA_FALLBACK: List[Tuple[str, str]] = [
     ("muffin", "Snacks"),
     ("cupcake", "Snacks"),
     ("croissant", "Snacks"),
-    ("evening snacks", "Snacks"),
+        ("punjabi tadka", "Food & Dining"),
+        ("takatak", "Food & Dining"),
+        ("aloo paratntha", "Food & Dining"),
+        ("2 aloo paratha", "Food & Dining"),
+        ("chole bhature plate", "Food & Dining"),
+        ("dal tadka roti", "Food & Dining"),
+        ("paneer parantha", "Food & Dining"),
+        ("gobi paratha lunch", "Food & Dining"),
+        ("taka tak food", "Food & Dining"),
+        ("punjabi thali", "Food & Dining"),
+        ("dhaba lunch", "Food & Dining"),
+        ("masala dosa", "Food & Dining"),
+        ("pav bhaji plate", "Food & Dining"),
+        ("kathi roll chicken", "Food & Dining"),
+        ("bikanervala lunch", "Food & Dining"),
+        ("evening snacks", "Snacks"),
     ("snack time", "Snacks"),
 ]
+
+
+class _PredictCache:
+    """Bounded LRU cache for classification results — safe for bulk imports."""
+
+    def __init__(self, maxsize: int = _PREDICT_CACHE_SIZE) -> None:
+        self._maxsize = maxsize
+        self._data: OrderedDict[str, str] = OrderedDict()
+
+    def get(self, key: str) -> Optional[str]:
+        if key not in self._data:
+            return None
+        self._data.move_to_end(key)
+        return self._data[key]
+
+    def set(self, key: str, value: str) -> None:
+        if key in self._data:
+            self._data.move_to_end(key)
+        self._data[key] = value
+        while len(self._data) > self._maxsize:
+            self._data.popitem(last=False)
 
 
 class TransactionClassifier:
@@ -1571,7 +1659,10 @@ class TransactionClassifier:
     def __init__(self):
         self._model = None
         self._vectorizer = None
+        self._word_vectorizer = None
         self._initialized = False
+        self._predict_cache = _PredictCache()
+        self._training_fingerprint: Optional[str] = None
         self._categories = [
             "Income", "Food & Dining", "Food Delivery", "Groceries", "Fuel", "Transportation",
             "Shopping", "Utilities", "Entertainment", "Subscriptions", "Health",
@@ -1581,6 +1672,26 @@ class TransactionClassifier:
     # ------------------------------------------------------------------ #
     # Training data assembly
     # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _load_training_data_from_json() -> List[Tuple[str, str]]:
+        """Load curated samples from backend/data/training_data.json."""
+        if not _TRAINING_JSON.exists():
+            return []
+        try:
+            payload = json.loads(_TRAINING_JSON.read_text(encoding="utf-8"))
+            rows = payload.get("samples") or []
+            out: List[Tuple[str, str]] = []
+            for row in rows:
+                desc = str(row.get("description", "")).strip().lower()
+                cat = str(row.get("category", "")).strip()
+                if desc and cat and cat != "Other":
+                    out.append((desc, cat))
+            logger.info("Loaded %d training samples from %s", len(out), _TRAINING_JSON.name)
+            return out
+        except Exception as exc:
+            logger.warning("Failed to load %s: %s", _TRAINING_JSON, exc)
+            return []
 
     def _load_training_data_from_file(self):
         """Load additional training samples from the user's Expenditure.xlsx.
@@ -1634,6 +1745,113 @@ class TransactionClassifier:
         """
         return keyword_category(desc)
 
+    def _merge_training_data(self) -> List[Tuple[str, str]]:
+        """Merge JSON corpus, embedded fallback, and optional Expenditure export."""
+        seen: set[str] = set()
+        merged: List[Tuple[str, str]] = []
+
+        def add(desc: str, cat: str) -> None:
+            key = desc.lower().strip()
+            if not key or key in seen or cat == "Other":
+                return
+            seen.add(key)
+            merged.append((key, cat))
+
+        for desc, cat in self._load_training_data_from_json():
+            add(desc, cat)
+        for desc, cat in TRAINING_DATA_FALLBACK:
+            add(desc, cat)
+        for desc, cat in self._load_training_data_from_file():
+            add(desc, cat)
+        return merged
+
+    @staticmethod
+    def _fingerprint(samples: List[Tuple[str, str]]) -> str:
+        digest = hashlib.sha256()
+        digest.update(str(len(samples)).encode())
+        for desc, cat in samples[:50]:
+            digest.update(f"{desc}|{cat}\n".encode())
+        for desc, cat in samples[-50:]:
+            digest.update(f"{desc}|{cat}\n".encode())
+        return digest.hexdigest()[:16]
+
+    def _try_load_persisted(self, fingerprint: str) -> bool:
+        if not _MODEL_PATH.exists():
+            return False
+        try:
+            import joblib
+
+            bundle = joblib.load(_MODEL_PATH)
+            if bundle.get("fingerprint") != fingerprint:
+                logger.info("Persisted classifier stale — retraining")
+                return False
+            self._model = bundle["model"]
+            self._vectorizer = bundle["char_vectorizer"]
+            self._word_vectorizer = bundle["word_vectorizer"]
+            self._training_fingerprint = fingerprint
+            self._initialized = True
+            logger.info(
+                "Loaded persisted classifier (%d samples, fingerprint %s)",
+                bundle.get("sample_count", "?"),
+                fingerprint,
+            )
+            return True
+        except Exception as exc:
+            logger.warning("Could not load persisted classifier: %s", exc)
+            return False
+
+    def _persist(self, fingerprint: str, sample_count: int) -> None:
+        try:
+            import joblib
+
+            _DATA_DIR.mkdir(parents=True, exist_ok=True)
+            joblib.dump(
+                {
+                    "fingerprint": fingerprint,
+                    "sample_count": sample_count,
+                    "model": self._model,
+                    "char_vectorizer": self._vectorizer,
+                    "word_vectorizer": self._word_vectorizer,
+                },
+                _MODEL_PATH,
+            )
+            logger.info("Persisted classifier to %s", _MODEL_PATH)
+        except Exception as exc:
+            logger.warning("Failed to persist classifier: %s", exc)
+
+    def _fit_model(self, merged: List[Tuple[str, str]]) -> bool:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.linear_model import LogisticRegression
+        from scipy.sparse import hstack
+
+        texts, labels = zip(*merged)
+        self._vectorizer = TfidfVectorizer(
+            analyzer="char_wb",
+            ngram_range=(3, 5),
+            min_df=2,
+            max_features=12_000,
+            sublinear_tf=True,
+        )
+        self._word_vectorizer = TfidfVectorizer(
+            analyzer="word",
+            ngram_range=(1, 2),
+            min_df=2,
+            max_features=12_000,
+            sublinear_tf=True,
+        )
+        X_words = self._word_vectorizer.fit_transform(texts)
+        X_chars = self._vectorizer.fit_transform(texts)
+        X = hstack([X_words, X_chars]).tocsr()
+
+        self._model = LogisticRegression(
+            max_iter=3000,
+            C=4.0,
+            class_weight="balanced",
+            solver="lbfgs",
+        )
+        self._model.fit(X, labels)
+        return True
+
     # ------------------------------------------------------------------ #
     # Init / fit
     # ------------------------------------------------------------------ #
@@ -1642,58 +1860,23 @@ class TransactionClassifier:
         if self._initialized:
             return True
         try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.linear_model import LogisticRegression
-
-            file_data = self._load_training_data_from_file()
-            # Always include the curated set; merge any file samples.
-            seen = {desc for desc, _ in TRAINING_DATA_FALLBACK}
-            merged: List[Tuple[str, str]] = list(TRAINING_DATA_FALLBACK)
-            for desc, cat in file_data:
-                if desc not in seen:
-                    merged.append((desc, cat))
-                    seen.add(desc)
-
+            merged = self._merge_training_data()
             if not merged:
                 logger.warning("No training data available — classifier disabled")
                 return False
 
-            texts, labels = zip(*merged)
-            # Word 1-2 grams + character 3-5 grams. Char n-grams catch typos
-            # and partial brand matches ("amazn" still hits "amazon").
-            self._vectorizer = TfidfVectorizer(
-                analyzer="char_wb",
-                ngram_range=(3, 5),
-                min_df=1,
-                max_features=4000,
-                sublinear_tf=True,
-            )
-            X_words = TfidfVectorizer(
-                analyzer="word",
-                ngram_range=(1, 2),
-                min_df=1,
-                max_features=4000,
-                sublinear_tf=True,
-            ).fit_transform(texts)
-            X_chars = self._vectorizer.fit_transform(texts)
-            from scipy.sparse import hstack
-            X = hstack([X_words, X_chars]).tocsr()
+            fingerprint = self._fingerprint(merged)
+            if self._try_load_persisted(fingerprint):
+                return True
 
-            # Logistic Regression beats MultinomialNB for multi-class text
-            # when class counts are imbalanced and we want calibrated
-            # probabilities.
-            self._model = LogisticRegression(
-                max_iter=2000,
-                C=4.0,
-                class_weight="balanced",
-                solver="lbfgs",
-            )
-            self._model.fit(X, labels)
-
+            self._fit_model(merged)
+            self._training_fingerprint = fingerprint
             self._initialized = True
+            self._persist(fingerprint, len(merged))
             logger.info(
-                "ML transaction classifier initialized with %d samples across %d categories",
-                len(merged), len(set(labels)),
+                "ML transaction classifier trained on %d samples across %d categories",
+                len(merged),
+                len(set(cat for _, cat in merged)),
             )
             return True
         except Exception as exc:
@@ -1706,15 +1889,9 @@ class TransactionClassifier:
 
     def _featurize(self, descriptions):
         from scipy.sparse import hstack
-        from sklearn.feature_extraction.text import TfidfVectorizer as _WordVec
-        word_vec = _WordVec(
-            analyzer="word", ngram_range=(1, 2), min_df=1, max_features=4000, sublinear_tf=True,
-        )
-        # Refit a parallel word vectorizer each call — we only need the
-        # transform, and keeping these aligned with the training config is
-        # what makes the predictions sensible.
-        word_vec.fit([d for d, _ in TRAINING_DATA_FALLBACK])
-        X_words = word_vec.transform(descriptions)
+        # Reuse the vectorizers fitted in _initialize(). Only transform here —
+        # never refit — so this stays O(rows) instead of O(rows × training set).
+        X_words = self._word_vectorizer.transform(descriptions)
         X_chars = self._vectorizer.transform(descriptions)
         return hstack([X_words, X_chars]).tocsr()
 
@@ -1735,7 +1912,8 @@ class TransactionClassifier:
             return "Other", 0.0, "unavailable"
 
         try:
-            X = self._featurize([description.lower()])
+            normalized = normalize_for_classification(description)
+            X = self._featurize([normalized])
             if X.nnz == 0:
                 return "Other", 0.0, "ml"
             proba = self._model.predict_proba(X)[0]
@@ -1766,8 +1944,119 @@ class TransactionClassifier:
             return "Other", 0.0, "error"
 
     def predict_category(self, description: str) -> str:
+        key = description.lower()
+        cached = self._predict_cache.get(key)
+        if cached is not None:
+            return cached
         category, _, _ = self.predict_category_with_confidence(description)
+        self._predict_cache.set(key, category)
         return category
+
+    def predict_many(self, descriptions: List[str]) -> Dict[str, str]:
+        """Classify many descriptions in one vectorized pass.
+
+        Returns a {description: category} map. Keyword hits and cached results
+        are resolved without touching the model; everything else is featurized
+        and scored in a single ``predict_proba`` call — dramatically faster than
+        per-row inference for bulk imports.
+        """
+        uniques = {d for d in descriptions if d}
+        result: Dict[str, str] = {}
+        pending: List[str] = []
+        for d in uniques:
+            key = d.lower()
+            cached = self._predict_cache.get(key)
+            if cached is not None:
+                result[d] = cached
+                continue
+            kw = keyword_category(d)
+            if kw:
+                result[d] = kw
+                self._predict_cache.set(key, kw)
+                continue
+            pending.append(d)
+
+        if pending and (self._initialized or self._initialize()):
+            try:
+                X = self._featurize([normalize_for_classification(d) for d in pending])
+                probas = self._model.predict_proba(X)
+                classes = self._model.classes_
+                for d, proba in zip(pending, probas):
+                    best_idx = int(proba.argmax())
+                    best_proba = float(proba[best_idx])
+                    sorted_proba = sorted(proba, reverse=True)
+                    margin = (sorted_proba[0] - sorted_proba[1]
+                              if len(sorted_proba) > 1 else sorted_proba[0])
+                    token_count = len(d.split())
+                    if token_count <= 1:
+                        threshold = 0.65
+                    elif token_count <= 3:
+                        threshold = 0.45
+                    else:
+                        threshold = 0.30
+                    label = ("Other" if (best_proba < threshold or margin < 0.10)
+                             else classes[best_idx])
+                    result[d] = label
+                    self._predict_cache.set(d.lower(), label)
+            except Exception as exc:
+                logger.error("Batch categorization failed: %s", exc)
+                for d in pending:
+                    result.setdefault(d, "Other")
+        else:
+            for d in pending:
+                result.setdefault(d, "Other")
+        return result
+
+    def predict_many_detailed(
+        self, descriptions: List[str]
+    ) -> Dict[str, Tuple[str, float, str]]:
+        """Batch classify with confidence and source metadata."""
+        uniques = {d for d in descriptions if d}
+        result: Dict[str, Tuple[str, float, str]] = {}
+        pending: List[str] = []
+        for d in uniques:
+            kw = keyword_category(d)
+            if kw:
+                result[d] = (kw, 0.95, "keyword")
+                self._predict_cache.set(d.lower(), kw)
+                continue
+            pending.append(d)
+
+        if pending and (self._initialized or self._initialize()):
+            try:
+                X = self._featurize([normalize_for_classification(d) for d in pending])
+                probas = self._model.predict_proba(X)
+                classes = self._model.classes_
+                for d, proba in zip(pending, probas):
+                    best_idx = int(proba.argmax())
+                    best_proba = float(proba[best_idx])
+                    sorted_proba = sorted(proba, reverse=True)
+                    margin = (
+                        sorted_proba[0] - sorted_proba[1]
+                        if len(sorted_proba) > 1
+                        else sorted_proba[0]
+                    )
+                    token_count = len(d.split())
+                    if token_count <= 1:
+                        threshold = 0.65
+                    elif token_count <= 3:
+                        threshold = 0.45
+                    else:
+                        threshold = 0.30
+                    if best_proba < threshold or margin < 0.10:
+                        label = "Other"
+                    else:
+                        label = classes[best_idx]
+                    result[d] = (label, best_proba, "ml")
+                    self._predict_cache.set(d.lower(), label)
+            except Exception as exc:
+                logger.error("Batch detailed categorization failed: %s", exc)
+                for d in pending:
+                    result.setdefault(d, ("Other", 0.0, "error"))
+        else:
+            for d in pending:
+                result.setdefault(d, ("Other", 0.0, "unavailable"))
+        return result
 
 
 # Global instances
@@ -1797,6 +2086,22 @@ def parse_transaction_local(text: str) -> Optional[Dict[str, Any]]:
 def classify_transaction(description: str) -> str:
     classifier = get_classifier()
     return classifier.predict_category(description)
+
+
+def classify_many(descriptions: List[str]) -> Dict[str, str]:
+    """Batch-classify descriptions → {description: category}."""
+    classifier = get_classifier()
+    return classifier.predict_many(descriptions)
+
+
+def classify_many_detailed(descriptions: List[str]) -> Dict[str, Dict[str, Any]]:
+    """Batch classify with confidence and source per description."""
+    classifier = get_classifier()
+    raw = classifier.predict_many_detailed(descriptions)
+    return {
+        desc: {"category": cat, "confidence": conf, "source": src}
+        for desc, (cat, conf, src) in raw.items()
+    }
 
 
 def classify_transaction_detailed(description: str) -> Dict[str, Any]:

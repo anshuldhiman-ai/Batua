@@ -1,89 +1,164 @@
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
+import React, { useMemo } from "react";
+import { BarChart3, RefreshCw, AlertCircle } from "lucide-react";
+import AnalyticsFilter from "@/components/analytics/AnalyticsFilter";
+import AnalyticsSummaryCards from "@/components/analytics/AnalyticsSummaryCards";
+import AnalyticsGraph from "@/components/analytics/AnalyticsGraph";
+import TrendAnalysis from "@/components/analytics/TrendAnalysis";
+import CategoryBreakdown from "@/components/analytics/CategoryBreakdown";
+import RecentTransactionsPanel from "@/components/analytics/RecentTransactionsPanel";
 import {
-  TimelineChart,
-  CategoryDonut,
-  MerchantsBar,
-  SpendingCalendar,
-  CategoryTreemap,
-} from "@/components/Charts";
-import { api } from "@/lib/utils-finance";
+  FinancialHealthCard,
+  CashFlowSummaryCard,
+  WeekdayPatternChart,
+  CategoryDonutPanel,
+  BudgetProgressPanel,
+} from "@/components/analytics/AnalyticsInsightsPanels";
+import { useAnalyticsData } from "@/hooks/useAnalyticsData";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { currentYearMonth } from "@/lib/utils-finance";
+import { cn } from "@/lib/utils";
 
 export default function Analytics() {
-  const [tab, setTab] = React.useState("trend");
-  const [timeline, setTimeline] = React.useState(null);
-  const [categories, setCategories] = React.useState(null);
-  const [merchants, setMerchants] = React.useState(null);
-  const [heatmap, setHeatmap] = React.useState(null);
-  const [treemap, setTreemap] = React.useState(null);
+  const [view, setView] = React.useState("monthly");
+  const [dateRange, setDateRange] = React.useState("last_3_months");
+  const [customDates, setCustomDates] = React.useState({ startDate: "", endDate: "" });
+  const [singleMonth, setSingleMonth] = React.useState(currentYearMonth());
+  const [monthRange, setMonthRange] = React.useState({
+    start: currentYearMonth(),
+    end: currentYearMonth(),
+  });
 
-  React.useEffect(() => {
-    api.get("/analytics/timeline").then((r) => setTimeline(r.data.series));
-    api.get("/analytics/category-breakdown").then((r) => setCategories(r.data.data));
-    api.get("/analytics/top-merchants?limit=10").then((r) => setMerchants(r.data.data));
-    api.get("/analytics/heatmap").then((r) => setHeatmap(r.data));
-    api.get("/analytics/treemap").then((r) => setTreemap(r.data.data));
-  }, []);
+  const {
+    loading,
+    error,
+    range,
+    series,
+    categories,
+    summary,
+    trends,
+    health,
+    weekdayPattern,
+    recentTransactions,
+    comparisonSeries,
+    budgetRows,
+    refetch,
+  } = useAnalyticsData({
+    view,
+    dateRange,
+    customStartDate: customDates.startDate,
+    customEndDate: customDates.endDate,
+    singleMonth,
+    rangeStartMonth: monthRange.start,
+    rangeEndMonth: monthRange.end,
+  });
+
+  const expenseSparkline = useMemo(
+    () => series.map((s) => s.expense || 0),
+    [series]
+  );
 
   return (
-    <Tabs value={tab} onValueChange={setTab}>
-      <TabsList data-testid="analytics-tabs">
-        <TabsTrigger value="trend" data-testid="tab-trend">Trend</TabsTrigger>
-        <TabsTrigger value="categories" data-testid="tab-categories">Categories</TabsTrigger>
-        <TabsTrigger value="merchants" data-testid="tab-merchants">Merchants</TabsTrigger>
-        <TabsTrigger value="heatmap" data-testid="tab-heatmap">Calendar</TabsTrigger>
-        <TabsTrigger value="treemap" data-testid="tab-treemap">Treemap</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="trend">
-        <Card>
-          <CardHeader><CardTitle>Monthly Income vs Expense</CardTitle></CardHeader>
-          <CardContent>{timeline === null ? <Skeleton className="h-[300px]" /> : <TimelineChart data={timeline} />}</CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="categories">
-        <Card>
-          <CardHeader><CardTitle>Category Breakdown</CardTitle></CardHeader>
-          <CardContent>{categories === null ? <Skeleton className="h-[340px]" /> : <CategoryDonut data={categories} />}</CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="merchants">
-        <Card>
-          <CardHeader><CardTitle>Top Merchants by Spend</CardTitle></CardHeader>
-          <CardContent>{merchants === null ? <Skeleton className="h-[300px]" /> : <MerchantsBar data={merchants} />}</CardContent>
-        </Card>
-      </TabsContent>
-
-      <TabsContent value="heatmap">
-        <Card>
-          <CardHeader>
-            <CardTitle>Spending Calendar</CardTitle>
+    <div className="page-enter space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
+            <BarChart3 className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+              Analytics
+            </h1>
             <p className="text-sm text-muted-foreground">
-              3 months at a glance — darker days = more spent. Hover a day for the amount spent and the number of transactions.
+              Deep insights into your financial patterns · {range.label}
             </p>
-          </CardHeader>
-          <CardContent>
-            {heatmap === null ? (
-              <Skeleton className="h-[200px]" />
-            ) : (
-              <SpendingCalendar days={heatmap.days} max={heatmap.max} />
-            )}
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={refetch}
+          disabled={loading}
+        >
+          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      {error && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-center gap-3 p-4 text-sm">
+            <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+            <span>{error}</span>
+            <Button variant="outline" size="sm" className="ml-auto" onClick={refetch}>
+              Retry
+            </Button>
           </CardContent>
         </Card>
-      </TabsContent>
+      )}
 
-      <TabsContent value="treemap">
-        <Card>
-          <CardHeader>
-            <CardTitle>Category → Merchant Treemap</CardTitle>
-          </CardHeader>
-          <CardContent>{treemap === null ? <Skeleton className="h-[360px]" /> : <CategoryTreemap data={treemap} />}</CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+      {/* Filters */}
+      <Card className="rounded-xl border border-border/50">
+        <CardContent className="p-4">
+          <AnalyticsFilter
+            view={view}
+            onViewChange={setView}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            customStartDate={customDates.startDate}
+            customEndDate={customDates.endDate}
+            onCustomDateChange={setCustomDates}
+            singleMonth={singleMonth}
+            onSingleMonthChange={setSingleMonth}
+            rangeStartMonth={monthRange.start}
+            rangeEndMonth={monthRange.end}
+            onMonthRangeChange={({ start, end }) =>
+              setMonthRange({ start: start || monthRange.start, end: end || monthRange.end })
+            }
+            periodLabel={range.label}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Summary KPIs */}
+      <AnalyticsSummaryCards
+        data={summary}
+        loading={loading}
+        sparklineExpense={expenseSparkline}
+      />
+
+      {/* Main chart */}
+      <AnalyticsGraph
+        data={series}
+        view={view}
+        loading={loading}
+        height={view === "daily" ? 400 : 360}
+        periodLabel={range.label}
+      />
+
+      {/* Insight panels row */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <FinancialHealthCard health={health} summary={summary} loading={loading} />
+        <CashFlowSummaryCard
+          summary={summary}
+          comparison={comparisonSeries}
+          loading={loading}
+        />
+        <BudgetProgressPanel rows={budgetRows} loading={loading} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CategoryBreakdown data={categories} loading={loading} />
+        <CategoryDonutPanel data={categories} loading={loading} />
+      </div>
+
+      <WeekdayPatternChart data={weekdayPattern} loading={loading} />
+
+      <TrendAnalysis data={trends} loading={loading} />
+
+      <RecentTransactionsPanel transactions={recentTransactions} loading={loading} />
+    </div>
   );
 }

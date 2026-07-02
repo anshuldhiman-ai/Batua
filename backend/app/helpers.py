@@ -1,4 +1,5 @@
 """Helper functions for Batua backend."""
+import hashlib
 import re
 from datetime import datetime
 from fastapi import HTTPException
@@ -58,9 +59,12 @@ def _hour_of(txn: dict) -> int:
     if cat in _CATEGORY_HOUR:
         return _CATEGORY_HOUR[cat]
 
-    # Uncategorized imports: stable pseudo-hour from description so the grid isn't one column
+    # Uncategorized imports: stable pseudo-hour from description so the grid isn't one column.
+    # Uses md5 (not built-in hash()) because hash() is randomized per process via
+    # PYTHONHASHSEED, which would shift the heatmap on every server restart.
     desc = (txn.get("description") or "x").lower()
-    return 8 + (hash(desc) % 14)
+    digest = int.from_bytes(hashlib.md5(desc.encode("utf-8")).digest()[:8], "big")
+    return 8 + (digest % 14)
 
 
 def _shift_month(ym: str, delta: int) -> str:

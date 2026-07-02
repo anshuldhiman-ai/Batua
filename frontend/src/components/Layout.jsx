@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -9,8 +9,9 @@ import {
   Settings as SettingsIcon,
   Moon,
   Sun,
-  ChevronRight,
   Brain,
+  Menu,
+  X,
 } from "lucide-react";
 
 import { ThemeContext } from "@/App";
@@ -26,105 +27,195 @@ const NAV = [
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-function BrandMark() {
-  return (
-    <div className="flex items-center gap-2.5 px-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        <Wallet className="h-5 w-5" />
-      </div>
-      <div className="leading-tight">
-        <div className="font-display text-lg font-bold tracking-tight">Batua</div>
-        <div className="text-[11px] text-muted-foreground">Personal Finance</div>
-      </div>
-    </div>
-  );
-}
-
-function NavItems({ orientation = "vertical" }) {
-  return (
-    <nav
-      className={cn(
-        orientation === "vertical"
-          ? "flex flex-col gap-1 px-3"
-          : "flex flex-row gap-1 px-3 overflow-x-auto no-scrollbar"
-      )}
-    >
-      {NAV.map(({ to, label, icon: Icon }) => (
-        <NavLink
-          key={to}
-          to={to}
-          data-testid={`nav-${label.toLowerCase()}`}
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap",
-              isActive
-                ? "bg-primary/10 text-primary border-l-2 border-primary"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground border-l-2 border-transparent"
-            )
-          }
-        >
-          <Icon className="h-[18px] w-[18px]" />
-          {label}
-        </NavLink>
-      ))}
-    </nav>
-  );
-}
-
-function DarkModeToggle() {
+function ThemeToggle({ className }) {
   const { theme, toggle } = React.useContext(ThemeContext);
   return (
     <button
       onClick={toggle}
       data-testid="dark-mode-toggle"
       aria-label="Toggle dark mode"
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+      className={cn(
+        "flex h-10 w-10 items-center justify-center rounded-xl",
+        "text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground",
+        "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className
+      )}
     >
       {theme === "dark" ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
     </button>
   );
 }
 
-export default function Layout() {
+/* ─── Desktop sidebar ─────────────────────────────────────────────── */
+function DesktopSidebar() {
   const location = useLocation();
-  const active = NAV.find((n) => location.pathname.startsWith(n.to));
-  const crumb = active ? active.label : "Dashboard";
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r border-border bg-card/40">
-        <div className="flex h-16 items-center border-b border-border">
-          <BrandMark />
-        </div>
-        <div className="flex-1 overflow-y-auto py-4">
-          <NavItems orientation="vertical" />
-        </div>
-        <div className="border-t border-border p-4 text-[11px] text-muted-foreground">
-          Currency: INR (₹) · Single user
-        </div>
-      </aside>
+    <aside
+      className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl lg:flex xl:w-56"
+      aria-label="Sidebar navigation"
+    >
+      <NavLink to="/dashboard" className="flex items-center gap-3 px-4 py-5 xl:px-5">
+        <img
+          src="/app-icon-192.png"
+          alt="Batua"
+          className="h-9 w-9 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
+        />
+        <span className="hidden font-display text-lg font-bold tracking-tight xl:inline">
+          Batua
+        </span>
+      </NavLink>
 
-      <div className="flex flex-1 flex-col md:pl-64">
-        {/* Sticky header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-6">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-display font-semibold text-muted-foreground">Batua</span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <span className="font-display font-semibold">{crumb}</span>
-          </div>
-          <DarkModeToggle />
-        </header>
+      <nav className="flex flex-1 flex-col gap-1 px-2 xl:px-3">
+        {NAV.map((tab) => {
+          const isActive = location.pathname.startsWith(tab.to);
+          const Icon = tab.icon;
+          return (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              data-testid={`nav-${tab.label.toLowerCase().replace(/\s/g, "-")}`}
+              title={tab.label}
+              className={cn(
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              )}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <Icon
+                size={20}
+                strokeWidth={isActive ? 2.2 : 1.75}
+                className="shrink-0"
+              />
+              <span className="hidden truncate xl:inline">{tab.label}</span>
+              {isActive && (
+                <span className="ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary xl:inline-block" />
+              )}
+            </NavLink>
+          );
+        })}
+      </nav>
 
-        {/* Mobile nav — horizontal scroll */}
-        <div className="md:hidden border-b border-border bg-card/40 py-2">
-          <NavItems orientation="horizontal" />
-        </div>
-
-        <main className="flex-1 p-4 md:p-6">
-          <Outlet />
-        </main>
+      <div className="border-t border-border/50 p-3">
+        <ThemeToggle className="w-full xl:w-10" />
       </div>
+    </aside>
+  );
+}
+
+/* ─── Mobile top bar + drawer ─────────────────────────────────────── */
+function MobileNav() {
+  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const activeIndex = Math.max(
+    0,
+    NAV.findIndex((item) => location.pathname.startsWith(item.to))
+  );
+
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  return (
+    <nav aria-label="Mobile navigation" className="fixed inset-x-0 top-0 z-50 lg:hidden">
+      <div
+        className={cn(
+          "flex items-center justify-between px-4 py-3",
+          "[padding-left:max(1rem,env(safe-area-inset-left))]",
+          "[padding-right:max(1rem,env(safe-area-inset-right))]",
+          "[padding-top:max(0.75rem,env(safe-area-inset-top))]",
+          "border-b border-border/40 bg-card/90 backdrop-blur-xl"
+        )}
+      >
+        <NavLink to="/dashboard" className="flex items-center gap-2.5">
+          <img src="/app-icon-192.png" alt="Batua" className="h-8 w-8 rounded-lg object-cover" />
+          <span className="font-display text-base font-bold">Batua</span>
+        </NavLink>
+        <div className="flex items-center gap-2">
+          <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label={isOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isOpen}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50"
+          >
+            {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "fixed inset-0 bg-background/60 backdrop-blur-sm transition-opacity lg:hidden",
+          isOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
+        style={{ top: "calc(57px + env(safe-area-inset-top))" }}
+        onClick={() => setIsOpen(false)}
+        aria-hidden="true"
+      />
+
+      <div
+        className={cn(
+          "fixed inset-x-0 border-b border-border/40 bg-card/95 backdrop-blur-xl transition-all lg:hidden",
+          isOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
+        )}
+        style={{ top: "calc(57px + env(safe-area-inset-top))" }}
+      >
+        <div className="space-y-0.5 px-3 py-2">
+          {NAV.map((tab, i) => {
+            const isActive = i === activeIndex;
+            const Icon = tab.icon;
+            return (
+              <NavLink
+                key={tab.to}
+                to={tab.to}
+                data-testid={`nav-mobile-${tab.label.toLowerCase().replace(/\s/g, "-")}`}
+                onClick={() => setIsOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
+                  isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/40"
+                )}
+              >
+                <Icon size={18} />
+                <span>{tab.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+export default function Layout() {
+  return (
+    <div className="min-h-screen bg-background">
+      <DesktopSidebar />
+      <MobileNav />
+
+      <main
+        className={cn(
+          "mx-auto w-full max-w-[1600px] px-4 pb-10 pt-20 lg:pl-[88px] lg:pr-6 lg:pt-8 xl:pl-60",
+          "[padding-left:max(1rem,env(safe-area-inset-left))]",
+          "[padding-right:max(1rem,env(safe-area-inset-right))]",
+          "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom))]",
+          "lg:[padding-left:calc(88px+max(0px,env(safe-area-inset-left)))]",
+          "xl:[padding-left:calc(15rem+max(0px,env(safe-area-inset-left)))]"
+        )}
+      >
+        <Outlet />
+      </main>
     </div>
   );
 }

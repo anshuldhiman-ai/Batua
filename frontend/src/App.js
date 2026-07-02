@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import Layout from "@/components/Layout";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { applyAccent, DEFAULT_ACCENT, DEFAULT_CUSTOM_COLOR } from "@/lib/themes";
 
 // Code split route components for better performance
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
@@ -15,10 +16,22 @@ const Reports = React.lazy(() => import("./pages/Reports"));
 const MLInsights = React.lazy(() => import("./pages/MLInsights"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 
-export const ThemeContext = React.createContext({ theme: "light", toggle: () => {} });
+export const ThemeContext = React.createContext({
+  theme: "light",
+  toggle: () => {},
+  accent: DEFAULT_ACCENT,
+  setAccent: () => {},
+  customColor: DEFAULT_CUSTOM_COLOR,
+  setCustomColor: () => {},
+});
 
 function useTheme() {
   const [theme, setTheme] = useLocalStorage("batua-theme", "light");
+  const [accent, setAccent] = useLocalStorage("batua-accent", DEFAULT_ACCENT);
+  const [customColor, setCustomColor] = useLocalStorage(
+    "batua-accent-custom",
+    DEFAULT_CUSTOM_COLOR
+  );
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -26,11 +39,17 @@ function useTheme() {
     else root.classList.remove("dark");
   }, [theme]);
 
+  // Re-apply accent variables whenever the accent, custom color, or mode
+  // changes so the colors stay tuned for light vs dark.
+  React.useEffect(() => {
+    applyAccent(accent, theme, customColor);
+  }, [accent, theme, customColor]);
+
   const toggle = React.useCallback(
     () => setTheme((t) => (t === "dark" ? "light" : "dark")),
     [setTheme]
   );
-  return { theme, toggle };
+  return { theme, toggle, accent, setAccent, customColor, setCustomColor };
 }
 
 export default function App() {

@@ -41,7 +41,10 @@ export default function NLInputBar({ onSaved }) {
   const [bulkDrafts, setBulkDrafts] = React.useState(null);
 
   const parseSingle = async (inputText = text) => {
-    const textToParse = inputText.trim();
+    // `inputText` may arrive as a click event (the Parse button) or undefined
+    // (Enter key). Only trust an explicit string; otherwise use `text` state.
+    const source = typeof inputText === "string" ? inputText : text;
+    const textToParse = source.trim();
     if (!textToParse) return;
     setParsing(true);
     try {
@@ -285,6 +288,7 @@ function InputRow({ value, onChange, onParse, parsing, placeholder, onFocus, onB
   const [supported, setSupported] = React.useState(true);
   const [interim, setInterim] = React.useState("");
   const recognitionRef = React.useRef(null);
+  const retryRef = React.useRef(0);
 
   React.useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -297,26 +301,14 @@ function InputRow({ value, onChange, onParse, parsing, placeholder, onFocus, onB
     };
   }, []);
 
-  const toggleRecording = () => {
-    if (!supported) {
-      toast.error(
-        "Speech recognition not supported here. Use Chrome/Edge on https:// or localhost."
-      );
-      return;
-    }
+  const MAX_VOICE_RETRIES = 2;
 
-    if (recording) {
-      recognitionRef.current?.stop?.();
-      setRecording(false);
-      setInterim("");
-      return;
-    }
-
+  const beginRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
-    // continuous + interim gives the user live feedback (and a higher
-    // hit-rate on longer sentences like "zomato 450 yesterday upi").
+    // interim results give the user live feedback (and a higher hit-rate on
+    // longer sentences like "zomato 450 yesterday upi").
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = "en-IN";
@@ -329,6 +321,7 @@ function InputRow({ value, onChange, onParse, parsing, placeholder, onFocus, onB
     };
 
     recognition.onresult = (event) => {
+      retryRef.current = 0; // audio got through — clear the retry budget
       let finalText = "";
       let interimText = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -348,16 +341,38 @@ function InputRow({ value, onChange, onParse, parsing, placeholder, onFocus, onB
 
     recognition.onerror = (e) => {
       const code = e.error || "unknown";
+      // The Web Speech API streams audio to a cloud service, so "network"
+      // errors are frequently transient. Auto-retry a couple of times before
+      // surfacing the failure to the user.
+      if (code === "network" && retryRef.current < MAX_VOICE_RETRIES) {
+        retryRef.current += 1;
+        recognitionRef.current = null;
+        toast.info(
+          `Reconnecting to speech service… (${retryRef.current}/${MAX_VOICE_RETRIES})`,
+          { duration: 1500 }
+        );
+        window.setTimeout(() => {
+          try {
+            beginRecognition();
+          } catch {
+            setRecording(false);
+            setInterim("");
+          }
+        }, 600);
+        return;
+      }
       const messages = {
         "not-allowed": "Microphone permission denied. Allow it in your browser settings.",
         "service-not-allowed": "Speech service blocked. Try Chrome/Edge on https:// or localhost.",
         "no-speech": "Didn't catch anything — try again a little louder.",
         "audio-capture": "No microphone found.",
-        "network": "Speech service unavailable (network). This is a browser limitation. Try typing instead or check your internet connection.",
+        "network":
+          "Voice input couldn't reach the speech service after retrying. The browser's mic feature needs an internet connection (Chrome/Edge stream audio to Google) — type your entry instead.",
         "aborted": "",
       };
       const msg = messages[code] || `Voice input error (${code})`;
       if (msg) toast.error(msg, { duration: 5000 });
+      retryRef.current = 0;
       setRecording(false);
       setInterim("");
     };
@@ -377,6 +392,25 @@ function InputRow({ value, onChange, onParse, parsing, placeholder, onFocus, onB
       setInterim("");
       recognitionRef.current = null;
     }
+  };
+
+  const toggleRecording = () => {
+    if (!supported) {
+      toast.error(
+        "Speech recognition not supported here. Use Chrome/Edge on https:// or localhost."
+      );
+      return;
+    }
+
+    if (recording) {
+      recognitionRef.current?.stop?.();
+      setRecording(false);
+      setInterim("");
+      return;
+    }
+
+    retryRef.current = 0;
+    beginRecognition();
   };
 
   return (
@@ -415,7 +449,7 @@ function InputRow({ value, onChange, onParse, parsing, placeholder, onFocus, onB
       </div>
       <Button
         data-testid="nl-parse-btn"
-        onClick={onParse}
+        onClick={() => onParse()}
         disabled={parsing || !value.trim()}
         size="lg"
         className="shrink-0"

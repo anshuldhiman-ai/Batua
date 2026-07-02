@@ -1,5 +1,6 @@
 """ML-powered features endpoints."""
 from fastapi import APIRouter, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
 import ml_nlp
@@ -44,12 +45,19 @@ async def recategorize_transactions(apply: bool = Query(False)):
     transactions = await storage.all("transactions")
     changes = []
 
+    descriptions = [
+        txn.get("description", "")
+        for txn in transactions
+        if txn.get("description")
+    ]
+    detailed = ml_nlp.classify_many_detailed(descriptions)
+
     for txn in transactions:
         description = txn.get("description", "")
         current = txn.get("category") or "Other"
         if not description:
             continue
-        result = ml_nlp.classify_transaction_detailed(description)
+        result = detailed.get(description, {})
         category = result.get("category")
         confidence = float(result.get("confidence") or 0)
         source = result.get("source")
@@ -202,7 +210,9 @@ async def ask_question(request: QuestionRequest):
         storage = get_storage()
         transactions = await storage.all("transactions")
         qa = ml_rag.get_qa_system()
-        return qa.answer_question(request.question, transactions)
+        # answer_question may call the local LLM (blocking HTTP) — run it off
+        # the event loop so concurrent requests stay responsive.
+        return await run_in_threadpool(qa.answer_question, request.question, transactions)
     except Exception as exc:
         raise HTTPException(500, f"Failed to answer question: {exc}") from exc
 
