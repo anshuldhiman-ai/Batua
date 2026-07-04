@@ -1,11 +1,15 @@
 import React, { useMemo } from "react";
-import { BarChart3, RefreshCw, AlertCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, Download, FileSpreadsheet } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import AnalyticsFilter from "@/components/analytics/AnalyticsFilter";
 import AnalyticsSummaryCards from "@/components/analytics/AnalyticsSummaryCards";
 import AnalyticsGraph from "@/components/analytics/AnalyticsGraph";
 import TrendAnalysis from "@/components/analytics/TrendAnalysis";
 import CategoryBreakdown from "@/components/analytics/CategoryBreakdown";
 import RecentTransactionsPanel from "@/components/analytics/RecentTransactionsPanel";
+import MonthlySummaryTable from "@/components/analytics/MonthlySummaryTable";
+import PaymentMixCard from "@/components/analytics/PaymentMixCard";
+import RecurringExpensesCard from "@/components/analytics/RecurringExpensesCard";
 import {
   FinancialHealthCard,
   CashFlowSummaryCard,
@@ -16,7 +20,7 @@ import {
 import { useAnalyticsData } from "@/hooks/useAnalyticsData";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { currentYearMonth } from "@/lib/utils-finance";
+import { apiUrl, currentYearMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 
 export default function Analytics() {
@@ -42,6 +46,7 @@ export default function Analytics() {
     recentTransactions,
     comparisonSeries,
     budgetRows,
+    timeline,
     refetch,
   } = useAnalyticsData({
     view,
@@ -60,32 +65,41 @@ export default function Analytics() {
 
   return (
     <div className="page-enter space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10">
-            <BarChart3 className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-              Analytics
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Deep insights into your financial patterns · {range.label}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          onClick={refetch}
-          disabled={loading}
-        >
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          Refresh
-        </Button>
-      </div>
+      <PageHeader
+        title="Analytics"
+        subtitle={`Deep insights into your financial patterns · ${range.label}`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={refetch}
+              disabled={loading}
+            >
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              className="gap-2"
+              onClick={() => window.open(apiUrl("/export/excel"))}
+              data-testid="report-export-excel"
+            >
+              <FileSpreadsheet className="h-4 w-4" /> Excel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => window.open(apiUrl("/export/csv"))}
+              data-testid="report-export-csv"
+            >
+              <Download className="h-4 w-4" /> CSV
+            </Button>
+          </>
+        }
+      />
 
       {error && (
         <Card className="border-destructive/40 bg-destructive/5">
@@ -100,7 +114,7 @@ export default function Analytics() {
       )}
 
       {/* Filters */}
-      <Card className="rounded-xl border border-border/50">
+      <Card>
         <CardContent className="p-4">
           <AnalyticsFilter
             view={view}
@@ -149,12 +163,24 @@ export default function Analytics() {
         <BudgetProgressPanel rows={budgetRows} loading={loading} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CategoryBreakdown data={categories} loading={loading} />
-        <CategoryDonutPanel data={categories} loading={loading} />
+      {/* Category row — donut (proportion) + compact ranked list, same 5/7
+          split as the Dashboard's breakdown section */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <CategoryDonutPanel data={categories} loading={loading} className="lg:col-span-5" />
+        <CategoryBreakdown data={categories} loading={loading} className="lg:col-span-7" />
       </div>
 
-      <WeekdayPatternChart data={weekdayPattern} loading={loading} />
+      {/* Patterns row */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <WeekdayPatternChart data={weekdayPattern} loading={loading} />
+        <PaymentMixCard />
+      </div>
+
+      {/* Reports row — absorbed from the old Reports page */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <MonthlySummaryTable series={timeline} loading={loading} periodLabel={range.label} />
+        <RecurringExpensesCard />
+      </div>
 
       <TrendAnalysis data={trends} loading={loading} />
 

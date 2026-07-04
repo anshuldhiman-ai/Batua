@@ -3,6 +3,7 @@ import { Moon, Sun, IndianRupee, AlertTriangle, Trash2, Database, Sparkles } fro
 import { toast } from "sonner";
 
 import { ThemeContext } from "@/App";
+import PageHeader from "@/components/PageHeader";
 import { ACCENTS, CUSTOM_ACCENT } from "@/lib/themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,10 +36,11 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-2xl space-y-5">
-      <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-        Settings
-      </h1>
+    <div className="page-enter max-w-2xl space-y-6">
+      <PageHeader
+        title="Settings"
+        subtitle="Appearance, preferences and data management"
+      />
 
       <Card>
         <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>

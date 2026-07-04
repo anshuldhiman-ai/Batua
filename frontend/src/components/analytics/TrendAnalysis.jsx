@@ -1,19 +1,29 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { formatINR } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 
+const TONE_CLASS = {
+  emerald: "text-emerald-600 dark:text-emerald-400",
+  rose: "text-rose-500",
+  primary: "text-foreground",
+  amber: "text-amber-500",
+};
+
+const TONE_BG_CLASS = {
+  emerald: "bg-emerald-500/10 text-emerald-500",
+  rose: "bg-rose-500/10 text-rose-500",
+  primary: "bg-primary/10 text-primary",
+  amber: "bg-amber-500/10 text-amber-500",
+};
+
 /**
- * Trend analysis component displaying financial insights
- * Fully theme-compatible using CSS custom properties
+ * Category- and transaction-level extremes for the selected period.
+ * Period averages live in AnalyticsSummaryCards — not repeated here.
  */
-export default function TrendAnalysis({
-  data,
-  loading = false,
-  className,
-}) {
+export default function TrendAnalysis({ data, loading = false, className }) {
   const insights = [
     {
       label: "Highest Spending Category",
@@ -44,27 +54,6 @@ export default function TrendAnalysis({
       tone: "primary",
     },
     {
-      label: "Average Daily Expense",
-      value: data?.avgDailyExpense ? formatINR(data.avgDailyExpense) : "N/A",
-      subvalue: "per day",
-      icon: Calendar,
-      tone: "sky",
-    },
-    {
-      label: "Average Weekly Expense",
-      value: data?.avgWeeklyExpense ? formatINR(data.avgWeeklyExpense) : "N/A",
-      subvalue: "per week",
-      icon: Calendar,
-      tone: "violet",
-    },
-    {
-      label: "Average Monthly Expense",
-      value: data?.avgMonthlyExpense ? formatINR(data.avgMonthlyExpense) : "N/A",
-      subvalue: "per month",
-      icon: Calendar,
-      tone: "primary",
-    },
-    {
       label: "Largest Transaction",
       value: data?.largestTransaction?.amount ? formatINR(data.largestTransaction.amount) : "N/A",
       subvalue: data?.largestTransaction?.category || null,
@@ -80,33 +69,15 @@ export default function TrendAnalysis({
     },
   ];
 
-  const TONE_CLASS = {
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    rose: "text-rose-500",
-    primary: "text-foreground",
-    sky: "text-sky-500",
-    violet: "text-violet-500",
-    amber: "text-amber-500",
-  };
-
-  const TONE_BG_CLASS = {
-    emerald: "bg-emerald-500/10 text-emerald-500",
-    rose: "bg-rose-500/10 text-rose-500",
-    primary: "bg-primary/10 text-primary",
-    sky: "bg-sky-500/10 text-sky-500",
-    violet: "bg-violet-500/10 text-violet-500",
-    amber: "bg-amber-500/10 text-amber-500",
-  };
-
   if (loading) {
     return (
-      <Card className={cn("rounded-xl border border-border/50", className)}>
-        <CardHeader className="p-4 pb-2">
+      <Card className={cn(className)}>
+        <CardHeader>
           <Skeleton className="h-6 w-40" />
         </CardHeader>
-        <CardContent className="p-4 pt-0">
+        <CardContent>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 9 }).map((_, i) => (
+            {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-[60px] rounded-lg" />
             ))}
           </div>
@@ -116,14 +87,14 @@ export default function TrendAnalysis({
   }
 
   return (
-    <Card className={cn("rounded-xl border border-border/50", className)}>
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Card className={cn(className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
           Trend Analysis
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {insights.map((insight, index) => {
             const Icon = insight.icon;

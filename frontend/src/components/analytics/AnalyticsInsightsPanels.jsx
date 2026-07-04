@@ -7,44 +7,30 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HeartPulse, Wallet, TrendingUp } from "lucide-react";
-import { formatINR, categoryColor } from "@/lib/utils-finance";
+import { HeartPulse, Wallet, TrendingUp, PieChart } from "lucide-react";
+import { CategoryDonut, ChartTooltip, CHART_AXIS, CHART_GRID } from "@/components/Charts";
+import { formatINR } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 
 const PRIMARY = "hsl(var(--primary))";
 const DESTRUCTIVE = "hsl(var(--destructive))";
-const MUTED = "hsl(var(--muted-foreground))";
-const GRID = "hsl(var(--border))";
-
-function MiniTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-lg">
-      <p className="font-semibold">{label}</p>
-      <p className="tabular-nums">{formatINR(payload[0].value)}</p>
-    </div>
-  );
-}
 
 export function FinancialHealthCard({ health, summary, loading }) {
   if (loading) return <Skeleton className="h-full min-h-[220px] rounded-xl" />;
   return (
-    <Card className="rounded-xl border border-border/50 h-full">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
           <HeartPulse className="h-4 w-4 text-primary" />
           Financial Health
         </CardTitle>
-        <CardDescription className="text-xs">Based on savings & budgets</CardDescription>
+        <CardDescription>Based on savings & budgets</CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-4">
+      <CardContent className="space-y-4">
         <div className="flex items-end gap-3">
           <span className="kpi-number text-4xl font-bold text-primary">{health?.score ?? 0}</span>
           <div>
@@ -71,14 +57,14 @@ export function FinancialHealthCard({ health, summary, loading }) {
 export function CashFlowSummaryCard({ summary, comparison, loading }) {
   if (loading) return <Skeleton className="h-full min-h-[220px] rounded-xl" />;
   return (
-    <Card className="rounded-xl border border-border/50 h-full">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
           <Wallet className="h-4 w-4 text-primary" />
           Cash Flow Summary
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-3">
+      <CardContent className="space-y-3">
         {[
           { label: "Income", value: summary?.totalIncome, color: PRIMARY },
           { label: "Expense", value: summary?.totalExpense, color: DESTRUCTIVE },
@@ -106,21 +92,21 @@ export function CashFlowSummaryCard({ summary, comparison, loading }) {
 export function WeekdayPatternChart({ data, loading }) {
   if (loading) return <Skeleton className="h-[260px] rounded-xl" />;
   return (
-    <Card className="rounded-xl border border-border/50">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
           Weekly Spending Pattern
         </CardTitle>
-        <CardDescription className="text-xs">Expense by day of week</CardDescription>
+        <CardDescription>Expense by day of week</CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data || []} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
-            <XAxis dataKey="day" stroke={MUTED} fontSize={10} tickLine={false} tickFormatter={(d) => d.slice(0, 3)} />
-            <YAxis stroke={MUTED} fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} />
-            <Tooltip content={<MiniTooltip />} />
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+            <XAxis dataKey="day" stroke={CHART_AXIS} fontSize={11} tickLine={false} tickFormatter={(d) => d.slice(0, 3)} />
+            <YAxis stroke={CHART_AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--accent))" }} />
             <Bar dataKey="amount" name="Expense" fill={PRIMARY} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -129,55 +115,20 @@ export function WeekdayPatternChart({ data, loading }) {
   );
 }
 
-export function CategoryDonutPanel({ data, loading }) {
-  if (loading) return <Skeleton className="h-[320px] rounded-xl" />;
-  const total = (data || []).reduce((s, c) => s + c.amount, 0);
-  const top = (data || []).slice(0, 6);
+/** Category donut — same shared CategoryDonut component as the Dashboard. */
+export function CategoryDonutPanel({ data, loading, className }) {
+  if (loading) return <Skeleton className={cn("h-[320px] rounded-xl", className)} />;
   return (
-    <Card className="rounded-xl border border-border/50">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base">Top Categories</CardTitle>
-        <CardDescription className="text-xs">{formatINR(total)} total spend</CardDescription>
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <PieChart className="h-4 w-4 text-primary" />
+          By Category
+        </CardTitle>
+        <CardDescription>Hover a slice for details</CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
-        {top.length === 0 ? (
-          <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
-            No category data
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={top}
-                  dataKey="amount"
-                  nameKey="category"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                >
-                  {top.map((entry) => (
-                    <Cell key={entry.category} fill={categoryColor(entry.category)} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => formatINR(v)} />
-              </PieChart>
-            </ResponsiveContainer>
-            <ul className="space-y-2 text-sm">
-              {top.map((c) => (
-                <li key={c.category} className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 truncate">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: categoryColor(c.category) }} />
-                    {c.category}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {total > 0 ? ((c.amount / total) * 100).toFixed(1) : 0}%
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      <CardContent>
+        <CategoryDonut data={data || []} height={260} />
       </CardContent>
     </Card>
   );
@@ -187,11 +138,11 @@ export function BudgetProgressPanel({ rows, loading }) {
   if (loading) return <Skeleton className="h-[280px] rounded-xl" />;
   const top = (rows || []).slice(0, 5);
   return (
-    <Card className="rounded-xl border border-border/50">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-base">Budget Progress</CardTitle>
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle>Budget Progress</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-0">
+      <CardContent className="space-y-3">
         {top.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">No budgets configured</p>
         ) : (
@@ -205,7 +156,8 @@ export function BudgetProgressPanel({ rows, loading }) {
               </div>
               <Progress
                 value={Math.min(row.pct || 0, 100)}
-                className={cn("h-2", row.status === "over" && "[&>div]:bg-destructive")}
+                className="h-2"
+                indicatorClassName={cn(row.status === "over" && "bg-destructive")}
               />
             </div>
           ))

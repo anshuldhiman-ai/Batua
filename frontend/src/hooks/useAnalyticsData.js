@@ -89,6 +89,19 @@ export function useAnalyticsData({
     [transactions, view, range.startDate, range.endDate]
   );
 
+  // Month-granular rows built from the SAME day-filtered transactions as the
+  // KPI cards — so partial-month presets ("Last 30 days") show partial-month
+  // sums that agree with the rest of the page, and zero-activity months
+  // still get a row. (The raw /analytics/timeline series is whole-calendar-
+  // month buckets and would silently disagree for mid-month ranges.)
+  const monthlySeries = useMemo(
+    () =>
+      view === "monthly"
+        ? series
+        : aggregateSeries(transactions, "monthly", range.startDate, range.endDate),
+    [view, series, transactions, range.startDate, range.endDate]
+  );
+
   const categories = useMemo(() => computeCategoryBreakdown(transactions), [transactions]);
 
   const summary = useMemo(
@@ -137,6 +150,7 @@ export function useAnalyticsData({
     error,
     range,
     series,
+    monthlySeries,
     categories,
     summary,
     trends,

@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 export default function RecentTransactionsPanel({ transactions, loading }) {
   if (loading) {
     return (
-      <Card className="rounded-xl border border-border/50">
-        <CardHeader className="p-4 pb-2">
+      <Card>
+        <CardHeader>
           <Skeleton className="h-6 w-40" />
         </CardHeader>
-        <CardContent className="space-y-2 p-4 pt-0">
+        <CardContent className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-12 rounded-lg" />
           ))}
@@ -24,8 +24,8 @@ export default function RecentTransactionsPanel({ transactions, loading }) {
   }
 
   return (
-    <Card className="rounded-xl border border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
           <ReceiptText className="h-4 w-4 text-primary" />
           Recent Transactions
@@ -37,7 +37,7 @@ export default function RecentTransactionsPanel({ transactions, loading }) {
           View all <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent>
         {!transactions?.length ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             No transactions in this period

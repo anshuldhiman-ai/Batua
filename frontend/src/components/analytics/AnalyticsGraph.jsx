@@ -89,12 +89,12 @@ export default function AnalyticsGraph({
 
   if (loading) {
     return (
-      <Card className={cn("rounded-xl border border-border/50", className)}>
-        <CardHeader className="p-5 pb-2">
+      <Card className={cn(className)}>
+        <CardHeader>
           <Skeleton className="h-6 w-48" />
           <Skeleton className="mt-2 h-4 w-64" />
         </CardHeader>
-        <CardContent className="p-5 pt-0">
+        <CardContent>
           <Skeleton className="rounded-xl" style={{ height }} />
         </CardContent>
       </Card>
@@ -103,11 +103,11 @@ export default function AnalyticsGraph({
 
   if (!chartData.length) {
     return (
-      <Card className={cn("rounded-xl border border-border/50", className)}>
-        <CardHeader className="p-5 pb-2">
-          <CardTitle className="text-lg">{VIEW_TITLES[view]}</CardTitle>
+      <Card className={cn(className)}>
+        <CardHeader>
+          <CardTitle>{VIEW_TITLES[view]}</CardTitle>
         </CardHeader>
-        <CardContent className="p-5 pt-0">
+        <CardContent>
           <div
             className="flex items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground"
             style={{ height }}
@@ -120,14 +120,14 @@ export default function AnalyticsGraph({
   }
 
   return (
-    <Card className={cn("rounded-xl border border-border/50 overflow-hidden", className)}>
-      <CardHeader className="p-5 pb-2">
-        <CardTitle className="text-lg font-display">{VIEW_TITLES[view]}</CardTitle>
+    <Card className={cn("overflow-hidden", className)}>
+      <CardHeader>
+        <CardTitle>{VIEW_TITLES[view]}</CardTitle>
         {periodLabel && (
-          <CardDescription className="text-xs">{periodLabel}</CardDescription>
+          <CardDescription>{periodLabel}</CardDescription>
         )}
       </CardHeader>
-      <CardContent className="p-5 pt-0">
+      <CardContent>
         <ResponsiveContainer width="100%" height={height}>
           <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
             <defs>

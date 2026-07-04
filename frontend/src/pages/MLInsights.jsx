@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
   Brain,
   Calendar,
-  Sparkles,
   Lightbulb,
   HelpCircle,
   Send,
@@ -11,13 +11,11 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
-  ArrowRight,
   ChevronRight,
   Info,
   Coins,
   Activity,
-  Check,
-  MessageSquare
+  MessageSquare,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -25,47 +23,26 @@ import {
   Bar,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   AreaChart,
   Area,
-  LineChart,
-  Line,
-  Legend,
-  Cell
+  Cell,
 } from "recharts";
 import { toast } from "sonner";
 
+import PageHeader from "@/components/PageHeader";
+import AnalyticsStatCard from "@/components/analytics/AnalyticsStatCard";
+import { ChartTooltip, CHART_AXIS, CHART_GRID } from "@/components/Charts";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { api, formatINR, formatMonth, categoryColor } from "@/lib/utils-finance";
+import { api, formatINR, formatMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
-
-// Custom Tooltip component for Recharts
-function ChartTooltip({ active, payload, label, labelFormatter }) {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="rounded-lg border border-border bg-card/90 backdrop-blur-sm p-3 text-xs shadow-lg">
-      <div className="mb-1 font-semibold">
-        {labelFormatter ? labelFormatter(label) : label}
-      </div>
-      {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-2 my-0.5">
-          <span
-            className="inline-block h-2 w-2 rounded-full"
-            style={{ background: p.color || p.payload?.fill || "#3b82f6" }}
-          />
-          <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-medium tabular-nums">{formatINR(p.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function EmptyState({ icon: Icon = Info, title, description }) {
   return (
@@ -94,15 +71,21 @@ function hasMeaningfulData(value) {
   return Boolean(value && !value.empty && Object.keys(value).length > 0);
 }
 
+const CLUSTER_TIERS = [
+  { label: "High spending volume", classes: "border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-400" },
+  { label: "Moderate spending volume", classes: "border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400" },
+  { label: "Low spending volume", classes: "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" },
+];
+
 export default function MLInsights() {
   const [activeTab, setActiveTab] = useState("patterns");
-  
+
   // Data States
   const [patterns, setPatterns] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [recs, setRecs] = useState(null);
   const [qaSuggestions, setQaSuggestions] = useState([]);
-  
+
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -170,7 +153,7 @@ export default function MLInsights() {
 
   useEffect(() => {
     loadData();
-    
+
     // Check speech support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -276,9 +259,9 @@ export default function MLInsights() {
 
     try {
       const { data } = await api.post("/ml/qa", { question: textToSubmit });
-      const systemMsg = { 
-        role: "system", 
-        content: data.answer || "No response received", 
+      const systemMsg = {
+        role: "system",
+        content: data.answer || "No response received",
         type: data.type,
         details: data
       };
@@ -301,7 +284,7 @@ export default function MLInsights() {
           <Skeleton className="mt-2 h-4 w-96" />
         </div>
         <Skeleton className="h-10 w-full max-w-md" />
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
@@ -313,10 +296,10 @@ export default function MLInsights() {
 
   if (error) {
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center text-center p-6 border rounded-xl bg-card/40 backdrop-blur-sm space-y-4">
-        <AlertCircle className="h-12 w-12 text-destructive animate-bounce" />
+      <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4 rounded-xl border bg-card p-6 text-center">
+        <AlertCircle className="h-12 w-12 text-destructive" />
         <h2 className="text-xl font-bold">Analysis Offline</h2>
-        <p className="text-sm text-muted-foreground max-w-md">{error}</p>
+        <p className="max-w-md text-sm text-muted-foreground">{error}</p>
         <Button onClick={loadData} className="px-5">
           Retry Connection
         </Button>
@@ -335,24 +318,16 @@ export default function MLInsights() {
     ? Math.round(((weekday_patterns?.weekend_vs_weekday?.weekend || 0) / weekendTotal) * 100)
     : 0;
 
+  const trendLabel = monthly_patterns?.trend
+    ? monthly_patterns.trend.charAt(0).toUpperCase() + monthly_patterns.trend.slice(1)
+    : "Stable";
+
   return (
-    <div className="space-y-6">
-      {/* Header section with gradient */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-blue-500/10 via-purple-500/5 to-transparent p-6 sm:p-8">
-        <div className="absolute right-6 top-6 text-primary/10">
-          <Brain className="h-24 w-24" />
-        </div>
-        <div className="relative z-10 space-y-2">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            <Sparkles className="h-3.5 w-3.5" />
-            AI-Powered Personal Finance
-          </div>
-          <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">AI Insights &amp; Forecasting</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-            Get automated pattern analytics, cash flow forecasting, saving tips, and immediate conversational answers about your transactions.
-          </p>
-        </div>
-      </div>
+    <div className="page-enter space-y-6">
+      <PageHeader
+        title="AI Insights"
+        subtitle="Pattern analytics, cash-flow forecasting, saving tips and conversational answers about your money"
+      />
 
       {/* Tabs list */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -387,194 +362,166 @@ export default function MLInsights() {
             />
           ) : (
             <>
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card className="bg-card/40 backdrop-blur-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Monthly Avg Spend</span>
-                  <Coins className="h-4 w-4 text-blue-500" />
-                </div>
-                <div className="mt-2 text-2xl font-bold">{formatINR(monthly_patterns?.avg_monthly_spending)}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Based on historical activity</p>
-              </CardContent>
-            </Card>
+              {/* Quick metrics — same stat cards as Analytics */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <AnalyticsStatCard
+                  title="Monthly Avg Spend"
+                  value={formatINR(monthly_patterns?.avg_monthly_spending || 0, { compact: true })}
+                  subtitle="Based on historical activity"
+                  tone="sky"
+                  icon={Coins}
+                />
+                <AnalyticsStatCard
+                  title="Spending Trend"
+                  value={trendLabel}
+                  subtitle="Overall trajectory of spending"
+                  tone={monthly_patterns?.trend === "increasing" ? "rose" : "emerald"}
+                  icon={Activity}
+                />
+                <AnalyticsStatCard
+                  title="Peak Spend Month"
+                  value={seasonal_patterns?.peak_spending_month || "N/A"}
+                  subtitle={
+                    seasonal_patterns?.peak_spending_amount != null
+                      ? `${formatINR(seasonal_patterns.peak_spending_amount, { compact: true })} spent in total`
+                      : "Month with your highest total spend"
+                  }
+                  tone="rose"
+                  icon={TrendingUp}
+                />
+                <AnalyticsStatCard
+                  title="Lowest Spend Month"
+                  value={seasonal_patterns?.lowest_spending_month || "N/A"}
+                  subtitle={
+                    seasonal_patterns?.lowest_spending_amount != null
+                      ? `${formatINR(seasonal_patterns.lowest_spending_amount, { compact: true })} spent in total`
+                      : "Month with your lowest total spend"
+                  }
+                  tone="emerald"
+                  icon={TrendingDown}
+                />
+              </div>
 
-            <Card className="bg-card/40 backdrop-blur-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Spending Trend</span>
-                  <Activity className="h-4 w-4 text-purple-500" />
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="text-2xl font-bold capitalize">{monthly_patterns?.trend || "Stable"}</div>
-                  <Badge variant={monthly_patterns?.trend === "increasing" ? "destructive" : "success"}>
-                    {monthly_patterns?.trend === "increasing" ? <TrendingUp className="h-3.5 w-3.5 mr-0.5" /> : <TrendingDown className="h-3.5 w-3.5 mr-0.5" />}
-                    {monthly_patterns?.trend === "increasing" ? "Up" : "Down"}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Overall trajectory of spending</p>
-              </CardContent>
-            </Card>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {/* Monthly Trend Chart */}
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle>Monthly Spending Trends</CardTitle>
+                    <CardDescription>Visual breakdown of monthly totals and period growth rate</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {monthly_patterns?.monthly_spending?.length ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={monthly_patterns.monthly_spending} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                          <XAxis dataKey="month_str" stroke={CHART_AXIS} fontSize={11} tickLine={false} tickFormatter={formatMonth} />
+                          <YAxis stroke={CHART_AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} />
+                          <Tooltip content={<ChartTooltip labelFormatter={formatMonth} />} cursor={{ fill: "hsl(var(--accent))" }} />
+                          <Bar dataKey="sum" name="Total Spent" radius={[4, 4, 0, 0]}>
+                            {monthly_patterns.monthly_spending.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={index === monthly_patterns.monthly_spending.length - 1 ? "hsl(var(--primary))" : "hsl(var(--primary)/0.65)"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No historical monthly data found.</div>
+                    )}
+                  </CardContent>
+                </Card>
 
-            <Card className="bg-card/40 backdrop-blur-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Peak Spend Month</span>
-                  <TrendingUp className="h-4 w-4 text-rose-500" />
-                </div>
-                <div className="mt-2 text-2xl font-bold">{seasonal_patterns?.peak_spending_month || "N/A"}</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {seasonal_patterns?.peak_spending_amount != null
-                    ? `${formatINR(seasonal_patterns.peak_spending_amount, { compact: true })} spent in total`
-                    : "Month with your highest total spend"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/40 backdrop-blur-sm">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lowest Spend Month</span>
-                  <TrendingDown className="h-4 w-4 text-emerald-500" />
-                </div>
-                <div className="mt-2 text-2xl font-bold">{seasonal_patterns?.lowest_spending_month || "N/A"}</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {seasonal_patterns?.lowest_spending_amount != null
-                    ? `${formatINR(seasonal_patterns.lowest_spending_amount, { compact: true })} spent in total`
-                    : "Month with your lowest total spend"}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Monthly Trend Chart */}
-            <Card className="lg:col-span-2 bg-card/40 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Monthly Spending Trends</CardTitle>
-                <CardDescription>Visual breakdown of monthly totals and period growth rate</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {monthly_patterns?.monthly_spending?.length ? (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={monthly_patterns.monthly_spending} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <XAxis dataKey="month_str" tickLine={false} tickFormatter={formatMonth} className="text-[10px] text-muted-foreground" />
-                        <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} className="text-[10px] text-muted-foreground" />
-                        <Tooltip content={<ChartTooltip labelFormatter={formatMonth} />} />
-                        <Bar dataKey="sum" name="Total Spent" radius={[4, 4, 0, 0]}>
-                          {monthly_patterns.monthly_spending.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={index === monthly_patterns.monthly_spending.length - 1 ? "hsl(var(--primary))" : "hsl(var(--primary)/0.65)"} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No historical monthly data found.</div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Weekend vs Weekday + High Day */}
-            <Card className="bg-card/40 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Weekly Distribution</CardTitle>
-                <CardDescription>How spending is distributed over the week</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="font-medium">Weekend vs. Weekday</span>
-                    <span className="text-xs text-muted-foreground">
-                      {weekday_patterns?.weekend_vs_weekday ? (
-                        `${weekendPercent}% Weekend`
-                      ) : "N/A"}
-                    </span>
-                  </div>
-                  {weekday_patterns?.weekend_vs_weekday && (
-                    <div className="space-y-2">
-                      <Progress 
-                        value={weekendPercent} 
-                        className="h-2"
-                      />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Weekday: {formatINR(weekday_patterns.weekend_vs_weekday.weekday)}</span>
-                        <span>Weekend: {formatINR(weekday_patterns.weekend_vs_weekday.weekend)}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t pt-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Highest Spending Day</span>
-                    <span className="font-bold text-foreground">{weekday_patterns?.highest_spending_day || "N/A"}</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Lowest Spending Day</span>
-                    <span className="font-semibold text-foreground">{weekday_patterns?.lowest_spending_day || "N/A"}</span>
-                  </div>
-                </div>
-
-                {category_trends?.top_growing_category && (
-                  <div className="border-t pt-4 space-y-2">
-                    <div className="text-sm font-semibold">Category Trajectory</div>
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="text-muted-foreground">Fastest Growing</span>
-                      <span className="font-semibold text-red-500 flex items-center gap-1">
-                        <TrendingUp className="h-3 w-3" /> {category_trends.top_growing_category}
-                      </span>
-                    </div>
-                    {category_trends?.fastest_declining_category && (
-                      <div className="flex items-center justify-between text-xs sm:text-sm">
-                        <span className="text-muted-foreground">Fastest Declining</span>
-                        <span className="font-semibold text-emerald-500 flex items-center gap-1">
-                          <TrendingDown className="h-3 w-3" /> {category_trends.fastest_declining_category}
+                {/* Weekend vs Weekday + High Day */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Weekly Distribution</CardTitle>
+                    <CardDescription>How spending is distributed over the week</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="font-medium">Weekend vs. Weekday</span>
+                        <span className="text-xs text-muted-foreground">
+                          {weekday_patterns?.weekend_vs_weekday ? `${weekendPercent}% Weekend` : "N/A"}
                         </span>
                       </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                      {weekday_patterns?.weekend_vs_weekday && (
+                        <div className="space-y-2">
+                          <Progress value={weekendPercent} className="h-2" />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Weekday: {formatINR(weekday_patterns.weekend_vs_weekday.weekday)}</span>
+                            <span>Weekend: {formatINR(weekday_patterns.weekend_vs_weekday.weekend)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-          {/* Category clusters mapping */}
-          <Card className="bg-card/40 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Category Volume Clusters</CardTitle>
-              <CardDescription>AI grouped spending tiers based on typical monthly category volume</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {spending_clusters?.clusters?.length ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {spending_clusters.clusters.map((c, i) => {
-                    const label = i === 0 ? "Tier 1: High Spending Volume" : i === 1 ? "Tier 2: Moderate Spending Volume" : "Tier 3: Low Spending Volume";
-                    const border = i === 0 ? "border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-400" : i === 1 ? "border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400" : "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400";
-                    return (
-                      <div key={i} className={cn("p-4 border rounded-xl space-y-2", border)}>
-                        <h4 className="text-sm font-semibold">{label}</h4>
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {c.categories.map((cat) => (
-                            <Badge key={cat} variant="secondary" className="bg-background/80 hover:bg-background/100">
-                              {cat}
-                            </Badge>
-                          ))}
-                        </div>
-                        <div className="pt-2 text-xs text-muted-foreground border-t border-current/10">
-                          Total Spending in Tier: <strong>{formatINR(c.total_spending)}</strong>
-                        </div>
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Highest Spending Day</span>
+                        <span className="font-bold text-foreground">{weekday_patterns?.highest_spending_day || "N/A"}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground text-center py-6">Not enough category diversity to generate cluster groups.</div>
-              )}
-            </CardContent>
-          </Card>
+                      <div className="mt-2 flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Lowest Spending Day</span>
+                        <span className="font-semibold text-foreground">{weekday_patterns?.lowest_spending_day || "N/A"}</span>
+                      </div>
+                    </div>
+
+                    {category_trends?.top_growing_category && (
+                      <div className="space-y-2 border-t pt-4">
+                        <div className="text-sm font-semibold">Category Trajectory</div>
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
+                          <span className="text-muted-foreground">Fastest Growing</span>
+                          <span className="flex items-center gap-1 font-semibold text-rose-500">
+                            <TrendingUp className="h-3 w-3" /> {category_trends.top_growing_category}
+                          </span>
+                        </div>
+                        {category_trends?.fastest_declining_category && (
+                          <div className="flex items-center justify-between text-xs sm:text-sm">
+                            <span className="text-muted-foreground">Fastest Declining</span>
+                            <span className="flex items-center gap-1 font-semibold text-emerald-500">
+                              <TrendingDown className="h-3 w-3" /> {category_trends.fastest_declining_category}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Category clusters mapping */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Category Volume Clusters</CardTitle>
+                  <CardDescription>AI grouped spending tiers based on typical monthly category volume</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {spending_clusters?.clusters?.length ? (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      {spending_clusters.clusters.map((c, i) => {
+                        const tier = CLUSTER_TIERS[i] || CLUSTER_TIERS[CLUSTER_TIERS.length - 1];
+                        return (
+                          <div key={i} className={cn("space-y-2 rounded-xl border p-4", tier.classes)}>
+                            <h4 className="text-sm font-semibold">{tier.label}</h4>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {c.categories.map((cat) => (
+                                <Badge key={cat} variant="secondary" className="bg-background/80">
+                                  {cat}
+                                </Badge>
+                              ))}
+                            </div>
+                            <div className="border-t border-current/10 pt-2 text-xs text-muted-foreground">
+                              Total Spending in Tier: <strong>{formatINR(c.total_spending)}</strong>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-sm text-muted-foreground">Not enough category diversity to generate cluster groups.</div>
+                  )}
+                </CardContent>
+              </Card>
             </>
           )}
         </TabsContent>
@@ -590,101 +537,86 @@ export default function MLInsights() {
               description={forecast?.message || "Add at least a few dated transactions to generate next-month and three-month cash-flow projections."}
             />
           ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Forecast details list */}
-            <Card className="bg-card/40 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold font-display">Forecast Summary</CardTitle>
-                <CardDescription>Future projection estimates and confidence bounds</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="p-4 border rounded-xl space-y-3 bg-background/50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Confidence Level</span>
-                    <Badge variant={forecast?.confidence === "high" ? "success" : forecast?.confidence === "medium" ? "warning" : "default"}>
-                      {forecast?.confidence || "Medium"}
-                    </Badge>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              {/* Forecast details list */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Forecast Summary</CardTitle>
+                  <CardDescription>Future projection estimates and confidence bounds</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Confidence Level</span>
+                      <Badge variant={forecast?.confidence === "high" ? "success" : forecast?.confidence === "medium" ? "warning" : "default"} className="capitalize">
+                        {forecast?.confidence || "Medium"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Methodology</span>
+                      <span className="text-sm capitalize text-foreground">{forecast?.method?.replace("_", " ") || "Moving Average"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">3-Month Total</span>
+                      <span className="text-sm font-semibold tabular-nums">{formatINR(forecast?.three_month_total || 0)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Methodology</span>
-                    <span className="text-sm font-mono text-foreground capitalize">{forecast?.method?.replace("_", " ") || "Moving Average"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">3-Month Total</span>
-                    <span className="text-sm font-semibold tabular-nums">{formatINR(forecast?.three_month_total || 0)}</span>
-                  </div>
-                </div>
 
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold">Expected Cash Flow</h4>
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold">Expected Cash Flow</h4>
+                    {forecast?.forecast?.length ? (
+                      <div className="space-y-2">
+                        {forecast.forecast.map((f, i) => (
+                          <div key={i} className="flex items-center justify-between rounded-lg border bg-muted/20 p-3">
+                            <span className="text-sm font-medium">{formatMonth(f.month)}</span>
+                            <span className="text-sm font-bold tabular-nums">{formatINR(f.predicted_cashflow)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No forecast intervals generated.</div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Forecast Visual Chart — same area style as the rest of the app */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle>3-Month Forecast Projection</CardTitle>
+                  <CardDescription>Estimated future net flow calculated from historical trend lines</CardDescription>
+                </CardHeader>
+                <CardContent>
                   {forecast?.forecast?.length ? (
-                    <div className="space-y-3">
-                      {forecast.forecast.map((f, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 border rounded-lg bg-background/25">
-                          <span className="font-medium text-sm">{formatMonth(f.month)}</span>
-                          <span className="font-bold text-sm tabular-nums">{formatINR(f.predicted_cashflow)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">No forecast intervals generated.</div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Forecast Visual Chart */}
-            <Card className="lg:col-span-2 bg-card/40 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">3-Month Forecast Projection</CardTitle>
-                <CardDescription>Estimated future net flow calculated from historical trend lines</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {forecast?.forecast?.length ? (
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={forecast.forecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <XAxis dataKey="month" tickLine={false} tickFormatter={formatMonth} className="text-[10px] text-muted-foreground" />
-                        <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} className="text-[10px] text-muted-foreground" />
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={forecast.forecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gForecast" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                        <XAxis dataKey="month" stroke={CHART_AXIS} fontSize={11} tickLine={false} tickFormatter={formatMonth} />
+                        <YAxis stroke={CHART_AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} />
                         <Tooltip content={<ChartTooltip labelFormatter={formatMonth} />} />
-                        <Line type="monotone" dataKey="predicted_cashflow" name="Projected Cash Flow" stroke="hsl(var(--primary))" strokeWidth={3} activeDot={{ r: 8 }} />
-                        <Area type="monotone" dataKey="predicted_cashflow" stroke="none" fill="hsl(var(--primary))" fillOpacity={0.1} />
-                      </LineChart>
+                        <Area
+                          type="monotone"
+                          dataKey="predicted_cashflow"
+                          name="Projected Cash Flow"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          fill="url(#gForecast)"
+                          activeDot={{ r: 6 }}
+                        />
+                      </AreaChart>
                     </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">Forecast visual not available.</div>
-                )}
-                {forecast?.forecast?.length && (
-                  <div className="mt-4 p-3 bg-background/50 rounded-lg border">
-                    <div className="text-xs text-muted-foreground mb-2">Forecast Summary</div>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <div className="text-muted-foreground text-xs">Next Month</div>
-                        <div className="font-semibold">{formatINR(forecast.forecast[0]?.predicted_cashflow || 0)}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-xs">3-Month Average</div>
-                        <div className="font-semibold">{formatINR((forecast.forecast.reduce((sum, f) => sum + (f.predicted_cashflow || 0), 0)) / forecast.forecast.length)}</div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground text-xs">Trend</div>
-                        <div className="font-semibold flex items-center gap-1">
-                          {forecast.forecast.length > 1 && forecast.forecast[forecast.forecast.length - 1].predicted_cashflow > forecast.forecast[0].predicted_cashflow ? (
-                            <><TrendingUp className="h-3 w-3 text-emerald-500" /> Increasing</>
-                          ) : forecast.forecast.length > 1 && forecast.forecast[forecast.forecast.length - 1].predicted_cashflow < forecast.forecast[0].predicted_cashflow ? (
-                            <><TrendingDown className="h-3 w-3 text-rose-500" /> Decreasing</>
-                          ) : (
-                            "Stable"
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                  ) : (
+                    <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">Forecast visual not available.</div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
 
@@ -700,81 +632,86 @@ export default function MLInsights() {
             />
           ) : (
             <>
-          {/* Savings potential header */}
-          <div className="p-6 border rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="space-y-1">
-              <h3 className="text-lg font-bold">Personalized Savings Optimization</h3>
-              <p className="text-sm text-muted-foreground">Automated audit of monthly categories indicating potential budget savings</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4 sm:shrink-0">
-              <div className="flex-1 p-3 border rounded-xl bg-background/80 text-center min-w-[120px]">
-                <div className="text-xs text-muted-foreground font-medium uppercase">Monthly Potential</div>
-                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                  {formatINR(recs?.total_potential_monthly_savings || 0)}
-                </div>
-              </div>
-              <div className="flex-1 p-3 border rounded-xl bg-background/80 text-center min-w-[120px]">
-                <div className="text-xs text-muted-foreground font-medium uppercase">Annual Potential</div>
-                <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                  {formatINR(recs?.total_potential_annual_savings || 0)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Actionable recommendations list */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {recs?.recommendations?.length ? (
-              recs.recommendations.map((r, i) => {
-                const badgeColor = r.priority === "high" ? "destructive" : r.priority === "medium" ? "warning" : "default";
-                return (
-                  <Card key={i} className="bg-card/40 backdrop-blur-sm border-l-4 border-l-primary flex flex-col justify-between">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <Badge variant={badgeColor} className="capitalize">
-                          {r.priority} Priority
-                        </Badge>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                          Save ~{formatINR(r.potential_savings)}/mo
-                        </span>
+              {/* Savings potential header */}
+              <Card>
+                <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="font-display text-base font-semibold">Personalized Savings Optimization</h3>
+                    <p className="text-sm text-muted-foreground">Automated audit of monthly categories indicating potential budget savings</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
+                    <div className="min-w-[120px] flex-1 rounded-xl border bg-muted/30 p-3 text-center">
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Monthly Potential</div>
+                      <div className="kpi-number mt-1 text-xl text-emerald-600 dark:text-emerald-400">
+                        {formatINR(recs?.total_potential_monthly_savings || 0)}
                       </div>
-                      <CardTitle className="text-base">{r.title}</CardTitle>
-                      <CardDescription className="text-sm text-muted-foreground pt-1">
-                        {r.description}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0 flex justify-end">
-                      <Button variant="ghost" size="sm" className="gap-1 text-xs hover:text-primary">
-                        Optimize budget <ChevronRight className="h-3 w-3" />
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })
-            ) : (
-              <div className="col-span-2 py-12 text-center text-sm text-muted-foreground">
-                All categories audit within safety boundaries. No recommendations triggered!
+                    </div>
+                    <div className="min-w-[120px] flex-1 rounded-xl border bg-muted/30 p-3 text-center">
+                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Annual Potential</div>
+                      <div className="kpi-number mt-1 text-xl text-emerald-600 dark:text-emerald-400">
+                        {formatINR(recs?.total_potential_annual_savings || 0)}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actionable recommendations list */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {recs?.recommendations?.length ? (
+                  recs.recommendations.map((r, i) => {
+                    const badgeColor = r.priority === "high" ? "destructive" : r.priority === "medium" ? "warning" : "default";
+                    return (
+                      <Card key={i} className="flex flex-col justify-between border-l-4 border-l-primary">
+                        <CardHeader className="pb-3">
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <Badge variant={badgeColor} className="capitalize">
+                              {r.priority} Priority
+                            </Badge>
+                            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                              Save ~{formatINR(r.potential_savings)}/mo
+                            </span>
+                          </div>
+                          <CardTitle>{r.title}</CardTitle>
+                          <CardDescription className="pt-1 text-sm">
+                            {r.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex justify-end">
+                          <Link
+                            to="/budgets"
+                            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-1 text-xs hover:text-primary")}
+                          >
+                            Optimize budget <ChevronRight className="h-3 w-3" />
+                          </Link>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-2 py-12 text-center text-sm text-muted-foreground">
+                    All categories audit within safety boundaries. No recommendations triggered!
+                  </div>
+                )}
               </div>
-            )}
-          </div>
             </>
           )}
         </TabsContent>
 
         {/* 4. Natural Language Q&A Tab */}
         <TabsContent value="qa" className="space-y-6">
-          <Card className="bg-card/40 backdrop-blur-sm">
+          <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Conversational Finance Assistant</CardTitle>
+              <CardTitle>Conversational Finance Assistant</CardTitle>
               <CardDescription>Ask questions about your transactions using natural text (e.g. "What is my biggest expense?", "How much did I spend on Swiggy?")</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Chat panel */}
-              <div className="h-[300px] overflow-y-auto border rounded-xl p-4 bg-background/50 space-y-4 no-scrollbar">
+              <div className="no-scrollbar h-[300px] space-y-4 overflow-y-auto rounded-xl border bg-muted/20 p-4">
                 {qaHistory.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-2">
-                    <MessageSquare className="h-10 w-10 text-muted-foreground animate-pulse" />
-                    <span className="text-xs text-muted-foreground max-w-xs">Ask a question below or pick a preloaded suggested query to start!</span>
+                  <div className="flex h-full flex-col items-center justify-center space-y-2 text-center">
+                    <MessageSquare className="h-10 w-10 text-muted-foreground" />
+                    <span className="max-w-xs text-xs text-muted-foreground">Ask a question below or pick a preloaded suggested query to start!</span>
                   </div>
                 ) : (
                   qaHistory.map((msg, index) => {
@@ -783,51 +720,51 @@ export default function MLInsights() {
                       <div key={index} className={cn("flex w-full flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
                         <div className={cn("max-w-[85%] rounded-xl px-4 py-2 text-sm shadow-sm", isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
                           {msg.content}
-                          
+
                           {/* Render rich visual breakdown inside system answers */}
                           {!isUser && msg.details && (
-                            <div className="mt-3 border-t border-foreground/10 pt-2 space-y-2">
+                            <div className="mt-3 space-y-2 border-t border-foreground/10 pt-2">
                               {msg.type === "category_spending" && (
-                                <div className="text-xs space-y-1">
+                                <div className="space-y-1 text-xs">
                                   <div>Category: <strong>{msg.details.category}</strong></div>
                                   <div>Total Amount: <strong>{formatINR(msg.details.value)}</strong></div>
                                 </div>
                               )}
-                              
+
                               {msg.type === "keyword_search" && msg.details.transactions?.length > 0 && (
-                                <div className="text-[11px] space-y-1.5">
-                                  <div className="font-semibold mb-1">Recent Matching Transactions:</div>
+                                <div className="space-y-1.5 text-[11px]">
+                                  <div className="mb-1 font-semibold">Recent Matching Transactions:</div>
                                   <div className="space-y-1">
                                     {msg.details.transactions.map((t, idx) => (
-                                      <div key={idx} className="flex justify-between items-center gap-4 bg-background/40 p-1 rounded">
+                                      <div key={idx} className="flex items-center justify-between gap-4 rounded bg-background/40 p-1">
                                         <span className="truncate">{t.description} ({t.date})</span>
-                                        <span className="font-semibold shrink-0">{formatINR(t.amount)}</span>
+                                        <span className="shrink-0 font-semibold">{formatINR(t.amount)}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
                               )}
-                              
+
                               {msg.type === "savings_rate" && (
                                 <div className="w-full space-y-1">
                                   <Progress value={Math.max(0, Math.min(100, msg.details.value))} className="h-1.5 bg-foreground/10" />
-                                  <div className="text-[10px] text-right font-medium">Savings Rate: {msg.details.value.toFixed(1)}%</div>
+                                  <div className="text-right text-[10px] font-medium">Savings Rate: {msg.details.value.toFixed(1)}%</div>
                                 </div>
                               )}
-                              
+
                               {msg.type === "monthly_summary" && msg.details.data && (
-                                <div className="text-xs grid grid-cols-3 gap-2 text-center bg-background/40 p-1.5 rounded-lg mt-1">
+                                <div className="mt-1 grid grid-cols-3 gap-2 rounded-lg bg-background/40 p-1.5 text-center text-xs">
                                   <div>
-                                    <div className="text-[9px] uppercase text-muted-foreground font-semibold">Income</div>
-                                    <div className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{formatINR(msg.details.data.income)}</div>
+                                    <div className="text-[9px] font-semibold uppercase text-muted-foreground">Income</div>
+                                    <div className="mt-0.5 font-bold text-emerald-600 dark:text-emerald-400">{formatINR(msg.details.data.income)}</div>
                                   </div>
                                   <div>
-                                    <div className="text-[9px] uppercase text-muted-foreground font-semibold">Expense</div>
-                                    <div className="font-bold text-red-600 dark:text-red-400 mt-0.5">{formatINR(msg.details.data.expense)}</div>
+                                    <div className="text-[9px] font-semibold uppercase text-muted-foreground">Expense</div>
+                                    <div className="mt-0.5 font-bold text-rose-500">{formatINR(msg.details.data.expense)}</div>
                                   </div>
                                   <div>
-                                    <div className="text-[9px] uppercase text-muted-foreground font-semibold">Net</div>
-                                    <div className="font-bold mt-0.5">{formatINR(msg.details.data.net)}</div>
+                                    <div className="text-[9px] font-semibold uppercase text-muted-foreground">Net</div>
+                                    <div className="mt-0.5 font-bold">{formatINR(msg.details.data.net)}</div>
                                   </div>
                                 </div>
                               )}
@@ -839,7 +776,7 @@ export default function MLInsights() {
                   })
                 )}
                 {qaLoading && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-xs pl-2">
+                  <div className="flex items-center gap-2 pl-2 text-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" /> Thinking...
                   </div>
                 )}
@@ -855,7 +792,7 @@ export default function MLInsights() {
                     onKeyDown={(e) => e.key === "Enter" && handleQaSubmit()}
                     disabled={qaLoading}
                     className={cn(
-                      "pr-10 h-11",
+                      "h-11 pr-10",
                       qaRecording && qaInterim && "border-red-500/50 ring-1 ring-red-500/30"
                     )}
                   />
@@ -867,9 +804,9 @@ export default function MLInsights() {
                       aria-pressed={qaRecording}
                       aria-label={qaRecording ? "Stop voice input" : "Start voice input"}
                       className={cn(
-                        "absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center transition-all",
+                        "absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-all",
                         qaRecording
-                          ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-500/40"
+                          ? "animate-pulse bg-red-500 text-white shadow-md shadow-red-500/40"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
                       title={qaRecording ? "Tap to stop" : "Tap to ask with voice"}
@@ -891,7 +828,7 @@ export default function MLInsights() {
               {/* QA Suggested Questions Chips */}
               {qaSuggestions.length > 0 && (
                 <div className="space-y-1.5 pt-2">
-                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Suggested Questions</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Suggested Questions</div>
                   <div className="flex flex-wrap gap-1.5">
                     {qaSuggestions.map((s) => (
                       <button
@@ -899,7 +836,7 @@ export default function MLInsights() {
                         type="button"
                         onClick={() => handleQaSubmit(s)}
                         disabled={qaLoading}
-                        className="text-xs border rounded-full px-3 py-1 bg-background hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all duration-200"
+                        className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground transition-all duration-200 hover:bg-muted/80 hover:text-foreground"
                       >
                         {s}
                       </button>

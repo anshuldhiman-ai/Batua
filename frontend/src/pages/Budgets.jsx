@@ -2,6 +2,7 @@ import React from "react";
 import { Plus, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
+import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,10 +52,11 @@ export default function Budgets() {
   };
 
   return (
-    <div className="space-y-5">
-      <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-        Budgets
-      </h1>
+    <div className="page-enter space-y-6">
+      <PageHeader
+        title="Budgets"
+        subtitle="Set monthly limits per category and track how you're pacing"
+      />
 
       <Card>
         <CardHeader>
@@ -104,7 +106,7 @@ export default function Budgets() {
             const s = STATUS[b.status] || STATUS.ok;
             return (
               <Card key={b.id} className="card-hover" data-testid={`budget-card-${b.category}`}>
-                <CardContent className="p-5">
+                <CardContent className="p-4">
                   <div className="mb-3 flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <span className="inline-block h-3 w-3 rounded-full" style={{ background: categoryColor(b.category) }} />

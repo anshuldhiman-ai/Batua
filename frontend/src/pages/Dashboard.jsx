@@ -17,7 +17,7 @@ import { toast } from "sonner";
 
 import NLInputBar from "@/components/NLInputBar";
 import KPICard from "@/components/KPICard";
-import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import PageHeader from "@/components/PageHeader";
 import CardDetailDialog from "@/components/CardDetailDialog";
 import BudgetHealth from "@/components/BudgetHealth";
 import { TimelineChart, CategoryDonut } from "@/components/Charts";
@@ -111,9 +111,6 @@ export default function Dashboard() {
   const [drill, setDrill] = React.useState(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [geminiAvailable, setGeminiAvailable] = React.useState(false);
-  const [todayExpense, setTodayExpense] = React.useState(0);
-  const [budgetRemaining, setBudgetRemaining] = React.useState(0);
-  const [recentActivity, setRecentActivity] = React.useState({ count: 0, last: null });
 
   const load = React.useCallback(async () => {
     try {
@@ -133,25 +130,6 @@ export default function Dashboard() {
         params: m.data.current_month ? { month: m.data.current_month } : {},
       });
       setBreakdown(b.data.data);
-
-      const today = new Date().toISOString().slice(0, 10);
-      const [todayRes, budgetRes, recentRes] = await Promise.all([
-        api.get("/transactions/", { params: { start_date: today, end_date: today, page_size: 500 } }),
-        m.data.current_month
-          ? api.get("/budgets/status", { params: { month: m.data.current_month } })
-          : Promise.resolve({ data: { rows: [] } }),
-        api.get("/transactions/", { params: { page: 1, page_size: 5 } }),
-      ]);
-      const todayExp = (todayRes.data.items || [])
-        .filter((t) => Number(t.amount) < 0)
-        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-      setTodayExpense(todayExp);
-      const rows = budgetRes.data?.rows || [];
-      setBudgetRemaining(rows.reduce((s, r) => s + (r.remaining || 0), 0));
-      setRecentActivity({
-        count: recentRes.data?.total || 0,
-        last: recentRes.data?.items?.[0] || null,
-      });
     } catch (err) {
       // Insights failing shouldn't blank the dashboard.
       console.error("Dashboard load failed", err);
@@ -174,39 +152,36 @@ export default function Dashboard() {
   const refreshAI = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await api.post("/insights/refresh", null, { timeout: 10000 });
-      toast.success("Refreshing AI insights in background…");
-      // Poll until new insights are available or timeout (max 30 seconds)
-      const startTime = Date.now();
-      const maxPollTime = 30000;
-      const pollInterval = 1000;
-
-      const poll = async () => {
+      const { data: kick } = await api.post("/insights/refresh", null, { timeout: 10000 });
+      if (kick?.status !== "queued") {
+        toast.info(kick?.message || "AI refresh is unavailable right now.");
+        return;
+      }
+      toast.success("Refreshing AI insights…");
+      // Gemini runs in a backend background task; GET /insights keeps serving
+      // the old data until the new result lands in cache. Poll until the
+      // response is actually fresh (new generated_at from Gemini) or timeout.
+      const before = insights?.generated_at;
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1500));
         try {
           const { data } = await api.get("/insights");
-          setInsights(data);
-          setRefreshing(false);
-          return true;
-        } catch (e) {
-          if (Date.now() - startTime > maxPollTime) {
-            setRefreshing(false);
-            toast.warning("Refresh taking longer than expected. Please check back later.");
-            return true;
+          if (data.source === "gemini" && data.generated_at !== before) {
+            setInsights(data);
+            return;
           }
-          return false;
+        } catch {
+          // transient network blip — keep polling until the deadline
         }
-      };
-
-      while (true) {
-        const done = await poll();
-        if (done) break;
-        await new Promise(r => setTimeout(r, pollInterval));
       }
+      toast.warning("Still generating — refresh the page in a moment.");
     } catch (e) {
-      setRefreshing(false);
       toast.error(e.response?.data?.detail || "Could not refresh AI insights");
+    } finally {
+      setRefreshing(false);
     }
-  }, []);
+  }, [insights]);
 
   const top5 = metrics?.top_categories || [];
   const maxCat = top5.length ? top5[0].amount : 1;
@@ -226,39 +201,20 @@ export default function Dashboard() {
       {/* ════════════════════════════════════════════════════════════
           SECTION 1: Page Header + Quick Add
           ════════════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-              Dashboard
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Your financial overview at a glance
-            </p>
-          </div>
-          {metrics?.current_month && (
+      <PageHeader
+        title="Dashboard"
+        subtitle="Your financial overview at a glance"
+        actions={
+          metrics?.current_month && (
             <Badge variant="outline" className="gap-1.5 px-2.5 py-1 text-xs font-medium">
               <Calendar className="h-3.5 w-3.5 text-primary" />
               {formatMonth(metrics.current_month)}
             </Badge>
-          )}
-        </div>
-
-        <NLInputBar onSaved={load} />
-      </div>
-
-      {/* Overview stat grid */}
-      <DashboardOverview
-        metrics={metrics}
-        todayExpense={todayExpense}
-        budgetRemaining={budgetRemaining}
-        recentCount={recentActivity.count}
-        lastTransaction={recentActivity.last}
-        loading={loading}
-        sparklineIncome={getSparkline("income")}
-        sparklineExpense={getSparkline("expense")}
-        onCardClick={setDrill}
+          )
+        }
       />
+
+      <NLInputBar onSaved={load} />
 
       {/* ════════════════════════════════════════════════════════════
           SECTION 2: HERO — Trend chart (left) + This-Month KPIs (right)
@@ -268,7 +224,7 @@ export default function Dashboard() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Trend chart — the hero visualization */}
         <Card className="lg:col-span-7">
-          <CardHeader className="p-4 pb-2">
+          <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -294,7 +250,7 @@ export default function Dashboard() {
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
+          <CardContent>
             {loading ? (
               <Skeleton className="h-[300px] rounded-lg" />
             ) : timeline && timeline.length ? (
@@ -423,10 +379,10 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           {/* Category donut */}
           <Card className="lg:col-span-5">
-            <CardHeader className="p-4 pb-2">
+            <CardHeader>
               <CardTitle className="text-base">By Category</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               {loading ? (
                 <Skeleton className="h-[260px] rounded-lg" />
               ) : breakdown && breakdown.length ? (
@@ -445,7 +401,7 @@ export default function Dashboard() {
 
           {/* Top 5 ranked categories */}
           <Card className="lg:col-span-7">
-            <CardHeader className="p-4 pb-2">
+            <CardHeader>
               <CardTitle className="flex items-center justify-between text-base">
                 <span>Top Categories</span>
                 {top5.length > 0 && (
@@ -455,7 +411,7 @@ export default function Dashboard() {
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 p-4 pt-0">
+            <CardContent className="space-y-3">
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)
               ) : top5.length ? (
@@ -512,7 +468,7 @@ export default function Dashboard() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* AI Insights */}
         <Card data-testid="ai-insights" className="lg:col-span-2">
-          <CardHeader className="p-4 pb-2">
+          <CardHeader>
             <CardTitle className="flex items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -539,7 +495,7 @@ export default function Dashboard() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-2 lg:grid-cols-3">
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {!insights || !insights.insights ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="space-y-2 rounded-lg bg-muted/40 p-3">
@@ -563,13 +519,13 @@ export default function Dashboard() {
 
         {/* Lifetime context — all-time numbers as low-priority reference */}
         <Card>
-          <CardHeader className="p-4 pb-2">
+          <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="h-4 w-4 text-primary" />
               Lifetime
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
+          <CardContent>
             {loading || !metrics ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}

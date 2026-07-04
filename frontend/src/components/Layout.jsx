@@ -5,7 +5,6 @@ import {
   ReceiptText,
   ChartColumnBig,
   Wallet,
-  FileBarChart,
   Settings as SettingsIcon,
   Moon,
   Sun,
@@ -22,7 +21,6 @@ const NAV = [
   { to: "/transactions", label: "Transactions", icon: ReceiptText },
   { to: "/analytics", label: "Analytics", icon: ChartColumnBig },
   { to: "/budgets", label: "Budgets", icon: Wallet },
-  { to: "/reports", label: "Reports", icon: FileBarChart },
   { to: "/ml-insights", label: "AI Insights", icon: Brain },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];

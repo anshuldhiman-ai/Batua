@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDebounce } from "@/hooks/useDebounce";
 import NLInputBar from "@/components/NLInputBar";
+import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
 
 const PAGE_SIZE = 15;
@@ -277,10 +278,11 @@ export default function Transactions() {
   };
 
   return (
-    <div className="space-y-5">
-      <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
-        Transactions
-      </h1>
+    <div className="page-enter space-y-6">
+      <PageHeader
+        title="Transactions"
+        subtitle="Add, import, search and manage every entry"
+      />
 
       <NLInputBar onSaved={load} />
 

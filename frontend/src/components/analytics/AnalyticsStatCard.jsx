@@ -41,7 +41,7 @@ export default function AnalyticsStatCard({
   const content = (
     <Card
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-border/50 bg-card transition-all duration-200 hover:shadow-md",
+        "group relative overflow-hidden transition-all duration-200 hover:shadow-md",
         onClick && "cursor-pointer hover:border-primary/30",
         className
       )}
@@ -124,7 +124,7 @@ export default function AnalyticsStatCard({
 
   if (loading) {
     return (
-      <Card className={cn("rounded-xl border border-border/50", className)}>
+      <Card className={cn(className)}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
             <Skeleton className="h-10 w-10 rounded-lg" />
