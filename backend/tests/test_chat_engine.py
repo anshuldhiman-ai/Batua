@@ -38,9 +38,9 @@ def _seed(client):
         ("2026-03-12", "Rent", -15000.0, "Housing/Rent"),
         ("2026-03-20", "Uber", -300.0, "Transport"),
     ]
-    for date, desc, amt, cat in rows:
+    for date_, desc, amt, cat in rows:
         r = client.post("/api/transactions", json={
-            "date": date, "description": desc, "amount": amt, "category": cat,
+            "date": date_, "description": desc, "amount": amt, "category": cat,
         })
         assert r.status_code == 200
 
