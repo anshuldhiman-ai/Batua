@@ -25,6 +25,10 @@ Windows/macOS/Linux.
 - **Budgets** — per-category monthly limits with green / amber / rose progress.
 - **Reports** — monthly summary table, recurring-expense detection, CSV/Excel export.
 - **Settings** — light/dark theme (persisted), backend/AI status, danger zone.
+- **Finance Q&A chatbot** — ask natural-language questions about your own transactions
+  (`ml_rag.py`), answered by a pattern-matching engine and optionally reworded by a
+  **local LLM via Ollama** (`local_llm.py`, no external API key needed). Runs in `rules`,
+  `llm`, or `hybrid` mode (Settings → Insights mode).
 
 ---
 
@@ -87,6 +91,9 @@ Watch the KPIs, charts and insights populate.
 | `GOOGLE_API_KEY` | Google Gemini key. Empty → rule-based insights/parsing. |
 | `GEMINI_MODEL` | Defaults to `gemini-2.5-flash`. |
 | `REACT_APP_BACKEND_URL` | Frontend → backend URL (default `http://localhost:8001`). |
+| `LOCAL_LLM_URL` | Ollama server URL for the Q&A chatbot. Default `http://localhost:11434`. |
+| `LOCAL_LLM_MODEL` | Ollama model name. Default `llama3.2`. Pull it with `ollama pull llama3.2`. |
+| `LOCAL_LLM_ENABLED` | Set to `0` to force rule-based Q&A even if Ollama is running. Default `1`. |
 
 ---
 
@@ -100,6 +107,8 @@ batua/
 │   ├── excel_loader.py   # column detection + stacked-format parser
 │   ├── storage.py        # MongoDB primary, JSON-file fallback
 │   ├── ai.py             # Google Gemini wrapper (graceful fallback)
+│   ├── ml_rag.py         # Finance Q&A: pattern-matching + local-LLM rewording
+│   ├── local_llm.py      # Ollama client (chat + multi-turn chat_messages)
 │   └── requirements.txt
 ├── frontend/
 │   └── src/

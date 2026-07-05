@@ -21,6 +21,20 @@ import local_llm
 logger = logging.getLogger("batua.ml_rag")
 
 
+# System prompt for pure-LLM mode: the model answers directly from a digest
+# of the user's data (not just rewording). Still forbidden from inventing
+# numbers that aren't derivable from the digest.
+_LLM_ANSWER_SYSTEM = (
+    "You are Batua, a warm, concise personal-finance assistant for an Indian "
+    "user (currency ₹ INR). You will receive a DATA digest computed from the "
+    "user's own transactions, followed by their QUESTION. Answer using ONLY "
+    "the numbers in DATA — never invent, estimate, or extrapolate figures "
+    "that are not derivable from it. If DATA doesn't contain what's needed, "
+    "say so briefly and mention what you can answer instead. If the question "
+    "isn't about the user's finances, politely steer back to their money. "
+    "Keep replies to 1-3 short sentences, plain text, no markdown."
+)
+
 # System prompt that keeps the local LLM tightly scoped to the user's own
 # money and forbids inventing numbers — it may ONLY reword verified facts.
 _LLM_SYSTEM = (
@@ -83,6 +97,22 @@ _PERIOD_ALIASES = {
     "last year": "last_year",
     "yesterday": "yesterday",
     "today": "today",
+}
+
+# Month name to number mapping for parsing specific months
+_MONTH_NAMES = {
+    "january": "01", "jan": "01",
+    "february": "02", "feb": "02",
+    "march": "03", "mar": "03",
+    "april": "04", "apr": "04",
+    "may": "05",
+    "june": "06", "jun": "06",
+    "july": "07", "jul": "07",
+    "august": "08", "aug": "08",
+    "september": "09", "sep": "09", "sept": "09",
+    "october": "10", "oct": "10",
+    "november": "11", "nov": "11",
+    "december": "12", "dec": "12",
 }
 
 # Map category-name fragments users actually type to canonical categories.
@@ -259,8 +289,37 @@ class FinanceQA:
     # Public API
     # ------------------------------------------------------------------ #
 
-    def answer_question(self, question: str, transactions: list[dict]) -> dict:
+    def build_index(self, transactions: list[dict]) -> dict:
+        """Public wrapper around ``_build_index`` for callers (e.g.
+        ``chat_engine``) that need the raw index without going through
+        ``answer_question``."""
+        return self._build_index(transactions)
+
+    def context_digest(self, index: dict, specific_month: str | None = None) -> str:
+        """Public wrapper around ``_context_summary``."""
+        return self._context_summary(index, specific_month)
+
+    def extract_category(self, question: str) -> str | None:
+        """Public wrapper around ``_extract_category`` (normalises first)."""
+        return self._extract_category(self._normalise(question))
+
+    def naturalise(self, question: str, verified_answer: str) -> str:
+        """Public wrapper around ``_naturalise``."""
+        return self._naturalise(question, verified_answer)
+
+    def answer_question(self, question: str, transactions: list[dict], mode: str = "hybrid") -> dict:
+        """Answer a question in one of three modes.
+
+        - ``rules``: pattern-matched template answers only (instant, exact).
+        - ``llm``: the local model answers directly from a data digest;
+          falls back to the pattern pipeline if the model is unreachable.
+        - ``hybrid`` (default): patterns compute the verified answer, the
+          local model rewords it when available.
+        """
         try:
+            mode = (mode or "hybrid").strip().lower()
+            if mode not in ("rules", "llm", "hybrid"):
+                mode = "hybrid"
             index = self._build_index(transactions)
             if not index["total_transactions"]:
                 return {
@@ -273,14 +332,27 @@ class FinanceQA:
             if not q:
                 return self._unknown(question)
 
+            # Check for specific month first - this affects both LLM and pattern modes
+            _, specific_month = self._extract_specific_month(q)
+            
+            # Pure-LLM mode: hand the question + a data digest straight to
+            # the local model. Falls through to the pattern pipeline when
+            # the model is unreachable or returns nothing usable.
+            if mode == "llm":
+                result = self._answer_with_llm(question, index, specific_month)
+                if result:
+                    result["question"] = question
+                    return result
+
             # Order matters — more specific patterns first.
+            # Period handler (specific months) must come before total handler
             handlers = (
+                self._handle_period,  # This now handles specific months - must be first
                 self._handle_total,
                 self._handle_biggest,
                 self._handle_savings_rate,
                 self._handle_count,
                 self._handle_average,
-                self._handle_period,
                 self._handle_category,
                 self._handle_merchant_keyword,
             )
@@ -288,10 +360,15 @@ class FinanceQA:
                 result = handler(q, index)
                 if result:
                     result["question"] = question
-                    # Reword the verified answer with the local LLM so replies
-                    # sound natural and differ each time. Numbers are preserved.
-                    result["answer"] = self._naturalise(question, result["answer"])
-                    result["source"] = "local_llm" if local_llm.is_enabled() else "rules"
+                    if mode == "rules":
+                        # Exact template answer, lightly varied — no LLM.
+                        result["answer"] = self._vary_template(result["answer"])
+                        result["source"] = "rules"
+                    else:
+                        # Reword the verified answer with the local LLM so
+                        # replies sound natural. Numbers are preserved.
+                        result["answer"] = self._naturalise(question, result["answer"])
+                        result["source"] = "local_llm" if local_llm.is_enabled() else "rules"
                     return result
 
             # Nothing matched. If it isn't even a finance question, refuse
@@ -374,6 +451,125 @@ class FinanceQA:
         # A named category/merchant fragment also counts as on-topic.
         return any(frag in q for frag in _CATEGORY_FRAGMENTS)
 
+    def _answer_with_llm(self, question: str, index: dict, specific_month: str = None) -> dict | None:
+        """Pure-LLM mode: let the local model answer from a compact digest of
+        the user's data. Returns None when the model is unreachable or gives
+        nothing usable, so the caller can fall back to the pattern pipeline.
+        """
+        if not local_llm.is_enabled():
+            return None
+        
+        # If specific_month not provided, extract it from the question
+        if specific_month is None:
+            q = self._normalise(question)
+            _, specific_month = self._extract_specific_month(q)
+        
+        if specific_month:
+            # Create a filtered digest for the specific month
+            digest = self._context_summary(index, specific_month)
+        else:
+            # Use the full digest
+            digest = self._context_summary(index)
+        
+        prompt = f"DATA:\n{digest}\n\nQUESTION: {question}"
+        reply = local_llm.chat(_LLM_ANSWER_SYSTEM, prompt, temperature=0.4)
+        if not reply:
+            return None
+        cleaned = self._clean_llm_text(reply)
+        if not cleaned:
+            return None
+        return {
+            "answer": cleaned,
+            "type": "llm_answer",
+            "source": f"local_llm:{local_llm.model_name()}",
+        }
+
+    def _context_summary(self, index: dict, specific_month: str = None) -> str:
+        """Compact plain-text digest of the user's finances for the LLM.
+
+        Kept small (last 6 months, top categories/merchants) so a small
+        local model answers quickly and has no room to wander.
+        
+        If specific_month is provided (YYYY-MM format), filters to that month only.
+        """
+        lines: list[str] = []
+        
+        if specific_month:
+            # Filter to specific month
+            monthly_index = index.get("monthly_index", {})
+            if specific_month in monthly_index:
+                m = monthly_index[specific_month]
+                lines.append(
+                    f"Data for {specific_month}: "
+                    f"income ₹{m['income']:,.0f}, spend ₹{m['expense']:,.0f}, "
+                    f"net ₹{m['net']:,.0f}, {m['count']} transactions."
+                )
+                
+                # Filter categories to this month
+                df = index.get("df", pd.DataFrame())
+                if not df.empty:
+                    month_df = df[df["date"].dt.strftime("%Y-%m") == specific_month]
+                    if not month_df.empty:
+                        # Calculate category breakdown for this month
+                        month_cats = {}
+                        for _, row in month_df[month_df["amount"] < 0].iterrows():
+                            cat = row.get("category", "Other")
+                            amount = abs(row["amount"])
+                            if cat not in month_cats:
+                                month_cats[cat] = {"total": 0, "count": 0}
+                            month_cats[cat]["total"] += amount
+                            month_cats[cat]["count"] += 1
+                        
+                        if month_cats:
+                            lines.append("Categories for this month (total / txns):")
+                            sorted_cats = sorted(month_cats.items(), key=lambda kv: kv[1]["total"], reverse=True)[:5]
+                            for name, c in sorted_cats:
+                                lines.append(f"  {name}: ₹{c['total']:,.0f} / {c['count']}")
+            else:
+                lines.append(f"No data available for {specific_month}.")
+        else:
+            # Full digest (all-time data)
+            dr = index.get("date_range") or {}
+            ti = index["total_income"]
+            te = index["total_expense"]
+            rate = ((ti - te) / ti * 100) if ti > 0 else 0.0
+            lines.append(
+                f"Data covers {dr.get('start', '?')} to {dr.get('end', '?')} — "
+                f"{index['total_transactions']} transactions."
+            )
+            lines.append(
+                f"All-time: income ₹{ti:,.0f}, spend ₹{te:,.0f}, "
+                f"net ₹{ti - te:,.0f}, savings rate {rate:.1f}%."
+            )
+            months = sorted(index["monthly_index"])[-6:]
+            if months:
+                lines.append("Recent months (income / spend / net / txns):")
+                for month in months:
+                    m = index["monthly_index"][month]
+                    lines.append(
+                        f"  {month}: ₹{m['income']:,.0f} / ₹{m['expense']:,.0f} / "
+                        f"₹{m['net']:,.0f} / {m['count']}"
+                    )
+            cats = sorted(
+                index["category_index"].items(), key=lambda kv: kv[1]["total"], reverse=True
+            )[:8]
+            if cats:
+                lines.append("Top expense categories (total / txns / avg):")
+                for name, c in cats:
+                    lines.append(
+                        f"  {name}: ₹{c['total']:,.0f} / {c['count']} / ₹{c['avg']:,.0f}"
+                    )
+            try:
+                top_m = self._top_merchants(index["df"])
+                if top_m:
+                    lines.append(
+                        "Top merchants by spend: "
+                        + ", ".join(f"{m} ₹{v:,.0f}" for m, v in top_m)
+                    )
+            except Exception:  # pragma: no cover - digest stays usable without it
+                pass
+        return "\n".join(lines)
+
     def _naturalise(self, question: str, verified_answer: str) -> str:
         """Reword a verified answer via the local LLM for a natural, varied reply.
 
@@ -444,6 +640,36 @@ class FinanceQA:
         return q, None
 
     @staticmethod
+    def _extract_specific_month(q: str) -> tuple[str, str | None]:
+        """Extract a specific month/year like "august 2025", "june 2024" from the question.
+        Returns ``(remainder, month_key)`` where month_key is "YYYY-MM" format.
+        """
+        words = q.split()
+        for i, word in enumerate(words):
+            word_lower = word.lower()
+            if word_lower in _MONTH_NAMES:
+                month_num = _MONTH_NAMES[word_lower]
+                # Look for year in next word or current year
+                year = None
+                if i + 1 < len(words):
+                    next_word = words[i + 1]
+                    # Check if it's a 4-digit year
+                    if next_word.isdigit() and len(next_word) == 4:
+                        year = next_word
+                if not year:
+                    # Default to current year
+                    year = str(datetime.now().year)
+                month_key = f"{year}-{month_num}"
+                logger.info(f"Extracted month: {month_key} from question: {q}")
+                # Remove the month and year from the question
+                remainder = q.replace(word, "", 1).strip()
+                if year in remainder:
+                    remainder = remainder.replace(year, "", 1).strip()
+                return remainder, month_key
+        logger.info(f"No specific month found in question: {q}")
+        return q, None
+
+    @staticmethod
     def _month_bounds(period_key: str, today: datetime) -> tuple[str, str] | None:
         """Return ``(month_key, end_month_key)`` for a period, or None."""
         if period_key == "this_month":
@@ -461,6 +687,9 @@ class FinanceQA:
         if period_key == "yesterday":
             y = (today - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
             return (y, y)
+        # Check if it's a specific month in YYYY-MM format
+        if re.match(r"^\d{4}-\d{2}$", period_key):
+            return (period_key, period_key)
         return None
 
     # ------------------------------------------------------------------ #
@@ -468,6 +697,11 @@ class FinanceQA:
     # ------------------------------------------------------------------ #
 
     def _handle_total(self, q: str, idx: dict) -> dict | None:
+        # Skip if there's a specific month mentioned - let period handler handle it
+        _, specific_month = self._extract_specific_month(q)
+        if specific_month:
+            return None
+            
         if "total" not in q and "overall" not in q and "all time" not in q:
             return None
 
@@ -572,9 +806,16 @@ class FinanceQA:
         }
 
     def _handle_period(self, q: str, idx: dict) -> dict | None:
-        remainder, period_key = self._strip_period_phrase(q)
-        if not period_key:
-            return None
+        # First check for specific month names like "august 2025"
+        remainder, specific_month = self._extract_specific_month(q)
+        if specific_month:
+            period_key = specific_month
+            logger.info(f"Specific month detected: {period_key} from question: {q}")
+        else:
+            # Fall back to period aliases like "this month", "last month"
+            remainder, period_key = self._strip_period_phrase(q)
+            if not period_key:
+                return None
 
         today = datetime.now()
         bounds = self._month_bounds(period_key, today)
@@ -609,8 +850,15 @@ class FinanceQA:
         # Month-bounded aggregation.
         start_ym, end_ym = bounds
         months_in_range = [m for m in monthly_index if start_ym <= m <= end_ym]
+        logger.info(f"Month bounds: {start_ym} to {end_ym}, months in range: {months_in_range}")
         if not months_in_range:
             label = period_key.replace("_", " ")
+            if re.match(r"^\d{4}-\d{2}$", period_key):
+                # Format specific month nicely
+                year, month = period_key.split("-")
+                month_names = ["", "January", "February", "March", "April", "May", "June", 
+                              "July", "August", "September", "October", "November", "December"]
+                label = f"{month_names[int(month)]} {year}"
             return {
                 "answer": f"No data recorded for {label} yet.",
                 "type": "period_summary",
@@ -619,6 +867,13 @@ class FinanceQA:
         income = sum(monthly_index[m]["income"] for m in months_in_range)
         expense = sum(monthly_index[m]["expense"] for m in months_in_range)
         label = period_key.replace("_", " ")
+        if re.match(r"^\d{4}-\d{2}$", period_key):
+            # Format specific month nicely
+            year, month = period_key.split("-")
+            month_names = ["", "January", "February", "March", "April", "May", "June", 
+                          "July", "August", "September", "October", "November", "December"]
+            label = f"{month_names[int(month)]} {year}"
+        logger.info(f"Period result: {label}, income: {income}, expense: {expense}")
         return {
             "answer": (
                 f"For **{label}**: income ₹{income:,.2f}, "

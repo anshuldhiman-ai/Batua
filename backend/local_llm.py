@@ -63,27 +63,20 @@ def model_name() -> str:
     return _MODEL
 
 
-def chat(system_message: str, user_text: str, *, temperature: float = 0.8,
-         timeout: float = 45.0) -> str | None:
-    """Single-turn chat against the local model.
-
-    ``temperature`` defaults high so successive answers to the same question
-    are phrased differently. Returns the reply text, or None on any failure.
-    """
+def _call_ollama(messages: list[dict], *, temperature: float, timeout: float,
+                  num_predict: int = 220) -> str | None:
+    """POST a full message list to Ollama's /api/chat. Returns the reply
+    text, or None on any failure (unreachable server, bad model, timeout)."""
     if not _ENABLED_FLAG:
         return None
     payload = {
         "model": _MODEL,
-        "messages": [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_text},
-        ],
+        "messages": messages,
         "stream": False,
         "options": {
             "temperature": temperature,
             "top_p": 0.9,
-            # Answers are short — cap tokens so it stays snappy on CPU.
-            "num_predict": 220,
+            "num_predict": num_predict,
         },
     }
     try:
@@ -108,3 +101,30 @@ def chat(system_message: str, user_text: str, *, temperature: float = 0.8,
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Local LLM unexpected error: %s", exc)
         return None
+
+
+def chat(system_message: str, user_text: str, *, temperature: float = 0.8,
+         timeout: float = 45.0) -> str | None:
+    """Single-turn chat against the local model.
+
+    ``temperature`` defaults high so successive answers to the same question
+    are phrased differently. Returns the reply text, or None on any failure.
+    """
+    return _call_ollama(
+        [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_text},
+        ],
+        temperature=temperature, timeout=timeout,
+    )
+
+
+def chat_messages(messages: list[dict], *, temperature: float = 0.7,
+                   timeout: float = 45.0, num_predict: int = 260) -> str | None:
+    """Multi-turn chat: ``messages`` is a full ``[{role, content}, ...]`` list
+    (system message + prior turns + the current user turn). Used for
+    conversational replies that need earlier turns for context; single-turn
+    callers should keep using ``chat()``. Returns the reply text, or None on
+    any failure."""
+    return _call_ollama(messages, temperature=temperature, timeout=timeout,
+                         num_predict=num_predict)
