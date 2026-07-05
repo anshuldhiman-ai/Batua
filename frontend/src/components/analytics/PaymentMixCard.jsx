@@ -1,6 +1,7 @@
 import React from "react";
-import { Wallet, Banknote, Smartphone } from "lucide-react";
+import { Wallet, Banknote, Smartphone, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, formatINR } from "@/lib/utils-finance";
 
@@ -30,21 +31,31 @@ function MixStat({ icon: Icon, label, amount, pct, count, tone }) {
 
 /**
  * Online-vs-cash payment split (absorbed from the old Reports page).
- * Self-fetching; covers all recorded spending.
+ * Self-fetching; covers all recorded spending. Re-fetches whenever
+ * `refreshKey` changes so the page-level Refresh button reaches it too.
  */
-export default function PaymentMixCard() {
+export default function PaymentMixCard({ refreshKey = 0 }) {
   const [payment, setPayment] = React.useState(null);
+  const [failed, setFailed] = React.useState(false);
+  const [retryTick, setRetryTick] = React.useState(0);
 
   React.useEffect(() => {
     let active = true;
+    setPayment(null);
+    setFailed(false);
     api
       .get("/analytics/payment-method")
       .then((r) => active && setPayment(r.data))
-      .catch(() => active && setPayment({ data: [], total: 0 }));
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+          setPayment({ data: [], total: 0 });
+        }
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey, retryTick]);
 
   const data = payment?.data || [];
   const total = payment?.total || 0;
@@ -67,6 +78,14 @@ export default function PaymentMixCard() {
       <CardContent className="flex-1">
         {payment === null ? (
           <Skeleton className="h-28 w-full" />
+        ) : failed ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center text-sm text-muted-foreground">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <span>Couldn't load the payment mix.</span>
+            <Button variant="outline" size="sm" onClick={() => setRetryTick((t) => t + 1)}>
+              Retry
+            </Button>
+          </div>
         ) : total === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No spending to categorize yet.</p>
         ) : (

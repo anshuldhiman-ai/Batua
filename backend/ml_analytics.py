@@ -310,10 +310,124 @@ class BudgetOptimizer:
             return {}
 
 
+class AnomalyDetector:
+    """Flag unusual spending — on-demand only, never auto-pushed.
+
+    Three cheap statistical rules over expense rows:
+      1. outlier_txn: a transaction's amount exceeds its category's
+         mean + 2*std (category needs >=5 expense txns for a meaningful std).
+      2. category_spike: this month's category total exceeds 1.6x the
+         trailing 3-month average for that category (min ₹500 delta so
+         small categories don't generate noise).
+      3. new_category: spend this month in a category with zero spend in
+         any prior month, above a ₹1000 floor.
+    """
+
+    def __init__(self):
+        self._initialized = False
+
+    def detect_anomalies(self, transactions: List[Dict], limit: int = 8) -> Dict:
+        if not transactions:
+            return {"empty": True, "anomalies": []}
+        try:
+            df = pd.DataFrame(transactions)
+            if df.empty or "date" not in df or "amount" not in df:
+                return {"empty": True, "anomalies": []}
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+            df = df.dropna(subset=["date", "amount"])
+            df = df[df["amount"] < 0].copy()
+            if df.empty:
+                return {"empty": True, "anomalies": []}
+            df["amount"] = df["amount"].abs()
+            if "category" not in df:
+                df["category"] = "Other"
+            df["category"] = df["category"].fillna("Other").replace("", "Other")
+            if "description" not in df:
+                df["description"] = "Transaction"
+            df["description"] = df["description"].fillna("Transaction").replace("", "Transaction")
+            df["month"] = df["date"].dt.strftime("%Y-%m")
+
+            months_sorted = sorted(df["month"].unique())
+            if not months_sorted:
+                return {"empty": True, "anomalies": []}
+            current_month = months_sorted[-1]
+
+            anomalies: List[Dict] = []
+
+            # Rule 1 — per-category statistical outliers.
+            for category, sub in df.groupby("category"):
+                if len(sub) < 5:
+                    continue
+                mean = sub["amount"].mean()
+                std = sub["amount"].std()
+                if not std or pd.isna(std):
+                    continue
+                threshold = mean + 2 * std
+                for _, row in sub[sub["amount"] > threshold].iterrows():
+                    anomalies.append({
+                        "type": "outlier_txn",
+                        "category": str(category),
+                        "description": (
+                            f"₹{row['amount']:,.0f} at {row['description']} is unusually high "
+                            f"for {category} (avg ₹{mean:,.0f})."
+                        ),
+                        "date": row["date"].strftime("%Y-%m-%d"),
+                        "amount": float(row["amount"]),
+                        "severity": "high" if row["amount"] > mean + 3 * std else "medium",
+                    })
+
+            # Rule 2 — this month's category total vs trailing 3-month average.
+            monthly_cat = df.groupby(["month", "category"])["amount"].sum().unstack(fill_value=0)
+            if current_month in monthly_cat.index:
+                prior_months = [m for m in monthly_cat.index if m < current_month][-3:]
+                if prior_months:
+                    for category in monthly_cat.columns:
+                        current_val = float(monthly_cat.loc[current_month, category])
+                        trailing_avg = float(monthly_cat.loc[prior_months, category].mean())
+                        delta = current_val - trailing_avg
+                        if trailing_avg > 0 and current_val > trailing_avg * 1.6 and delta >= 500:
+                            anomalies.append({
+                                "type": "category_spike",
+                                "category": str(category),
+                                "description": (
+                                    f"{category} spend this month (₹{current_val:,.0f}) is "
+                                    f"{(current_val / trailing_avg):.1f}x the recent average "
+                                    f"(₹{trailing_avg:,.0f})."
+                                ),
+                                "amount": current_val,
+                                "severity": "high" if current_val > trailing_avg * 2.2 else "medium",
+                            })
+
+            # Rule 3 — brand-new category this month, above a noise floor.
+            if len(months_sorted) > 1:
+                prior_categories = set(df.loc[df["month"] != current_month, "category"].unique())
+                current_categories = set(df.loc[df["month"] == current_month, "category"].unique())
+                for category in current_categories - prior_categories:
+                    amount = float(monthly_cat.loc[current_month, category]) if current_month in monthly_cat.index else 0.0
+                    if amount >= 1000:
+                        anomalies.append({
+                            "type": "new_category",
+                            "category": str(category),
+                            "description": f"New spending category this month: {category} (₹{amount:,.0f}).",
+                            "amount": amount,
+                            "severity": "medium",
+                        })
+
+            severity_rank = {"high": 0, "medium": 1, "low": 2}
+            anomalies.sort(key=lambda a: (severity_rank.get(a["severity"], 1), -a["amount"]))
+            anomalies = anomalies[:limit]
+            return {"empty": not anomalies, "anomalies": anomalies}
+        except Exception as exc:
+            logger.error(f"Error detecting anomalies: {exc}")
+            return {"empty": True, "anomalies": []}
+
+
 # Global instances
 _pattern_analyzer = None
 _forecaster = None
 _budget_optimizer = None
+_anomaly_detector = None
 
 
 def get_pattern_analyzer() -> SpendingPatternAnalyzer:
@@ -338,3 +452,11 @@ def get_budget_optimizer() -> BudgetOptimizer:
     if _budget_optimizer is None:
         _budget_optimizer = BudgetOptimizer()
     return _budget_optimizer
+
+
+def get_anomaly_detector() -> AnomalyDetector:
+    """Get or create the anomaly detector instance."""
+    global _anomaly_detector
+    if _anomaly_detector is None:
+        _anomaly_detector = AnomalyDetector()
+    return _anomaly_detector

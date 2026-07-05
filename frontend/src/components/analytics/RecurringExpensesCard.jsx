@@ -1,27 +1,38 @@
 import React from "react";
-import { Repeat } from "lucide-react";
+import { Repeat, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, formatINR, categoryColor } from "@/lib/utils-finance";
 
 /**
  * Recurring merchant spends (absorbed from the old Reports page).
- * Self-fetching; detection runs across full history.
+ * Self-fetching; detection runs across full history. Re-fetches whenever
+ * `refreshKey` changes so the page-level Refresh button reaches it too.
  */
-export default function RecurringExpensesCard() {
+export default function RecurringExpensesCard({ refreshKey = 0 }) {
   const [recurring, setRecurring] = React.useState(null);
+  const [failed, setFailed] = React.useState(false);
+  const [retryTick, setRetryTick] = React.useState(0);
 
   React.useEffect(() => {
     let active = true;
+    setRecurring(null);
+    setFailed(false);
     api
       .get("/recurring")
       .then((r) => active && setRecurring(r.data.recurring || []))
-      .catch(() => active && setRecurring([]));
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+          setRecurring([]);
+        }
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey, retryTick]);
 
   return (
     <Card className="flex flex-col">
@@ -34,6 +45,14 @@ export default function RecurringExpensesCard() {
       <CardContent className="max-h-[360px] space-y-3 overflow-y-auto">
         {recurring === null ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)
+        ) : failed ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center text-sm text-muted-foreground">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <span>Couldn't load recurring expenses.</span>
+            <Button variant="outline" size="sm" onClick={() => setRetryTick((t) => t + 1)}>
+              Retry
+            </Button>
+          </div>
         ) : recurring.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">No recurring patterns detected yet.</p>
         ) : (

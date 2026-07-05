@@ -18,17 +18,26 @@ import {
   BudgetProgressPanel,
 } from "@/components/analytics/AnalyticsInsightsPanels";
 import { useAnalyticsData } from "@/hooks/useAnalyticsData";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiUrl, currentYearMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 
 export default function Analytics() {
-  const [view, setView] = React.useState("monthly");
-  const [dateRange, setDateRange] = React.useState("last_3_months");
-  const [customDates, setCustomDates] = React.useState({ startDate: "", endDate: "" });
-  const [singleMonth, setSingleMonth] = React.useState(currentYearMonth());
-  const [monthRange, setMonthRange] = React.useState({
+  // Filters persist in localStorage so the page reopens exactly where the
+  // user left it, instead of resetting to "Last 3 Months" on every visit.
+  const [view, setView] = useLocalStorage("batua-analytics-view", "monthly");
+  const [dateRange, setDateRange] = useLocalStorage("batua-analytics-period", "last_3_months");
+  const [customDates, setCustomDates] = useLocalStorage("batua-analytics-custom-dates", {
+    startDate: "",
+    endDate: "",
+  });
+  const [singleMonth, setSingleMonth] = useLocalStorage(
+    "batua-analytics-single-month",
+    currentYearMonth()
+  );
+  const [monthRange, setMonthRange] = useLocalStorage("batua-analytics-month-range", {
     start: currentYearMonth(),
     end: currentYearMonth(),
   });
@@ -46,7 +55,7 @@ export default function Analytics() {
     recentTransactions,
     comparisonSeries,
     budgetRows,
-    timeline,
+    monthlySeries,
     refetch,
   } = useAnalyticsData({
     view,
@@ -63,6 +72,14 @@ export default function Analytics() {
     [series]
   );
 
+  // Bumps the self-fetching cards (Payment Mix, Recurring) so the page-level
+  // Refresh button reaches them too, not just the hook-driven sections.
+  const [refreshTick, setRefreshTick] = React.useState(0);
+  const handleRefresh = () => {
+    setRefreshTick((t) => t + 1);
+    refetch();
+  };
+
   return (
     <div className="page-enter space-y-6">
       <PageHeader
@@ -74,7 +91,7 @@ export default function Analytics() {
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={refetch}
+              onClick={handleRefresh}
               disabled={loading}
             >
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
@@ -173,13 +190,13 @@ export default function Analytics() {
       {/* Patterns row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <WeekdayPatternChart data={weekdayPattern} loading={loading} />
-        <PaymentMixCard />
+        <PaymentMixCard refreshKey={refreshTick} />
       </div>
 
       {/* Reports row — absorbed from the old Reports page */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <MonthlySummaryTable series={timeline} loading={loading} periodLabel={range.label} />
-        <RecurringExpensesCard />
+        <MonthlySummaryTable series={monthlySeries} loading={loading} periodLabel={range.label} />
+        <RecurringExpensesCard refreshKey={refreshTick} />
       </div>
 
       <TrendAnalysis data={trends} loading={loading} />

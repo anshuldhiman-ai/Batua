@@ -139,6 +139,7 @@ def test_empty_store_ml_endpoints(client):
         "/api/ml/cash-flow-forecast",
         "/api/ml/recommendations",
         "/api/ml/qa/suggestions",
+        "/api/ml/anomalies",
     ]:
         r = client.get(url)
         assert r.status_code == 200, f"{url} -> {r.status_code}: {r.text}"

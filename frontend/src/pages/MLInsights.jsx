@@ -4,10 +4,6 @@ import {
   Brain,
   Calendar,
   Lightbulb,
-  HelpCircle,
-  Send,
-  Mic,
-  Loader2,
   AlertCircle,
   TrendingUp,
   TrendingDown,
@@ -15,7 +11,6 @@ import {
   Info,
   Coins,
   Activity,
-  MessageSquare,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -29,14 +24,13 @@ import {
   Area,
   Cell,
 } from "recharts";
-import { toast } from "sonner";
 
 import PageHeader from "@/components/PageHeader";
+import QAChatWidget from "@/components/QAChatWidget";
 import AnalyticsStatCard from "@/components/analytics/AnalyticsStatCard";
 import { ChartTooltip, CHART_AXIS, CHART_GRID } from "@/components/Charts";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -84,21 +78,11 @@ export default function MLInsights() {
   const [patterns, setPatterns] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [recs, setRecs] = useState(null);
-  const [qaSuggestions, setQaSuggestions] = useState([]);
 
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [endpointErrors, setEndpointErrors] = useState({});
-
-  // QA Tab States
-  const [qaHistory, setQaHistory] = useState([]);
-  const [qaInput, setQaInput] = useState("");
-  const [qaLoading, setQaLoading] = useState(false);
-  const [qaRecording, setQaRecording] = useState(false);
-  const [qaSupported, setQaSupported] = useState(true);
-  const [qaInterim, setQaInterim] = useState("");
-  const qaRecognitionRef = React.useRef(null);
 
   // Fetch all ML analytics data on mount
   const loadData = useCallback(async () => {
@@ -106,11 +90,10 @@ export default function MLInsights() {
     setError(null);
     setEndpointErrors({});
     try {
-      const [patternsRes, forecastRes, recsRes, suggestionsRes] = await Promise.allSettled([
+      const [patternsRes, forecastRes, recsRes] = await Promise.allSettled([
         api.get("/ml/spending-patterns"),
         api.get("/ml/cash-flow-forecast"),
         api.get("/ml/recommendations"),
-        api.get("/ml/qa/suggestions")
       ]);
 
       const nextErrors = {};
@@ -132,12 +115,6 @@ export default function MLInsights() {
         setRecs(null);
         nextErrors.recommendations = "Smart recommendations are unavailable right now.";
       }
-      if (suggestionsRes.status === "fulfilled") {
-        setQaSuggestions(suggestionsRes.value.data?.suggestions || []);
-      } else {
-        setQaSuggestions([]);
-        nextErrors.qa = "Question suggestions could not be loaded, but you can still ask a question.";
-      }
       setEndpointErrors(nextErrors);
 
       if (patternsRes.status === "rejected" && forecastRes.status === "rejected" && recsRes.status === "rejected") {
@@ -153,128 +130,7 @@ export default function MLInsights() {
 
   useEffect(() => {
     loadData();
-
-    // Check speech support
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setQaSupported(false);
-    }
-
-    return () => {
-      qaRecognitionRef.current?.abort?.();
-      qaRecognitionRef.current = null;
-    };
   }, [loadData]);
-
-  // QA Voice Input Recognition Toggle
-  const toggleQaRecording = () => {
-    if (!qaSupported) {
-      toast.error(
-        "Speech recognition not supported here. Use Chrome/Edge on https:// or localhost."
-      );
-      return;
-    }
-
-    if (qaRecording) {
-      qaRecognitionRef.current?.stop?.();
-      setQaRecording(false);
-      setQaInterim("");
-      return;
-    }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    qaRecognitionRef.current = recognition;
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-IN";
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      setQaRecording(true);
-      setQaInterim("");
-      toast.info("Listening… ask your question", { duration: 2000 });
-    };
-
-    recognition.onresult = (event) => {
-      let finalText = "";
-      let interimText = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const res = event.results[i];
-        if (res.isFinal) finalText += res[0].transcript;
-        else interimText += res[0].transcript;
-      }
-      if (interimText) setQaInterim(interimText);
-      if (finalText) {
-        const transcript = finalText.trim();
-        setQaInterim("");
-        setQaInput(transcript);
-        toast.success(`Heard: "${transcript}"`, { duration: 1800 });
-        handleQaSubmit(transcript);
-      }
-    };
-
-    recognition.onerror = (e) => {
-      const code = e.error || "unknown";
-      const messages = {
-        "not-allowed": "Microphone permission denied. Allow it in your browser settings.",
-        "service-not-allowed": "Speech service blocked. Try Chrome/Edge on https:// or localhost.",
-        "no-speech": "Didn't catch anything — try again a little louder.",
-        "audio-capture": "No microphone found.",
-        "network": "Network error reaching the speech service. Check your connection.",
-        "aborted": "",
-      };
-      const msg = messages[code] || `Voice input error (${code})`;
-      if (msg) toast.error(msg, { duration: 3500 });
-      setQaRecording(false);
-      setQaInterim("");
-    };
-
-    recognition.onend = () => {
-      setQaRecording(false);
-      setQaInterim("");
-      qaRecognitionRef.current = null;
-    };
-
-    try {
-      recognition.start();
-    } catch (err) {
-      console.error(err);
-      toast.error("Could not start voice input. Please try again.");
-      setQaRecording(false);
-      setQaInterim("");
-      qaRecognitionRef.current = null;
-    }
-  };
-
-  // Submit NL QA question
-  const handleQaSubmit = async (questionText = qaInput) => {
-    const textToSubmit = questionText?.trim();
-    if (!textToSubmit) return;
-
-    setQaLoading(true);
-    const userMsg = { role: "user", content: textToSubmit };
-    setQaHistory((prev) => [...prev, userMsg]);
-    setQaInput("");
-
-    try {
-      const { data } = await api.post("/ml/qa", { question: textToSubmit });
-      const systemMsg = {
-        role: "system",
-        content: data.answer || "No response received",
-        type: data.type,
-        details: data
-      };
-      setQaHistory((prev) => [...prev, systemMsg]);
-    } catch {
-      setQaHistory((prev) => [
-        ...prev,
-        { role: "system", content: "Sorry, I could not answer that. Please try again.", type: "error" }
-      ]);
-    } finally {
-      setQaLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -326,12 +182,12 @@ export default function MLInsights() {
     <div className="page-enter space-y-6">
       <PageHeader
         title="AI Insights"
-        subtitle="Pattern analytics, cash-flow forecasting, saving tips and conversational answers about your money"
+        subtitle="Pattern analytics, cash-flow forecasting and saving tips — tap the chat bubble to ask questions about your money"
       />
 
       {/* Tabs list */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:inline-flex lg:w-auto">
+        <TabsList className="grid w-full grid-cols-3 lg:inline-flex lg:w-auto">
           <TabsTrigger value="patterns" className="gap-2">
             <Brain className="h-4 w-4" />
             Patterns
@@ -343,10 +199,6 @@ export default function MLInsights() {
           <TabsTrigger value="recommendations" className="gap-2">
             <Lightbulb className="h-4 w-4" />
             Recommendations
-          </TabsTrigger>
-          <TabsTrigger value="qa" className="gap-2">
-            <HelpCircle className="h-4 w-4" />
-            Natural Q&amp;A
           </TabsTrigger>
         </TabsList>
 
@@ -697,157 +549,10 @@ export default function MLInsights() {
             </>
           )}
         </TabsContent>
-
-        {/* 4. Natural Language Q&A Tab */}
-        <TabsContent value="qa" className="space-y-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle>Conversational Finance Assistant</CardTitle>
-              <CardDescription>Ask questions about your transactions using natural text (e.g. "What is my biggest expense?", "How much did I spend on Swiggy?")</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Chat panel */}
-              <div className="no-scrollbar h-[300px] space-y-4 overflow-y-auto rounded-xl border bg-muted/20 p-4">
-                {qaHistory.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center space-y-2 text-center">
-                    <MessageSquare className="h-10 w-10 text-muted-foreground" />
-                    <span className="max-w-xs text-xs text-muted-foreground">Ask a question below or pick a preloaded suggested query to start!</span>
-                  </div>
-                ) : (
-                  qaHistory.map((msg, index) => {
-                    const isUser = msg.role === "user";
-                    return (
-                      <div key={index} className={cn("flex w-full flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
-                        <div className={cn("max-w-[85%] rounded-xl px-4 py-2 text-sm shadow-sm", isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
-                          {msg.content}
-
-                          {/* Render rich visual breakdown inside system answers */}
-                          {!isUser && msg.details && (
-                            <div className="mt-3 space-y-2 border-t border-foreground/10 pt-2">
-                              {msg.type === "category_spending" && (
-                                <div className="space-y-1 text-xs">
-                                  <div>Category: <strong>{msg.details.category}</strong></div>
-                                  <div>Total Amount: <strong>{formatINR(msg.details.value)}</strong></div>
-                                </div>
-                              )}
-
-                              {msg.type === "keyword_search" && msg.details.transactions?.length > 0 && (
-                                <div className="space-y-1.5 text-[11px]">
-                                  <div className="mb-1 font-semibold">Recent Matching Transactions:</div>
-                                  <div className="space-y-1">
-                                    {msg.details.transactions.map((t, idx) => (
-                                      <div key={idx} className="flex items-center justify-between gap-4 rounded bg-background/40 p-1">
-                                        <span className="truncate">{t.description} ({t.date})</span>
-                                        <span className="shrink-0 font-semibold">{formatINR(t.amount)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {msg.type === "savings_rate" && (
-                                <div className="w-full space-y-1">
-                                  <Progress value={Math.max(0, Math.min(100, msg.details.value))} className="h-1.5 bg-foreground/10" />
-                                  <div className="text-right text-[10px] font-medium">Savings Rate: {msg.details.value.toFixed(1)}%</div>
-                                </div>
-                              )}
-
-                              {msg.type === "monthly_summary" && msg.details.data && (
-                                <div className="mt-1 grid grid-cols-3 gap-2 rounded-lg bg-background/40 p-1.5 text-center text-xs">
-                                  <div>
-                                    <div className="text-[9px] font-semibold uppercase text-muted-foreground">Income</div>
-                                    <div className="mt-0.5 font-bold text-emerald-600 dark:text-emerald-400">{formatINR(msg.details.data.income)}</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-[9px] font-semibold uppercase text-muted-foreground">Expense</div>
-                                    <div className="mt-0.5 font-bold text-rose-500">{formatINR(msg.details.data.expense)}</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-[9px] font-semibold uppercase text-muted-foreground">Net</div>
-                                    <div className="mt-0.5 font-bold">{formatINR(msg.details.data.net)}</div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                {qaLoading && (
-                  <div className="flex items-center gap-2 pl-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Thinking...
-                  </div>
-                )}
-              </div>
-
-              {/* Input section with microphone */}
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Input
-                    placeholder={qaRecording ? "Listening…" : "Ask about your budget, category spending, savings rate..."}
-                    value={qaRecording && qaInterim ? qaInterim : qaInput}
-                    onChange={(e) => setQaInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleQaSubmit()}
-                    disabled={qaLoading}
-                    className={cn(
-                      "h-11 pr-10",
-                      qaRecording && qaInterim && "border-red-500/50 ring-1 ring-red-500/30"
-                    )}
-                  />
-                  {qaSupported && (
-                    <button
-                      type="button"
-                      onClick={toggleQaRecording}
-                      disabled={qaLoading}
-                      aria-pressed={qaRecording}
-                      aria-label={qaRecording ? "Stop voice input" : "Start voice input"}
-                      className={cn(
-                        "absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-all",
-                        qaRecording
-                          ? "animate-pulse bg-red-500 text-white shadow-md shadow-red-500/40"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}
-                      title={qaRecording ? "Tap to stop" : "Tap to ask with voice"}
-                    >
-                      <Mic className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                <Button onClick={() => handleQaSubmit()} disabled={qaLoading || !qaInput.trim()} className="h-11 shrink-0">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-              {!qaSupported && (
-                <p className="text-[11px] text-muted-foreground">
-                  Voice questions need Chrome or Edge. You can still type below.
-                </p>
-              )}
-
-              {/* QA Suggested Questions Chips */}
-              {qaSuggestions.length > 0 && (
-                <div className="space-y-1.5 pt-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Suggested Questions</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {qaSuggestions.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => handleQaSubmit(s)}
-                        disabled={qaLoading}
-                        className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground transition-all duration-200 hover:bg-muted/80 hover:text-foreground"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
+
+      {/* Floating conversational assistant — only on this page */}
+      <QAChatWidget />
     </div>
   );
 }

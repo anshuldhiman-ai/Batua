@@ -6,7 +6,9 @@ import { formatINR, formatMonth } from "@/lib/utils-finance";
 
 /**
  * Month-by-month income/expense/net table (absorbed from the old Reports
- * page). Scoped to the same period as the rest of the Analytics page.
+ * page). Expects the hook's `monthlySeries` — built from the same
+ * day-filtered transactions as the KPI cards, so partial-month presets
+ * ("Last 30 days") show sums that agree with the rest of the page.
  */
 export default function MonthlySummaryTable({ series, loading, periodLabel }) {
   // Latest month first for reading; totals across the visible period.
@@ -50,8 +52,8 @@ export default function MonthlySummaryTable({ series, loading, periodLabel }) {
                 <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">No data for this period.</td></tr>
               ) : (
                 rows.map((m) => (
-                  <tr key={m.month} className="border-b border-border/60 transition-colors hover:bg-accent/40">
-                    <td className="p-3 font-medium">{formatMonth(m.month)}</td>
+                  <tr key={m.key} className="border-b border-border/60 transition-colors hover:bg-accent/40">
+                    <td className="p-3 font-medium">{formatMonth(m.key)}</td>
                     <td className="p-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{formatINR(m.income)}</td>
                     <td className="p-3 text-right tabular-nums text-rose-500">{formatINR(m.expense)}</td>
                     <td className={`p-3 text-right tabular-nums font-medium ${m.net < 0 ? "text-rose-500" : ""}`}>{formatINR(m.net)}</td>

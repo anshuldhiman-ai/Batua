@@ -7,6 +7,8 @@ import ml_nlp
 import ml_analytics
 import ml_goals
 import ml_rag
+import local_llm
+import chat_engine
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -21,6 +23,13 @@ class GoalCreate(BaseModel):
 
 class QuestionRequest(BaseModel):
     question: str
+    # "rules" (patterns only) | "llm" (local model answers) | "hybrid"
+    # (patterns compute, model rewords). Chosen in Settings on the frontend.
+    mode: str = "hybrid"
+    # Optional — when present, the question is routed through chat_engine
+    # for session memory + follow-up resolution. Omitted -> identical
+    # behavior to before (no new I/O), for backward compatibility.
+    session_id: str | None = None
 
 
 @router.post("/parse-local")
@@ -95,6 +104,10 @@ async def ml_status():
         "nlp_parser_mode": "spacy" if parser and parser._initialized else "rules_fallback",
         "classifier_available": classifier._initialized if classifier else False,
         "gemini_available": False,  # Will be updated if needed
+        # What the Natural Q&A runs on: pattern-matched answers, optionally
+        # reworded by a local Ollama model when the server is reachable.
+        "qa_llm_enabled": local_llm.is_enabled(),
+        "qa_llm_model": local_llm.model_name(),
     }
 
 
@@ -203,16 +216,55 @@ async def get_recommendations():
         raise HTTPException(500, f"Failed to generate recommendations: {exc}") from exc
 
 
-@router.post("/qa")
-async def ask_question(request: QuestionRequest):
-    """Answer a natural language question about finances."""
+@router.get("/anomalies")
+async def get_anomalies():
+    """On-demand anomaly detection — never auto-pushed, only surfaced when asked."""
     try:
         storage = get_storage()
         transactions = await storage.all("transactions")
-        qa = ml_rag.get_qa_system()
-        # answer_question may call the local LLM (blocking HTTP) — run it off
-        # the event loop so concurrent requests stay responsive.
-        return await run_in_threadpool(qa.answer_question, request.question, transactions)
+        detector = ml_analytics.get_anomaly_detector()
+        return detector.detect_anomalies(transactions)
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to detect anomalies: {exc}") from exc
+
+
+@router.post("/qa")
+async def ask_question(request: QuestionRequest):
+    """Answer a natural language question about finances.
+
+    Without ``session_id``: identical to before — stateless single-turn
+    answer, no new I/O. With ``session_id``: routes through ``chat_engine``
+    for session memory, follow-up resolution, and intent tagging.
+    """
+    try:
+        storage = get_storage()
+        transactions = await storage.all("transactions")
+
+        # Normalize mode names to match backend expectations
+        mode = request.mode
+        if mode == "llama":
+            mode = "llm"  # Frontend uses "llama", backend expects "llm"
+
+        if not request.session_id:
+            qa = ml_rag.get_qa_system()
+            # answer_question may call the local LLM (blocking HTTP) — run it
+            # off the event loop so concurrent requests stay responsive.
+            return await run_in_threadpool(
+                qa.answer_question, request.question, transactions, mode
+            )
+
+        session_id = request.session_id
+        if not (1 <= len(session_id) <= 128):
+            raise HTTPException(400, "Invalid session_id")
+
+        session = await chat_engine.load_session(storage, session_id)
+        result = await run_in_threadpool(
+            chat_engine.process_turn, session, request.question, transactions, mode
+        )
+        await chat_engine.save_session(storage, session)
+        return result
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(500, f"Failed to answer question: {exc}") from exc
 
@@ -222,8 +274,24 @@ async def get_qa_suggestions():
     """Get suggested questions to ask."""
     storage = get_storage()
     transactions = await storage.all("transactions")
-    
+
     qa = ml_rag.get_qa_system()
     suggestions = qa.get_suggested_questions(transactions)
-    
+
     return {"suggestions": suggestions}
+
+
+@router.get("/chat/{session_id}")
+async def get_chat_session(session_id: str):
+    """Fetch a chat session's turn history (empty defaults if not found)."""
+    storage = get_storage()
+    session = await chat_engine.load_session(storage, session_id)
+    return {"id": session["id"], "summary": session.get("summary", ""), "turns": session.get("turns", [])}
+
+
+@router.delete("/chat/{session_id}")
+async def reset_chat_session(session_id: str):
+    """Clear a chat session's memory."""
+    storage = get_storage()
+    await chat_engine.delete_session(storage, session_id)
+    return {"deleted": True}

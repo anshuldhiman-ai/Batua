@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   TrendingUp,
   TrendingDown,
@@ -15,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import NLInputBar from "@/components/NLInputBar";
 import KPICard from "@/components/KPICard";
 import PageHeader from "@/components/PageHeader";
 import CardDetailDialog from "@/components/CardDetailDialog";
@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api, formatINR, formatMonth, categoryColor } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 /* ─── Section header ──────────────────────────────────────────────── */
 function SectionHeader({ icon: Icon, title, subtitle, action }) {
@@ -111,14 +112,18 @@ export default function Dashboard() {
   const [drill, setDrill] = React.useState(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [geminiAvailable, setGeminiAvailable] = React.useState(false);
+  const [insightsMode, setInsightsMode] = useLocalStorage("batua-qa-mode", "hybrid");
+  const navigate = useNavigate();
 
   const load = React.useCallback(async () => {
     try {
       const [m, t, ins] = await Promise.all([
         api.get("/dashboard/metrics"),
         api.get("/analytics/timeline"),
-        // Insights are now fast (cached rules) — include in the same pass.
-        api.get("/insights"),
+        // Insights always return instantly: rule-based lines are served
+        // synchronously and any local-LLM reword is generated server-side in
+        // a background task (never blocks this request). Safe in the pass.
+        api.get("/insights", { params: { mode: insightsMode } }),
       ]);
       setMetrics(m.data);
       setTimeline(t.data.series);
@@ -136,7 +141,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [insightsMode]);
 
   // Discover once whether Gemini is enabled, so we show the refresh button.
   React.useEffect(() => {
@@ -194,12 +199,13 @@ export default function Dashboard() {
     return last6.map(t => t[field] || 0);
   };
 
-  const focusNLInput = () => document.querySelector('[data-testid="nl-input"]')?.focus();
+  // Quick-add lives on the Transactions page now — send empty states there.
+  const goAddTransaction = () => navigate("/transactions");
 
   return (
     <div className="page-enter space-y-6">
       {/* ════════════════════════════════════════════════════════════
-          SECTION 1: Page Header + Quick Add
+          SECTION 1: Page Header
           ════════════════════════════════════════════════════════════ */}
       <PageHeader
         title="Dashboard"
@@ -213,8 +219,6 @@ export default function Dashboard() {
           )
         }
       />
-
-      <NLInputBar onSaved={load} />
 
       {/* ════════════════════════════════════════════════════════════
           SECTION 2: HERO — Trend chart (left) + This-Month KPIs (right)
@@ -261,7 +265,7 @@ export default function Dashboard() {
                 title="No transaction data yet"
                 description="Add your first transaction to see your income vs expense trends over time."
                 actionText="Add transaction"
-                onAction={focusNLInput}
+                onAction={goAddTransaction}
               />
             )}
           </CardContent>
@@ -393,7 +397,7 @@ export default function Dashboard() {
                   title="No spending categories yet"
                   description="Add transactions to see how your spending is distributed."
                   actionText="Add transaction"
-                  onAction={focusNLInput}
+                  onAction={goAddTransaction}
                 />
               )}
             </CardContent>

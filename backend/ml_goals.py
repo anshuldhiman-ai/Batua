@@ -267,6 +267,68 @@ class RecommendationEngine:
             logger.error(f"Error generating recommendations: {exc}")
             return {"recommendations": [], "error": str(exc)}
 
+    def investment_nudge(self, transactions: List[Dict]) -> Optional[Dict]:
+        """Cash-flow-only investment nudge (no portfolio/market data exists
+        in this app). Fires only when this month's net cash flow is positive
+        and the Investments-category spend rate trails the user's own
+        savings rate — otherwise returns None."""
+        if not transactions:
+            return None
+        try:
+            df = pd.DataFrame(transactions)
+            if df.empty or "date" not in df or "amount" not in df:
+                return None
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+            df = df.dropna(subset=["date", "amount"])
+            if df.empty:
+                return None
+            if "category" not in df:
+                df["category"] = "Other"
+            df["category"] = df["category"].fillna("Other").replace("", "Other")
+            df["month"] = df["date"].dt.strftime("%Y-%m")
+
+            months = sorted(df["month"].unique())
+            if not months:
+                return None
+            current_month = months[-1]
+            month_df = df[df["month"] == current_month]
+
+            income = float(month_df.loc[month_df["amount"] > 0, "amount"].sum())
+            if income <= 0:
+                return None
+            expense = float(month_df.loc[month_df["amount"] < 0, "amount"].abs().sum())
+            net_cash_flow = income - expense
+            if net_cash_flow <= 0:
+                return None
+
+            savings_rate = net_cash_flow / income
+            invest_spend = float(
+                month_df.loc[
+                    (month_df["amount"] < 0) & (month_df["category"] == "Investments"), "amount"
+                ].abs().sum()
+            )
+            invest_rate = invest_spend / income
+            if invest_rate >= savings_rate * 0.5:
+                return None
+
+            suggested_monthly = round(net_cash_flow * 0.3, 2)
+            return {
+                "type": "investment_nudge",
+                "title": "Put idle cash flow to work",
+                "description": (
+                    f"You had a positive cash flow of ₹{net_cash_flow:,.2f} this month but only "
+                    f"₹{invest_spend:,.2f} went to Investments. Consider directing part of your "
+                    f"surplus (e.g. ₹{suggested_monthly:,.2f}/month) toward investments."
+                ),
+                "net_cash_flow": round(net_cash_flow, 2),
+                "current_investment": round(invest_spend, 2),
+                "suggested_monthly_investment": suggested_monthly,
+            }
+        except Exception as exc:
+            logger.error(f"Error generating investment nudge: {exc}")
+            return None
+
 
 # Global instances
 _goal_tracker = None

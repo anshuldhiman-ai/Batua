@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +16,10 @@ function Dialog({ open, onOpenChange, children }) {
   }, [open, onOpenChange]);
 
   if (!open) return null;
-  return (
+  // Portal to <body>: ancestors with CSS transforms (e.g. the page-enter
+  // animation on every page root) hijack position:fixed and make the dialog
+  // center against the page container instead of the viewport.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 py-6 sm:items-center [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fade-up"
@@ -23,7 +27,8 @@ function Dialog({ open, onOpenChange, children }) {
         data-testid="dialog-overlay"
       />
       {children}
-    </div>
+    </div>,
+    document.body
   );
 }
 

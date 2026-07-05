@@ -29,6 +29,13 @@ Windows/macOS/Linux.
   (`ml_rag.py`), answered by a pattern-matching engine and optionally reworded by a
   **local LLM via Ollama** (`local_llm.py`, no external API key needed). Runs in `rules`,
   `llm`, or `hybrid` mode (Settings → Insights mode).
+- **Conversational assistant** — a floating chat widget on the AI Insights page
+  (`QAChatWidget.jsx`) with multi-turn memory: it resolves follow-ups and pronouns
+  ("and last month?", "is that a lot?"), tags intent (query / advice / comparison /
+  analysis / anomaly) and routes each to the right handler, and supports **voice input**
+  (Web Speech API). Sessions persist per browser and are stored server-side
+  (`chat_engine.py`); every figure it quotes is grounded in a verified summary so the LLM
+  never invents numbers.
 
 ---
 
@@ -108,6 +115,7 @@ batua/
 │   ├── storage.py        # MongoDB primary, JSON-file fallback
 │   ├── ai.py             # Google Gemini wrapper (graceful fallback)
 │   ├── ml_rag.py         # Finance Q&A: pattern-matching + local-LLM rewording
+│   ├── chat_engine.py    # multi-turn layer: session memory, follow-up + intent routing
 │   ├── local_llm.py      # Ollama client (chat + multi-turn chat_messages)
 │   └── requirements.txt
 ├── frontend/
@@ -115,8 +123,8 @@ batua/
 │       ├── App.js                 # router + theme context + Toaster
 │       ├── index.css              # fonts, CSS variables, keyframes
 │       ├── lib/utils-finance.js   # api client, formatINR, CATEGORY_COLORS
-│       ├── components/            # Layout, NLInputBar, KPICard, Charts, ui/
-│       └── pages/                 # Dashboard, Transactions, Analytics, Budgets, Reports, Settings
+│       ├── components/            # Layout, NLInputBar, KPICard, Charts, QAChatWidget, ui/
+│       └── pages/                 # Dashboard, Transactions, Analytics, Budgets, Reports, Settings, MLInsights
 └── sample-data/          # demo Excel files + generator
 ```
 

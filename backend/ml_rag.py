@@ -307,6 +307,16 @@ class FinanceQA:
         """Public wrapper around ``_naturalise``."""
         return self._naturalise(question, verified_answer)
 
+    def extract_period(self, question: str) -> str | None:
+        """Public wrapper: returns a period key (e.g. ``"last_month"``) or a
+        specific ``"YYYY-MM"`` month key found in the question, if any."""
+        q = self._normalise(question)
+        _, specific_month = self._extract_specific_month(q)
+        if specific_month:
+            return specific_month
+        _, period_key = self._strip_period_phrase(q)
+        return period_key
+
     def answer_question(self, question: str, transactions: list[dict], mode: str = "hybrid") -> dict:
         """Answer a question in one of three modes.
 

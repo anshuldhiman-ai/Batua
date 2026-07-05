@@ -1,9 +1,10 @@
 import React from "react";
-import { Moon, Sun, IndianRupee, AlertTriangle, Trash2, Database, Sparkles } from "lucide-react";
+import { Moon, Sun, IndianRupee, AlertTriangle, Trash2, Database, Sparkles, Bot } from "lucide-react";
 import { toast } from "sonner";
 
 import { ThemeContext } from "@/App";
 import PageHeader from "@/components/PageHeader";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ACCENTS, CUSTOM_ACCENT } from "@/lib/themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,26 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/utils-finance";
+import { cn } from "@/lib/utils";
+
+// How the AI Insights chat answers questions. Read by QAChatWidget.
+const QA_MODES = [
+  {
+    id: "hybrid",
+    label: "Mixed (recommended)",
+    desc: "Pattern rules compute the exact numbers, the local model rewords the reply so it sounds natural.",
+  },
+  {
+    id: "llama",
+    label: "Llama — local AI",
+    desc: "The local model answers directly from a digest of your data. Needs Ollama running; falls back to rules when it isn't.",
+  },
+  {
+    id: "rules",
+    label: "Quick rules",
+    desc: "Instant template answers from pattern matching only. No AI involved.",
+  },
+];
 
 export default function Settings() {
   const { theme, toggle, accent, setAccent, customColor, setCustomColor } =
@@ -24,15 +45,32 @@ export default function Settings() {
   const customActive = accent === CUSTOM_ACCENT;
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [health, setHealth] = React.useState(null);
+  const [qaMode, setQaMode] = useLocalStorage("batua-qa-mode", "hybrid");
+  const [mlStatus, setMlStatus] = React.useState(null);
+  const [chatSessionId] = useLocalStorage("batua-chat-session-id", null);
 
   React.useEffect(() => {
     api.get("/").then((r) => setHealth(r.data)).catch(() => {});
+    api.get("/ml/ml-status").then((r) => setMlStatus(r.data)).catch(() => {});
   }, []);
 
   const clearAll = async () => {
     await api.delete("/transactions/");
     setConfirmOpen(false);
     toast.success("All transactions cleared");
+  };
+
+  const clearChatMemory = async () => {
+    if (chatSessionId) {
+      try {
+        await api.delete(`/ml/chat/${chatSessionId}`);
+      } catch {
+        // Best-effort — the assistant widget re-hydrates from the backend
+        // next time it opens, so an unreachable backend just means the
+        // stale history reloads once more.
+      }
+    }
+    toast.success("Conversation memory cleared");
   };
 
   return (
@@ -134,6 +172,38 @@ export default function Settings() {
             value={health ? (health.ai ? "Connected" : "Rule-based fallback") : "…"}
             badge={health ? (health.ai ? "success" : "secondary") : undefined}
           />
+          
+          {/* Insights Mode Selector */}
+          <div className="flex flex-col gap-3 border-t border-border/60 pt-4">
+            <div className="flex items-center gap-2.5">
+              <Bot className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Insights mode</span>
+            </div>
+            <div className="grid gap-2">
+              {QA_MODES.map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setQaMode(mode.id)}
+                  className={cn(
+                    "flex flex-col items-start rounded-lg border p-3 text-left transition-colors",
+                    qaMode === mode.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/40"
+                  )}
+                  data-testid={`qa-mode-${mode.id}`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="font-medium text-sm">{mode.label}</span>
+                    {qaMode === mode.id && (
+                      <Badge variant="default" className="text-xs">Active</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{mode.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -143,14 +213,26 @@ export default function Settings() {
             <AlertTriangle className="h-4 w-4" /> Danger Zone
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <div>
-            <div className="font-medium">Clear all transactions</div>
-            <div className="text-sm text-muted-foreground">Permanently deletes every transaction. Cannot be undone.</div>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">Clear all transactions</div>
+              <div className="text-sm text-muted-foreground">Permanently deletes every transaction. Cannot be undone.</div>
+            </div>
+            <Button variant="destructive" onClick={() => setConfirmOpen(true)} data-testid="clear-all-btn">
+              <Trash2 className="h-4 w-4" /> Clear all
+            </Button>
           </div>
-          <Button variant="destructive" onClick={() => setConfirmOpen(true)} data-testid="clear-all-btn">
-            <Trash2 className="h-4 w-4" /> Clear all
-          </Button>
+
+          <div className="flex items-center justify-between border-t border-border/60 pt-4">
+            <div>
+              <div className="font-medium">Clear conversation memory</div>
+              <div className="text-sm text-muted-foreground">Resets the finance assistant's chat history and follow-up context.</div>
+            </div>
+            <Button variant="outline" onClick={clearChatMemory} data-testid="clear-chat-memory-btn">
+              <Trash2 className="h-4 w-4" /> Clear chat
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
