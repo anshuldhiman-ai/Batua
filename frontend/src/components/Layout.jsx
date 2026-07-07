@@ -16,6 +16,13 @@ import {
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
 
+// Pick the right on-brand logo tile for the current theme.
+// In light UI we want the dark-tile logo to stand out; in dark UI we want the
+// light-tile logo so the tile is visible against a dark background.
+function brandLogoSrc(theme) {
+  return theme === "dark" ? "/batua-logo-dark.png" : "/batua-logo-light.png";
+}
+
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: ReceiptText },
@@ -47,6 +54,7 @@ function ThemeToggle({ className }) {
 /* ─── Desktop sidebar ─────────────────────────────────────────────── */
 function DesktopSidebar() {
   const location = useLocation();
+  const { theme } = React.useContext(ThemeContext);
 
   return (
     <aside
@@ -55,9 +63,9 @@ function DesktopSidebar() {
     >
       <NavLink to="/dashboard" className="flex items-center gap-3 px-4 py-5 xl:px-5">
         <img
-          src="/app-icon-192.png"
+          src={brandLogoSrc(theme)}
           alt="Batua"
-          className="h-9 w-9 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
+          className="h-7 w-7 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
         />
         <span className="hidden font-display text-lg font-bold tracking-tight xl:inline">
           Batua
@@ -107,6 +115,7 @@ function DesktopSidebar() {
 /* ─── Mobile top bar + drawer ─────────────────────────────────────── */
 function MobileNav() {
   const location = useLocation();
+  const { theme } = React.useContext(ThemeContext);
   const [isOpen, setIsOpen] = useState(false);
 
   const activeIndex = Math.max(
@@ -137,7 +146,7 @@ function MobileNav() {
         )}
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
-          <img src="/app-icon-192.png" alt="Batua" className="h-8 w-8 rounded-lg object-cover" />
+          <img src={brandLogoSrc(theme)} alt="Batua" className="h-6 w-6 rounded-md object-cover" />
           <span className="font-display text-base font-bold">Batua</span>
         </NavLink>
         <div className="flex items-center gap-2">

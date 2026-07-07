@@ -149,7 +149,12 @@ class SpendingPatternAnalyzer:
                     "total_spending": float(cluster_data['amount'].sum()),
                     "avg_spending": float(cluster_data['amount'].mean()),
                 })
-            
+
+            # KMeans assigns cluster ids arbitrarily; the frontend labels tiers
+            # positionally (first = "High spending volume"), so order by actual
+            # average spend rather than cluster id.
+            clusters.sort(key=lambda c: c["avg_spending"], reverse=True)
+
             return {"clusters": clusters}
             
         except Exception as exc:
