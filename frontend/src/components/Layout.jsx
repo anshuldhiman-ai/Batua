@@ -61,13 +61,13 @@ function DesktopSidebar() {
       className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl lg:flex xl:w-56"
       aria-label="Sidebar navigation"
     >
-      <NavLink to="/dashboard" className="flex items-center gap-3 px-4 py-5 xl:px-5">
+      <NavLink to="/dashboard" className="flex items-center gap-3 pl-9 pr-1 py-5 xl:px-9">
         <img
           src={brandLogoSrc(theme)}
           alt="Batua"
-          className="h-7 w-7 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
+          className="h-7 w-7 shrink-0 rounded object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
         />
-        <span className="hidden font-display text-lg font-bold tracking-tight xl:inline">
+        <span className="hidden font-brand text-xl tracking-wide xl:inline">
           Batua
         </span>
       </NavLink>
@@ -146,8 +146,8 @@ function MobileNav() {
         )}
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
-          <img src={brandLogoSrc(theme)} alt="Batua" className="h-6 w-6 rounded-md object-cover" />
-          <span className="font-display text-base font-bold">Batua</span>
+          <img src={brandLogoSrc(theme)} alt="Batua" className="h-6 w-6 rounded object-cover" />
+          <span className="font-brand text-lg tracking-wide">Batua</span>
         </NavLink>
         <div className="flex items-center gap-2">
           <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />

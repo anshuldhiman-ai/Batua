@@ -1,5 +1,16 @@
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
 
+/* Rostex-Regular — local brand wordmark font.
+   Lives next to this file at src/fonts/Rostex-Regular.ttf — relative URL
+   so CRACO/CRA's css-loader can bundle it (absolute paths don't work here). */
+@font-face {
+  font-family: "Rostex";
+  src: url("./fonts/Rostex-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -84,6 +95,13 @@
 @layer components {
   .font-display {
     font-family: "Outfit", sans-serif;
+  }
+
+  /* Brand wordmark — only used for the "Batua" lockup next to the logo.
+     Display-only font with a single 400 weight, so don't apply font-bold. */
+  .font-brand {
+    font-family: "Rostex", "Outfit", sans-serif;
+    letter-spacing: 0.04em;
   }
 
   .card-hover {
