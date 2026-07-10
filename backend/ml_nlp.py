@@ -172,7 +172,8 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
     "Snacks": [
         "lays", "chips", "kurkure", "namkeen", "bhujia", "mixture",
         "samosa", "kachori", "vada pav", "pav bhaji", "bhel", "sev",
-        "pakora", "pakode", "bread pakora", "golgappa", "panipuri",
+        "pakora", "pakode", "bread pakora", "golgappa", "golgappe",
+        "gol gappa", "gol gappe", "panipuri",
         "pani puri", "dahi puri", "papdi chaat",
         "biscuit", "biscuits", "parle", "britannia", "hide & seek",
         "good day", "bourbon", "oreo", "cookie", "cookies", "cracker",
@@ -233,6 +234,24 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "gas station", "petrol pump", "diesel pump", "auto gas",
         "speed", "speed petrol", "fasttrack", "fast track fuel",
     ],
+    "Investments": [
+        "sip", "lumpsum", "lump sum", "mutual fund", "mutual funds",
+        "stock", "stocks", "shares", "equity", "investment", "invested",
+        "invest", "investing",
+        "ppf", "nps", "elss", "fd", "fixed deposit", "rd", "recurring deposit",
+        "nsc", "kvp", "scss", "sukanya", "sssy", "pomis", "post office",
+        "gold bond", "sovereign gold bond", "sgb", "etf", "bond", "bonds",
+        "demat", "trading account", "demat account",
+        "zerodha", "groww", "upstox", "angel one", "angel broking",
+        "5paisa", "paytm money", "kuvera", "coin", "coin by zerodha",
+        "etmoney", "mfc", "motilal oswal", "hdfc securities", "icici direct",
+        "kotak securities", "sharekhan", "axis direct", "bob caps",
+        "crypto", "bitcoin", "btc", "ethereum", "eth", "wazirx",
+        "coinswitch", "coindcx", "zebpay",
+        "term insurance", "term plan", "health insurance", "life insurance",
+        "hdfc life", "icici prudential", "sbi life", "max life", "tata aia",
+        "policy premium", "ulip",
+    ],
     "Transportation": [
         "ola", "uber", "rapido", "auto", "rickshaw", "metro", "delhi metro",
         "mumbai metro", "bengaluru metro", "bangalore metro", "bus",
@@ -291,24 +310,6 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "gas cylinder", "lpg booking", "indane", "bharat gas",
         "insurance premium", "lic premium",
     ],
-    "Investments": [
-        "sip", "lumpsum", "lump sum", "mutual fund", "mutual funds",
-        "stock", "stocks", "shares", "equity", "investment", "invested",
-        "invest", "investing",
-        "ppf", "nps", "elss", "fd", "fixed deposit", "rd", "recurring deposit",
-        "nsc", "kvp", "scss", "sukanya", "sssy", "pomis", "post office",
-        "gold bond", "sovereign gold bond", "sgb", "etf", "bond", "bonds",
-        "demat", "trading account", "demat account",
-        "zerodha", "groww", "upstox", "angel one", "angel broking",
-        "5paisa", "paytm money", "kuvera", "coin", "coin by zerodha",
-        "etmoney", "mfc", "motilal oswal", "hdfc securities", "icici direct",
-        "kotak securities", "sharekhan", "axis direct", "bob caps",
-        "crypto", "bitcoin", "btc", "ethereum", "eth", "wazirx",
-        "coinswitch", "coindcx", "zebpay",
-        "term insurance", "term plan", "health insurance", "life insurance",
-        "hdfc life", "icici prudential", "sbi life", "max life", "tata aia",
-        "policy premium", "ulip",
-    ],
 }
 
 PAYMENT_METHODS = {
@@ -323,7 +324,7 @@ PAYMENT_METHODS = {
     "Wallet": ["wallet", "amazon pay", "mobikwik", "freecharge", "olamoney",
                "ola money", "paytm wallet", "jiomoney", "jio money"],
     "Net Banking": ["net banking", "netbanking", "neft", "imps", "rtgs", "imps transfer",
-                    "neft transfer"],
+                    "neft transfer", "bank", "online", "auto debit", "auto-debit"],
 }
 
 INCOME_CATEGORIES = {"Income"}
@@ -1549,6 +1550,9 @@ TRAINING_DATA_FALLBACK: List[Tuple[str, str]] = [
     ("bread pakora", "Snacks"),
     ("sandwich", "Snacks"),
     ("golgappa", "Snacks"),
+    ("golgappe", "Snacks"),
+    ("gol gappa", "Snacks"),
+    ("gol gappe", "Snacks"),
     ("panipuri", "Snacks"),
     ("pani puri", "Snacks"),
     ("dahi puri", "Snacks"),

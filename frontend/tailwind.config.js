@@ -42,7 +42,7 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        display: ['Outfit', 'sans-serif'],
+        display: ['Nevera', 'Outfit', 'sans-serif'],
         sans: ['"Plus Jakarta Sans"', 'sans-serif'],
       },
       keyframes: {

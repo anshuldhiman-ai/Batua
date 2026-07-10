@@ -11,7 +11,7 @@ async def test_sqlite_storage_operations(tmp_path):
     assert txns == []
     
     # 2. Test insert
-    doc1 = {"id": "txn-1", "date": "2026-06-01", "description": "Zomato", "amount": -450.0, "category": "Food & Dining"}
+    doc1 = {"id": "txn-1", "date": "2026-06-01", "description": "Zomato", "amount": -450.0, "category": "Food & Dining", "quantity": 1}
     inserted = await storage.insert("transactions", doc1)
     assert inserted == doc1
     
@@ -27,8 +27,8 @@ async def test_sqlite_storage_operations(tmp_path):
     assert all_docs[0] == doc1
     
     # 4. Test insert_many
-    doc2 = {"id": "txn-2", "date": "2026-06-02", "description": "Salary", "amount": 50000.0, "category": "Income"}
-    doc3 = {"id": "txn-3", "date": "2026-06-03", "description": "Airtel", "amount": -799.0, "category": "Utilities"}
+    doc2 = {"id": "txn-2", "date": "2026-06-02", "description": "Salary", "amount": 50000.0, "category": "Income", "quantity": 1}
+    doc3 = {"id": "txn-3", "date": "2026-06-03", "description": "Airtel", "amount": -799.0, "category": "Utilities", "quantity": 1}
     count = await storage.insert_many("transactions", [doc2, doc3])
     assert count == 2
     

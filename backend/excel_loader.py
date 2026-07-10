@@ -66,6 +66,9 @@ COLUMN_ALIASES = {
         "payment method", "mode", "mode of payment", "account", "bank",
         "payment mode", "method", "card", "wallet",
     ],
+    "quantity": [
+        "quantity", "qty", "no of items", "items count", "units", "quantity count", "no. of items", "quantity (qty)", "qty/units"
+    ],
 }
 
 _NOISE_DESCRIPTIONS = {
@@ -289,11 +292,12 @@ def _ai_map_columns(columns: list[str], sample: list[dict]) -> dict | None:
     system = (
         "You map columns of a bank statement or expense sheet to a fixed schema. "
         "Schema keys: date, description, amount, debit, credit, type, "
-        "category, payment_method, balance. Rules: use EXACT column names from the "
+        "category, payment_method, balance, quantity. Rules: use EXACT column names from the "
         "provided list as values, or null if absent. Use 'amount' for a single "
         "signed/value column; use 'debit' and 'credit' when money-out and money-in "
         "are SEPARATE columns. 'type' is a column holding Dr/Cr or debit/credit "
-        "indicators. Return JSON: {\"mapping\": { ... }}."
+        "indicators; 'quantity' is a column holding item counts or quantity of purchase. "
+        "Return JSON: {\"mapping\": { ... }}."
     )
     payload = json.dumps({"columns": columns, "sample_rows": sample[:6]}, default=str)
     data = ai.chat_json(system, payload)
@@ -451,6 +455,7 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
                 "price": _find_col(cells, ["total amount", "price", "amount"]),
                 "date": _find_col(cells, ["date of purchase", "date"]),
                 "mode": _find_col(cells, ["mode of payment", "mode", "payment", "bank"]),
+                "quantity": _find_col(cells, ["quantity", "qty", "no of items", "units", "items count"]),
             }
             if current is not None:
                 current["cols"] = cols
@@ -472,7 +477,28 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
             mode = cells[c["mode"]]
             if mode.lower() in ("nan", "none"):
                 mode = ""
-        current["items"].append({"item": item, "amount": amount, "raw_date": raw_date, "mode": mode})
+        
+        qty = 1
+        if c["quantity"] is not None and c["quantity"] < len(raw_cells):
+            try:
+                raw_qty = raw_cells[c["quantity"]]
+                if raw_qty is not None and not (isinstance(raw_qty, float) and pd.isna(raw_qty)):
+                    s_qty = str(raw_qty).strip()
+                    m = re.search(r"\d+", s_qty)
+                    if m:
+                        qty_val = int(m.group(0))
+                        if qty_val > 0:
+                            qty = qty_val
+            except Exception:
+                pass
+
+        current["items"].append({
+            "item": item,
+            "amount": amount,
+            "raw_date": raw_date,
+            "mode": mode,
+            "quantity": qty
+        })
 
     out: list[dict] = []
     for b in blocks:
@@ -483,7 +509,7 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
         for it in b["items"]:
             date_str = _resolve_swapped_date(it["raw_date"], real_month, real_year, default)
             amt = -abs(it["amount"])  # stacked entries are expenses
-            out.append(_make_txn(date_str, it["item"], amt, _detect_category(it["item"]), it["mode"]))
+            out.append(_make_txn(date_str, it["item"], amt, _detect_category(it["item"]), it["mode"], it.get("quantity", 1)))
     return out
 
 
@@ -569,11 +595,25 @@ def _parse_tabular(df: pd.DataFrame, use_ai: bool) -> list[dict]:
             if pm.lower() in ("nan", "none"):
                 pm = ""
 
-        out.append(_make_txn(date_str, desc.title(), amount, category, pm))
+        qty = 1
+        if mp.get("quantity"):
+            try:
+                raw_qty = rowd.get(mp["quantity"])
+                if raw_qty is not None and not (isinstance(raw_qty, float) and pd.isna(raw_qty)):
+                    s_qty = str(raw_qty).strip()
+                    m = re.search(r"\d+", s_qty)
+                    if m:
+                        qty_val = int(m.group(0))
+                        if qty_val > 0:
+                            qty = qty_val
+            except Exception:
+                pass
+
+        out.append(_make_txn(date_str, desc.title(), amount, category, pm, qty))
     return out
 
 
-def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str) -> dict:
+def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, qty: int = 1) -> dict:
     return {
         "id": str(uuid.uuid4()),
         "date": date_str,
@@ -581,6 +621,7 @@ def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str) -
         "amount": amount,
         "category": category or "Other",
         "payment_method": pm,
+        "quantity": qty,
         "txn_type": "credit" if amount >= 0 else "debit",
         "notes": "",
         "created_at": _now_iso(),

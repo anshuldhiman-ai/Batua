@@ -27,7 +27,7 @@ PAYMENT_METHODS = {
     "Axis": ["axis"],
     "Cash": ["cash"],
     "Wallet": ["wallet", "amazon pay", "mobikwik", "freecharge"],
-    "Net Banking": ["net banking", "netbanking", "neft", "imps", "rtgs"],
+    "Net Banking": ["net banking", "netbanking", "neft", "imps", "rtgs", "bank", "online", "auto debit", "auto-debit"],
 }
 
 INCOME_WORDS = [
@@ -43,7 +43,7 @@ INCOME_WORDS = [
 CATEGORIES: dict[str, list[str]] = {
     "Income": INCOME_WORDS,
     "Snacks": [
-        "lays", "chips", "samosa", "golgappa", "golgappe", "panipuri",
+        "lays", "chips", "samosa", "golgappa", "golgappe", "gol gappa", "gol gappe", "panipuri",
         "pani puri", "kurkure", "namkeen", "biscuit", "cookie", "chocolate",
         "dairy milk", "kitkat", "kit kat", "maggi", "chai", "tea", "coffee",
         "juice", "icecream", "ice cream", "pastry", "snack", "snacks",
@@ -64,6 +64,12 @@ CATEGORIES: dict[str, list[str]] = {
     "Fuel": [
         "petrol", "diesel", "fuel", "hp petrol", "bharat petroleum",
         "indian oil", "iocl", "shell", "pump", "filling station",
+    ],
+    "Investments": [
+        "sip", "mutual fund", "mutual funds", "mf", "stocks", "stock", "shares",
+        "equity", "investment", "invested", "ppf", "nps", "elss", "fd",
+        "fixed deposit", "recurring deposit", "rd", "zerodha", "groww", "upstox",
+        "etf", "bonds", "gold bond", "sgb", "demat", "index fund",
     ],
     "Transportation": [
         "ola", "uber", "auto", "rickshaw", "metro", "bus", "train", "irctc",
@@ -98,12 +104,6 @@ CATEGORIES: dict[str, list[str]] = {
         "course", "udemy", "coursera", "school", "college", "tuition",
         "books", "exam", "fees", "byju", "unacademy", "vedantu",
     ],
-    "Investments": [
-        "sip", "mutual fund", "mutual funds", "mf", "stocks", "stock", "shares",
-        "equity", "investment", "invested", "ppf", "nps", "elss", "fd",
-        "fixed deposit", "recurring deposit", "rd", "zerodha", "groww", "upstox",
-        "etf", "bonds", "gold bond", "sgb", "demat", "index fund",
-    ],
     "Housing/Rent": [
         "rent", "maintenance", "society", "landlord", "lease", "deposit fee",
     ],
@@ -124,8 +124,213 @@ MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in"}
 
 
+_SPOKEN_DEVANAGARI_REPLACEMENTS = {
+    "आज": "today",
+    "मैंने": "maine",
+    "मेने": "maine",
+    "मैनें": "maine",
+    "फिर": "phir",
+    "बजे": "baje",
+    "बजे दिन": "baje din",
+    "दिन": "din",
+    "दोपहर": "dopahar",
+    "सुबह": "subah",
+    "शाम": "shaam",
+    "रात": "raat",
+    "कुरकुरे": "kurkure",
+    "पैकेट": "packet",
+    "लिया": "liya",
+    "खाया": "khaya",
+    "खाए": "khaye",
+    "खाये": "khaye",
+    "गोलगप्पे": "gol gappe",
+    "गोल गप्पे": "gol gappe",
+    "का": "ka",
+    "के": "ke",
+    "की": "ki",
+    "वाला": "wala",
+    "वाले": "wale",
+    "रुपये": "rs",
+    "रुपया": "rs",
+}
+
+_SPOKEN_NUMBER_WORDS = {
+    "zero": "0",
+    "one": "1",
+    "two": "2",
+    "three": "3",
+    "four": "4",
+    "five": "5",
+    "six": "6",
+    "seven": "7",
+    "eight": "8",
+    "nine": "9",
+    "ten": "10",
+    "eleven": "11",
+    "twelve": "12",
+    "fifteen": "15",
+    "twenty": "20",
+    "thirty": "30",
+    "forty": "40",
+    "fifty": "50",
+    "sixty": "60",
+    "seventy": "70",
+    "eighty": "80",
+    "ninety": "90",
+    "ek": "1",
+    "do": "2",
+    "teen": "3",
+    "char": "4",
+    "paanch": "5",
+    "panch": "5",
+    "che": "6",
+    "chhe": "6",
+    "saat": "7",
+    "aath": "8",
+    "nau": "9",
+    "das": "10",
+    "gyarah": "11",
+    "barah": "12",
+    "pandrah": "15",
+    "bees": "20",
+    "tis": "30",
+    "tees": "30",
+    "chalis": "40",
+    "pachas": "50",
+    "saath": "60",
+    "sattar": "70",
+    "assi": "80",
+    "nabbe": "90",
+    "एक": "1",
+    "दो": "2",
+    "तीन": "3",
+    "चार": "4",
+    "पांच": "5",
+    "पाँच": "5",
+    "छह": "6",
+    "सात": "7",
+    "आठ": "8",
+    "नौ": "9",
+    "दस": "10",
+    "ग्यारह": "11",
+    "बारह": "12",
+    "पंद्रह": "15",
+    "बीस": "20",
+    "तीस": "30",
+    "चालीस": "40",
+    "पचास": "50",
+    "साठ": "60",
+    "सत्तर": "70",
+    "अस्सी": "80",
+    "नब्बे": "90",
+}
+
+_SPOKEN_FILLER_WORDS = {
+    "maine", "mene", "main", "me", "ne", "liya", "liye", "lia", "khaya",
+    "khaye", "khayi", "khaya", "khaaye", "kharida", "kharide", "bought",
+    "purchase", "li", "le", "ka", "ke", "ki", "ko", "se", "wala", "wale",
+    "wali", "rs", "rupees", "rupaye", "rupiya", "k", "din",
+}
+
+_SPOKEN_TIME_RE = re.compile(
+    r"\b(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*"
+    r"(?:baje|bajey|bje|bj|o[' ]?clock)\b"
+    r"(?:\s*(?P<period>subah|morning|dopahar|dupehar|din|shaam|sham|evening|raat|night))?",
+    re.IGNORECASE,
+)
+
+_SPOKEN_AMPM_RE = re.compile(
+    r"\b(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<ampm>am|pm)\b",
+    re.IGNORECASE,
+)
+
+
 def _remove(text: str, start: int, end: int) -> str:
     return (text[:start] + " " + text[end:])
+
+
+def _normalise_spoken_text(text: str) -> str:
+    """Normalize common Hindi/Hinglish speech-recognition output.
+
+    Browser speech can return either roman Hinglish ("aaj 2 bje") or Hindi
+    script ("आज 2 बजे"). This keeps the parser deterministic without needing
+    an external transcription service.
+    """
+    out = text.strip()
+    for source, target in sorted(
+        _SPOKEN_DEVANAGARI_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        out = out.replace(source, f" {target} ")
+    out = out.lower()
+    replacements = {
+        r"\b(aaj|aj)\b": "today",
+        r"\b(phir|fir|fer|then|uske baad|baad mein)\b": "\n",
+        r"\b(bajya|baje|bajey|bje|bj)\b": "baje",
+        r"\b(gol\s*gappe|gol\s*gappa|golgappe|golgappa)\b": "gol gappe",
+    }
+    for pattern, target in replacements.items():
+        out = re.sub(pattern, target, out, flags=re.IGNORECASE)
+    for word, number in sorted(_SPOKEN_NUMBER_WORDS.items(), key=lambda item: len(item[0]), reverse=True):
+        out = re.sub(r"\b" + re.escape(word) + r"\b", number, out, flags=re.IGNORECASE)
+    out = re.sub(r"[,.!?;]+", " ", out)
+    out = re.sub(r"\s*\n\s*", "\n", out)
+    return re.sub(r"[ \t]{2,}", " ", out).strip()
+
+
+def _spoken_date_context(text: str) -> str:
+    for word in ("today", "yesterday", "tomorrow"):
+        if re.search(r"\b" + word + r"\b", text, re.IGNORECASE):
+            return word
+    return ""
+
+
+def _format_spoken_time(hour: int, minute: int, period: str | None) -> str:
+    period = (period or "").lower()
+    hour_24 = hour
+    if period in {"dopahar", "dupehar", "din", "shaam", "sham", "evening", "raat", "night"}:
+        if 1 <= hour_24 <= 11:
+            hour_24 += 12
+    elif period in {"subah", "morning"} and hour_24 == 12:
+        hour_24 = 0
+    if period:
+        return f"{hour_24:02d}:{minute:02d}"
+    return f"{hour}:{minute:02d}"
+
+
+def _extract_spoken_time(text: str) -> tuple[str, list[str]]:
+    notes: list[str] = []
+
+    def replace_baje(match: re.Match) -> str:
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute") or 0)
+        if 1 <= hour <= 24 and 0 <= minute <= 59:
+            notes.append(f"Time: {_format_spoken_time(hour, minute, match.group('period'))}")
+        return " "
+
+    def replace_ampm(match: re.Match) -> str:
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute") or 0)
+        ampm = match.group("ampm").lower()
+        if 1 <= hour <= 12 and 0 <= minute <= 59:
+            hour_24 = hour % 12
+            if ampm == "pm":
+                hour_24 += 12
+            notes.append(f"Time: {hour_24:02d}:{minute:02d}")
+        return " "
+
+    text = _SPOKEN_TIME_RE.sub(replace_baje, text)
+    text = _SPOKEN_AMPM_RE.sub(replace_ampm, text)
+    return re.sub(r"\s{2,}", " ", text).strip(), notes
+
+
+def _strip_spoken_fillers(text: str) -> str:
+    if not text:
+        return text
+    filler_pattern = r"\b(?:" + "|".join(re.escape(w) for w in sorted(_SPOKEN_FILLER_WORDS, key=len, reverse=True)) + r")\b"
+    text = re.sub(filler_pattern, " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(?:ka|ke|ki)\s+(?=\d+\b)", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
 
 
 def _detect_payment(text: str) -> tuple[str, str]:
@@ -323,6 +528,7 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
         "date": date_str,
         "category": category,
         "payment_method": method,
+        "quantity": 1,
         "txn_type": "credit" if amount >= 0 else "debit",
     }
 
@@ -596,3 +802,37 @@ def parse_bulk_lines(text: str, today: datetime | None = None) -> list[dict]:
             continue
         items.append(parse_nl_input(line, today))
     return items
+
+
+def parse_voice_input(text: str, today: datetime | None = None) -> list[dict]:
+    """Parse a spoken Hinglish paragraph into one or more transactions.
+
+    Example:
+    "aaj 11 bje kurkure packet 10 wala phir 2 bje din gol gappe 20 k"
+    -> two snack expenses, with times preserved in notes.
+    """
+    today = today or datetime.now()
+    normalized = _normalise_spoken_text(text)
+    date_context = _spoken_date_context(normalized)
+    chunks = [chunk.strip(" -") for chunk in normalized.splitlines() if chunk.strip(" -")]
+    if not chunks:
+        return []
+
+    items: list[dict] = []
+    for chunk in chunks:
+        if date_context and not _spoken_date_context(chunk):
+            chunk = f"{date_context} {chunk}"
+        chunk, time_notes = _extract_spoken_time(chunk)
+        chunk = _strip_spoken_fillers(chunk)
+        if not chunk:
+            continue
+        parsed = parse_nl_input(chunk, today)
+        if parsed.get("date") in {"today", "yesterday", "tomorrow"}:
+            parsed["date"] = _detect_date(parsed["date"], today)[0]
+        if time_notes:
+            parsed["notes"] = "; ".join(time_notes)
+        items.append(parsed)
+
+    if items:
+        return items
+    return parse_bulk_lines(text, today)

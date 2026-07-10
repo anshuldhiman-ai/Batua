@@ -13,6 +13,7 @@ class Transaction(BaseModel):
     amount: float  # negative = expense, positive = income
     category: str = "Other"
     payment_method: str = ""
+    quantity: int = 1  # quantity of items purchased/credited
     txn_type: str = ""  # "credit" (money in) | "debit" (money out) — derived from amount
     notes: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -26,6 +27,7 @@ class TransactionCreate(BaseModel):
     amount: float
     category: str = "Other"
     payment_method: str = ""
+    quantity: int = 1
     notes: str = ""
 
 
@@ -37,6 +39,7 @@ class TransactionUpdate(BaseModel):
     amount: float | None = None
     category: str | None = None
     payment_method: str | None = None
+    quantity: int | None = None
     notes: str | None = None
 
 

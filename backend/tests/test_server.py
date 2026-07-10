@@ -43,6 +43,27 @@ def test_parse_nl_route(client):
     response = client.post("/api/parse-nl", json={"text": "   "})
     assert response.status_code == 400
 
+
+def test_parse_voice_route(client):
+    response = client.post(
+        "/api/parse-nl/voice",
+        json={
+            "text": "aaj maine 11 bje kurkure ka packet liya 10 wala fer 2 bje din k gol gappe khaye 20 k"
+        },
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 2
+    assert items[0]["description"] == "Kurkure Packet"
+    assert items[0]["amount"] == -10.0
+    assert items[0]["category"] == "Snacks"
+    assert items[0]["notes"] == "Time: 11:00"
+    assert items[1]["description"] == "Gol Gappe"
+    assert items[1]["amount"] == -20.0
+    assert items[1]["category"] == "Snacks"
+    assert items[1]["notes"] == "Time: 14:00"
+
+
 def test_transaction_crud(client):
     # 1. Create a transaction
     payload = {

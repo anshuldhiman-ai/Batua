@@ -11,6 +11,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Nevera";
+  src: url("./fonts/Nevera-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -94,7 +102,7 @@
 
 @layer components {
   .font-display {
-    font-family: "Outfit", sans-serif;
+    font-family: "Nevera", "Outfit", sans-serif;
   }
 
   /* Brand wordmark — only used for the "Batua" lockup next to the logo.
