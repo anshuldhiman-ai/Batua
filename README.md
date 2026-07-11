@@ -1,143 +1,213 @@
 # Batua — Intelligent Personal Finance Manager
 
 [![CI Pipeline](https://github.com/anshuldhiman-ai/Batua/actions/workflows/ci.yml/badge.svg)](https://github.com/anshuldhiman-ai/Batua/actions)
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org)
-[![Node Version](https://img.shields.io/badge/node-18%2B-green)](https://nodejs.org)
-[![Build Tool](https://img.shields.io/badge/build-Vite-646CFF)](https://vitejs.dev)
-[![DB Fallback](https://img.shields.io/badge/database-MongoDB%20%7C%20SQLite-lightgrey)](https://sqlite.org)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
+[![Storage](https://img.shields.io/badge/storage-MongoDB%20%7C%20SQLite-4EA94B?logo=mongodb&logoColor=white)](https://sqlite.org)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](#-license)
 
-**Batua** (meaning *wallet* in Hindi) is a privacy-focused, intelligent personal finance manager designed for local use. It features a sleek glassmorphic SaaS interface and pairs a dual regex-LLM parsing pipeline with a local ML-powered conversational assistant to turn unstructured financial entries into structured insights.
+> **Batua** (*wallet*, in Hindi) is a privacy-first personal finance manager. Type an expense in plain English — `zomato 450 yesterday upi` — and Batua parses, categorises, stores, and visualises it. A local LLM answers questions about your money **entirely offline**, so nothing sensitive ever has to leave your machine.
 
 <p align="center">
-  <video src="demo.gif.mp4" width="100%" style="max-width: 800px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);" controls autoplay loop muted></video>
+  <video src="demo.gif.mp4" width="100%" style="max-width: 820px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);" controls autoplay loop muted></video>
 </p>
 
 ---
 
-## 🏗️ System Architecture
+## Table of Contents
 
-Batua is built with a decoupled architecture designed for high availability and low latency on local environments:
+- [Why Batua](#-why-batua)
+- [Feature Overview](#-feature-overview)
+- [System Architecture](#-system-architecture)
+- [Engineering Highlights](#-engineering-highlights)
+- [Tech Stack](#-tech-stack)
+- [Quick Start](#-quick-start)
+- [Configuration](#-configuration)
+- [API Surface](#-api-surface)
+- [Project Structure](#-project-structure)
+- [Testing & CI](#-testing--ci)
+- [Security](#-security)
+- [Deployment](#-deployment)
+- [License](#-license)
+
+---
+
+## ✨ Why Batua
+
+| | |
+|---|---|
+| 🧠 **Natural-language first** | Log transactions the way you'd text a friend. A local regex/NLP pipeline handles the common cases instantly, with an optional Gemini fallback for messy input. |
+| 🔒 **Private by default** | Your data lives on your machine. The conversational assistant runs on a **local** Ollama model — zero cloud calls, zero subscription, zero data egress. |
+| ♻️ **Zero-config storage** | Ships with MongoDB support but transparently fails over to an embedded SQLite database. Clone, run, done — no database to provision. |
+| 📊 **Insight-dense** | Timelines, category breakdowns, merchant analysis, treemaps, a calendar heatmap, budget health, cash-flow forecasting, and anomaly detection out of the box. |
+| ⚡ **Fast** | Single-pass metric bucketing and a TTL cache keep the dashboard sub-100ms even as transaction volume grows. |
+
+---
+
+## 🎯 Feature Overview
+
+### Capture
+- **Natural-language entry** — `swiggy 320 upi`, `salary 85000 credit`, parsed into structured transactions.
+- **Bulk & voice input** — paste multiple lines or dictate; each line is parsed independently.
+- **Recurring entries** — replicate a transaction across selected months in one action, with idempotent de-duplication.
+- **Excel / CSV import** — column auto-detection, staged progress reporting, 25 MB guard, and fingerprint-based dedupe on re-upload.
+
+### Understand
+- **Analytics suite** — spending timelines, category breakdowns, top merchants, payment-method mix, treemaps, and a GitHub-style calendar heatmap.
+- **Dashboard KPIs** — income, expense, net, and savings-rate with month-over-month deltas.
+- **Budgets** — per-category limits with live health indicators.
+- **AI insights** — instant rule-based coaching, optionally reworded by a local or cloud LLM for a natural tone.
+- **ML features** — cash-flow forecasting, spending-pattern clustering, budget optimisation, savings recommendations, and anomaly detection (scikit-learn).
+
+### Ask
+- **Conversational assistant** — a grounded Q&A engine with multi-turn session memory and follow-up resolution ("what about last month?"). Answers are computed from *your* data, then optionally reworded by a local Llama model.
+
+### Export
+- One-click **CSV** and **Excel** export of all transactions.
+
+---
+
+## 🏗 System Architecture
+
+A decoupled frontend/backend split, built for low latency and offline operation.
 
 ```mermaid
 graph TD
-    User([User Interface]) -->|Vite Dev Server / React 19| FE[React Frontend]
-    FE -->|API Requests| BE[FastAPI Backend]
-    
-    subgraph Backend Pipeline
-        BE -->|Route Modules| Router[FastAPI APIRouter]
-        Router -->|1. Regex Parse| Parser[NL Regex Parser]
-        Parser -->|Fallback if Unknown| Gemini[Google Gemini API]
-        Router -->|2. Local Q&A / Chat| ChatEngine[Chat Engine]
-        ChatEngine -->|RAG Grounding| SQLiteDB[(SQLite Fallback)]
-        ChatEngine -->|Local LLM rewording| Ollama[(Ollama Llama 3.2)]
+    User([User]) -->|React 19 + Vite| FE[Frontend SPA]
+    FE -->|/api over HTTPS| BE[FastAPI Backend]
+
+    subgraph Backend
+        BE --> Router[APIRouter modules]
+        Router -->|1 · parse| Parser[Regex / NLP pipeline]
+        Parser -.->|fallback| Gemini[[Google Gemini]]
+        Router -->|2 · analytics| Cache[TTL metrics cache]
+        Router -->|3 · Q&A| Chat[Chat engine · RAG]
+        Chat -.->|reword, offline| Ollama[[Ollama · llama3.2]]
     end
-    
-    subgraph Data Layer
-        Router -->|CRUD / Analytics| Storage{Storage Controller}
-        Storage -->|Primary| MongoDB[(MongoDB Cluster)]
-        Storage -->|Transparent Failover| SQLiteDB
+
+    subgraph Storage
+        Router --> Ctrl{Storage controller}
+        Ctrl -->|primary| Mongo[(MongoDB)]
+        Ctrl -->|transparent failover| SQLite[(SQLite · WAL)]
     end
 ```
 
 ---
 
-## 🚀 Key Architectural Highlights
+## 🔬 Engineering Highlights
 
-This project was built to showcase production-grade software engineering patterns and practical machine learning applications:
+### 1 · Transparent dual-database failover
+On startup the storage controller pings MongoDB with a 1.5 s budget. If it's unreachable, Batua hot-fails-over to an async SQLite store (`aiosqlite`, WAL journaling). **Both backends implement the identical async interface** (`all / get / insert / update / delete / …`), so not a single route knows or cares which engine is live. Result: the app runs with zero setup on any machine, and scales up to Mongo Atlas by setting one env var.
 
-### 1. Transparent Storage Failover (Dual-DB Engine)
-* **Design Pattern**: Controller-Abstraction pattern.
-* **Mechanism**: On startup, Batua pings the configured **MongoDB** instance. If unreachable within a `1500ms` window, it performs a seamless, hot failover to a **SQLite** database (`backend/data/store.db`) running async WAL journaling via `aiosqlite`. Both engines adhere to an identical async interface, ensuring zero application downtime.
+### 2 · Single-pass analytics with cache invalidation
+Dashboard and analytics endpoints bucket transactions by month in a **single pass** and serve from an in-memory TTL cache (`app/cache.py`). Every write path calls `invalidate_analytics_cache()`, binding cache lifetime to data mutations — so metrics are always fresh *and* fast.
 
-### 2. $O(1)$ Optimized Dashboard Caching
-* **Optimization**: The default dashboard metrics endpoint previously iterated over transactions lists multiple times ($O(N)$ complexity).
-* **Fix**: Batua now buckets transactions by month in a single pass (`pre_bucket_transactions`) and utilizes an in-memory TTL caching layer (`app/cache.py`). Cache invalidation is bound to database mutation triggers, ensuring users always see real-time, low-latency metrics.
+### 3 · Local-first RAG assistant
+The Q&A engine computes verified figures from your transactions, wraps them in a strict grounding prompt that **forbids inventing numbers**, and routes them to a local Ollama model for natural phrasing. If Ollama isn't running, it degrades gracefully to deterministic templates. No data leaves the device; no API bill.
 
-### 3. Local-First Conversational Assistant (RAG Engine)
-* **Mechanisms**: Includes a multi-turn chat assistant featuring conversational state memory, follow-up resolution, and query grounding.
-* **LLM Integration**: Processes financial query results, wraps them in strict context grounding blocks, and routes them to a local **Ollama** instance (`llama3.2`) to synthesize user replies offline—eliminating data leaks or API subscription costs.
+### 4 · Hybrid NLP parsing that fails soft
+A local regex + heuristic pipeline resolves the vast majority of entries instantly. Only genuinely ambiguous input falls through to Gemini — and if no key is configured, the rule-based parser still returns a best-effort result. Every external dependency in the app is *optional* and *degradable*.
 
-### 4. Hybrid Natural Language Parsing Pipeline
-* Parses inputs like `zomato 450 yesterday upi` instantly using a local Regex-NLP heuristic pipeline.
-* Gracefully falls back to the **Google Gemini API** (`gemini-2.5-flash`) for complex syntax patterns or semantic edge cases.
+### 5 · Production hardening
+Security headers on every response, environment-gated API docs, sanitised error responses with correlation IDs, and content-fingerprint idempotency on imports. See [Security](#-security).
 
 ---
 
-## 🎨 User Interface & Experience
+## 🧰 Tech Stack
 
-Batua features a responsive dark-themed dashboard styled with HSL variables, fluid custom keyframe animations, and Radix accessibility roles:
-* **Natural-Language Hero Bar**: Type or use voice dictation to speak transactions.
-* **Dynamic Analytics Tabbed Suite**: Includes spending timelines, category breakdowns, merchant charts, treemaps, and a GitHub-style calendar heatmap.
-* **Budget Allocator**: Set limits per category and track health through Rose/Amber progress indicators.
-* **AI Insights Companion**: Floating widget providing instant financial health analysis.
-
-<p align="center">
-  <img src="Screenshot (37).png" width="32%" alt="Dashboard View" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);" />
-  <img src="Screenshot (38).png" width="32%" alt="Analytics View" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);" />
-  <img src="Screenshot (39).png" width="32%" alt="Chat Assistant View" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);" />
-</p>
+| Layer | Technologies |
+|---|---|
+| **Backend** | FastAPI · Uvicorn · Pydantic v2 · Motor (async MongoDB) · SQLModel + aiosqlite · Pandas / openpyxl / XlsxWriter |
+| **AI / ML** | Ollama (`llama3.2`) · Google Gemini (`gemini-2.5-flash`) · scikit-learn · spaCy · custom regex NLP |
+| **Frontend** | React 19 · TypeScript · Vite 6 · React Router 7 · TanStack Query · Tailwind CSS 3 · Recharts · Framer Motion · Axios · react-dropzone · Lucide · Sonner |
+| **Tooling** | Ruff · Pytest (+ pytest-asyncio) · GitHub Actions CI |
 
 ---
 
-## 📦 Tech Stack
+## 🚀 Quick Start
 
-* **Backend**: FastAPI, `uvicorn`, `motor` (Async MongoDB), `aiosqlite` (Async SQLite), `pydantic` v2, `pandas`/`openpyxl` (Excel processing), `google-generativeai` SDK.
-* **Frontend**: React 19, React Router 7, Vite (ESM modular bundler), Tailwind CSS v3, Recharts, Radix UI Primitives, Lucide Icons, Sonner.
-* **AI/ML**: Ollama (`llama3.2`), Google Gemini API, Regex Parser.
+**Prerequisites:** Python 3.11+, Node.js 18+. MongoDB and Ollama are both **optional**.
 
----
+### Backend
 
-## 🔧 Prerequisites
-
-* **Python 3.11+**
-* **Node.js 18+**
-* **Ollama** (optional, for local chatbot support)
-* **MongoDB** (optional, transparent SQLite failover works out of the box)
-
----
-
-## ⚙️ Configuration
-
-Copy `.env.example` to `.env` at the root folder:
-
-```bash
-# Storage config
-MONGO_URL="mongodb://localhost:27017"
-DB_NAME="batua"
-CORS_ORIGINS="*"
-
-# LLM APIs
-GOOGLE_API_KEY="AIzaSy..." # Optional: fallbacks to local rule-base if empty
-GEMINI_MODEL="gemini-2.5-flash"
-
-# Local Q&A Chatbot config
-LOCAL_LLM_URL="http://localhost:11434"
-LOCAL_LLM_MODEL="llama3.2"
-LOCAL_LLM_ENABLED=1
-```
-
----
-
-## 🏃 Quick Start
-
-### 1. Clone & Set Up Backend
 ```bash
 cd backend
 pip install -r requirements.txt
 python -m uvicorn server:app --host 0.0.0.0 --port 8001 --reload
 ```
-The backend API runs at `http://localhost:8001`.
+API runs at **http://localhost:8001** (health check: `GET /api/`).
 
-### 2. Set Up Frontend
+### Frontend
+
 ```bash
 cd frontend
-corepack enable
+corepack enable        # provides yarn
 yarn install
 yarn dev
 ```
-The Vite development server launches at `http://localhost:3000`.
+The Vite dev server launches at **http://localhost:3000** and proxies `/api` to the backend.
 
-*Windows shortcut: Double-click `run-backend.bat` and `run-frontend.bat` to launch both services instantly.*
+> 💡 **Windows shortcut:** double-click `run-backend.bat` and `run-frontend.bat` (or `run-all.bat`) to launch everything.
+
+### Optional: enable the offline chat assistant
+
+```bash
+# https://ollama.com/download
+ollama pull llama3.2   # ~2 GB, runs on CPU
+```
+Batua auto-detects Ollama on `localhost:11434`. If it's absent, the assistant falls back to deterministic templates.
+
+---
+
+## ⚙️ Configuration
+
+Copy `.env.example` → `.env` in the project root (shared by backend and frontend):
+
+```bash
+# ── Storage ───────────────────────────────────────────────
+MONGO_URL="mongodb://localhost:27017"   # falls back to SQLite if unreachable
+DB_NAME="batua"
+
+# ── Security ──────────────────────────────────────────────
+CORS_ORIGINS="*"        # LOCAL only — set to your frontend URL in production
+ENABLE_DOCS="0"         # set "1" to expose /docs, /redoc, /openapi.json
+
+# ── Cloud LLM (optional) ──────────────────────────────────
+GOOGLE_API_KEY=""       # empty → rule-based parser only
+GEMINI_MODEL="gemini-2.5-flash"
+
+# ── Local LLM (optional, recommended) ─────────────────────
+LOCAL_LLM_URL="http://localhost:11434"
+LOCAL_LLM_MODEL="llama3.2"
+LOCAL_LLM_ENABLED="1"
+
+# ── Frontend (Vite) ───────────────────────────────────────
+VITE_BACKEND_URL="http://localhost:8001"
+```
+
+> ⚠️ **Rotate any key that has ever lived in a local `.env` before deploying or sharing this repo.** `.env` is git-ignored, but the value still sits in plaintext on disk. Generate a fresh `GOOGLE_API_KEY` at <https://aistudio.google.com/app/apikey> and revoke the old one.
+
+---
+
+## 🔌 API Surface
+
+All routes are mounted under `/api`. Highlights:
+
+| Group | Routes |
+|---|---|
+| **Transactions** | `GET/POST /transactions` · `PUT/DELETE /transactions/{id}` · `POST /transactions/bulk` · `bulk-delete` · `recurring` |
+| **Analytics** | `/analytics/timeline` · `category-breakdown` · `top-merchants` · `heatmap` · `payment-method` · `treemap` |
+| **Dashboard** | `GET /dashboard/metrics` |
+| **Budgets** | `GET/POST /budgets` · `DELETE /budgets/{id}` · `GET /budgets/status` |
+| **Insights** | `GET /insights` · `POST /insights/refresh` |
+| **NL parsing** | `POST /parse-nl` · `parse-nl/bulk` · `parse-nl/voice` |
+| **ML** | `/ml/spending-patterns` · `cash-flow-forecast` · `optimize-budget` · `recommendations` · `anomalies` · `qa` · `classify` |
+| **Import / Export** | `POST /upload-excel` (+ staged `start` / `upload-progress/{id}`) · `GET /export/csv` · `/export/excel` |
+
+Enable `ENABLE_DOCS=1` and browse the full interactive spec at `/docs`.
 
 ---
 
@@ -146,48 +216,88 @@ The Vite development server launches at `http://localhost:3000`.
 ```
 batua/
 ├── backend/
-│   ├── server.py              # Main app entry, lifespan context, CORS middlewares
-│   ├── storage.py             # Dual Mongo/SQLite storage wrapper
-│   ├── ai.py                  # Gemini API wrapper with safe fallbacks
-│   ├── local_llm.py           # Ollama client and multi-turn message compiler
-│   ├── chat_engine.py         # Chat state tracking and intent-routing layer
-│   ├── parser.py              # Regex NLP parse pipeline
+│   ├── server.py            # App entry: lifespan, CORS, security headers, router mounting
+│   ├── storage.py           # Dual MongoDB/SQLite controller with identical async interface
+│   ├── ai.py                # Google Gemini wrapper (fails soft to None)
+│   ├── local_llm.py         # Ollama client + multi-turn message builder
+│   ├── chat_engine.py       # Session memory, follow-up resolution, intent routing
+│   ├── parser.py            # Regex / heuristic NL parsing pipeline
+│   ├── ml_nlp.py            # spaCy + scikit-learn classification
+│   ├── ml_analytics.py      # Forecasting, clustering, anomaly detection
+│   ├── ml_goals.py          # Savings goals & recommendation engine
+│   ├── ml_rag.py            # Grounded Q&A over transactions
+│   ├── excel_loader.py      # Column auto-detection & import
 │   ├── app/
-│   │   ├── models.py          # Strict Pydantic database and API models
-│   │   ├── helpers.py         # Global backend helper modules
-│   │   ├── cache.py           # In-memory TTL metrics cache
-│   │   └── routes/            # Decoupled FastAPI router controllers
-│   └── tests/                 # Full unit test suite (Ruff & Pytest validation)
+│   │   ├── models.py        # Pydantic API/DB models
+│   │   ├── cache.py         # In-memory TTL metrics cache
+│   │   ├── helpers.py       # Shared backend helpers
+│   │   ├── dependencies.py  # Storage dependency injection
+│   │   └── routes/          # Decoupled FastAPI routers (one module per domain)
+│   └── tests/               # Pytest suite (parser, storage, chat, ML, server)
 ├── frontend/
-│   ├── index.html             # Vite root entry
-│   ├── vite.config.js         # Path aliases & api proxy rules
-│   ├── src/
-│   │   ├── main.jsx           # React app renderer
-│   │   ├── App.jsx            # Suspense-wrapped router & context providers
-│   │   ├── components/        # Layout, NLInputBar, charts, Radix dialogs
-│   │   └── pages/             # Dashboard, Analytics, Budgets, Settings
+│   ├── index.html           # Vite entry
+│   ├── vite.config.js       # Path aliases + /api proxy
+│   ├── vercel.json          # SPA rewrites + security headers
+│   └── src/
+│       ├── main.tsx         # React root
+│       ├── App.tsx          # Router + providers
+│       ├── components/      # Layout, NL input bar, charts, chat widget, ui/ primitives
+│       ├── pages/           # Dashboard, Analytics, Budgets, Transactions, MLInsights, Settings
+│       ├── hooks/           # useLocalStorage, useDebounce, useAnalyticsData
+│       └── lib/             # Finance utils, analytics helpers, themes
+├── render.yaml              # Render blueprint (backend)
+├── DEPLOYMENT.md            # Full deploy walkthrough
+└── SKILLS.md                # Engineering competencies demonstrated
 ```
 
 ---
 
-## 🧪 Testing and CI
+## 🧪 Testing & CI
 
-The codebase is automatically formatted, linted, and unit-tested on every commit:
+Every push is linted and tested via GitHub Actions (`.github/workflows/ci.yml`).
+
 ```bash
-# Run backend code checks
+# Backend
 cd backend
 ruff check .
 pytest tests/ -v
 
-# Run frontend build check
+# Frontend
 cd frontend
 yarn build
 ```
 
+The suite covers the NL parser, storage abstraction (both backends), chat engine, ML features, Excel loader, and route handlers.
+
 ---
 
-## 🔒 Security & Scope
+## 🔒 Security
 
-Batua is **designed for single-user local deployment**. 
-* Access tokens, HTTPS/SSL, and multi-tenant isolation are excluded by design to focus strictly on local performance, user privacy, and zero server infrastructure overhead.
-* If deploying to public instances, it is highly recommended to wrap routes in an OAuth2 proxy.
+Batua is **designed for single-user local deployment** — it intentionally omits accounts, multi-tenant isolation, and auth to stay simple and infrastructure-free. If you expose it publicly, front it with an authenticating reverse proxy (e.g. OAuth2 Proxy).
+
+**Hardening already in place:**
+
+- **Security headers** on every backend response — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, a `default-src 'none'` CSP, and HSTS (HTTPS only). The Vercel frontend ships an equivalent set with a `script-src 'self'` CSP (`frontend/vercel.json`).
+- **API docs closed by default** — `/docs`, `/redoc`, `/openapi.json` return 404 unless `ENABLE_DOCS=1`.
+- **Sanitised errors** — internal failures return a generic message plus a `correlation_id`; stack traces and paths stay in server logs only.
+- **CORS discipline** — `CORS_ORIGINS` defaults to `*` for local use; set it to your exact frontend URL in production (credentials are only enabled for explicit origins).
+- **Import safety** — 25 MB upload cap and content-fingerprint idempotency.
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the production checklist.
+
+---
+
+## ☁️ Deployment
+
+- **Backend** → [Render](https://render.com) via the included `render.yaml` blueprint (set `MONGO_URL`, `CORS_ORIGINS`, and optionally `GOOGLE_API_KEY` in the dashboard).
+- **Frontend** → [Vercel](https://vercel.com) (`frontend/` root, `VITE_BACKEND_URL` pointing at the deployed API).
+
+Full step-by-step instructions live in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+---
+
+## 📄 License
+
+Released under the **MIT License** — free to use, modify, and distribute. See [`LICENSE`](LICENSE) for details.
+
+<p align="center"><sub>Built with care for people who want to understand their money without handing it to the cloud.</sub></p>

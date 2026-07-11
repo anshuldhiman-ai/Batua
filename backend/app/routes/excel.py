@@ -36,7 +36,12 @@ async def upload_preview(file: UploadFile = File(...)):
     try:
         return excel_loader.detect_columns(content, file.filename or "")
     except Exception as exc:
-        raise HTTPException(400, f"Could not read file: {exc}")
+        logger.warning("Could not read uploaded file %r: %s", file.filename, exc)
+        raise HTTPException(
+            400,
+            "Could not read the file. Make sure it's a valid .xlsx or .csv "
+            "spreadsheet and not password-protected or corrupted.",
+        )
 
 
 @router.post("/upload-excel")
@@ -57,8 +62,12 @@ async def upload_excel(
     try:
         rows = excel_loader.try_load_excel(content, file.filename or "", use_ai=use_ai)
     except Exception as exc:
-        logger.error(f"Error parsing Excel file: {exc}")
-        raise HTTPException(400, f"Could not parse file: {exc}")
+        logger.error("Error parsing Excel file %r: %s", file.filename, exc)
+        raise HTTPException(
+            400,
+            "Could not parse the file. Make sure it has a date column and an "
+            "amount (or debit/credit) column, and isn't corrupted.",
+        )
 
     if not rows:
         raise HTTPException(
@@ -222,6 +231,12 @@ async def _run_upload_task(task_id: str, content: bytes, filename: str,
                 "parsed": len(rows),
             },
         )
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("Background upload failed")
-        store.fail(task_id, str(exc) or exc.__class__.__name__)
+    except Exception:  # pragma: no cover - defensive
+        # Full detail (incl. traceback) goes to the server log only; the
+        # polling client gets a generic message so internals never leak.
+        logger.exception("Background upload failed for task %s", task_id)
+        store.fail(
+            task_id,
+            "Something went wrong while importing this file. Please check the "
+            "file and try again.",
+        )

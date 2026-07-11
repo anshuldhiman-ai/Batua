@@ -53,7 +53,19 @@ async def lifespan(app: FastAPI):
         logger.info("Storage closed")
 
 
-app = FastAPI(title="Batua", lifespan=lifespan)
+# Interactive API docs (/docs, /redoc) and the OpenAPI schema are handy in
+# development but expose the full API surface publicly. Gate them behind a
+# flag that defaults OFF so a production deploy is closed by default; set
+# ENABLE_DOCS=1 locally (or in a trusted environment) to turn them back on.
+_docs_enabled = os.environ.get("ENABLE_DOCS", "0").strip() not in ("0", "false", "no", "")
+
+app = FastAPI(
+    title="Batua",
+    lifespan=lifespan,
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 api = APIRouter()
 
 
@@ -80,11 +92,31 @@ api.include_router(ml_features.router, prefix="/ml", tags=["ml-features"])
 app.include_router(api, prefix="/api")
 
 
-# CORS middleware
+# Security headers + cache control.
+#
+# The API returns JSON (never HTML), so a strict Content-Security-Policy that
+# forbids any active content is a cheap, safe default: even if a response were
+# ever mis-rendered as a document, nothing could execute. HSTS is only sent
+# over HTTPS (it's meaningless and can lock out local http:// dev otherwise).
 @app.middleware("http")
-async def _no_cache(request, call_next):
-    """Prevent the browser from serving stale API data."""
+async def _security_headers(request, call_next):
+    """Attach security headers to every response and disable API caching."""
     response = await call_next(request)
+
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'none'; frame-ancestors 'none'",
+    )
+    # Only advertise HSTS when the request actually arrived over TLS, so local
+    # http development isn't pinned to https by the browser.
+    if request.url.scheme == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+
     if request.url.path.startswith("/api"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         response.headers["Pragma"] = "no-cache"

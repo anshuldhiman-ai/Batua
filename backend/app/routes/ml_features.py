@@ -1,4 +1,7 @@
 """ML-powered features endpoints."""
+import logging
+import uuid
+
 from fastapi import APIRouter, HTTPException, Query
 from starlette.concurrency import run_in_threadpool
 from app.dependencies import get_storage
@@ -11,7 +14,24 @@ import local_llm
 import chat_engine
 from pydantic import BaseModel
 
+logger = logging.getLogger("batua.ml_features")
+
 router = APIRouter()
+
+
+def _server_error(context: str, exc: Exception) -> HTTPException:
+    """Log the full exception server-side and return a generic 500 to the
+    client. The correlation ID lets a user quote the failure without us ever
+    leaking exception text, stack traces, or internal paths in the response."""
+    correlation_id = uuid.uuid4().hex[:12]
+    logger.error("[%s] %s: %s", correlation_id, context, exc, exc_info=exc)
+    return HTTPException(
+        500,
+        {
+            "message": "Something went wrong processing your request.",
+            "correlation_id": correlation_id,
+        },
+    )
 
 
 class GoalCreate(BaseModel):
@@ -120,7 +140,7 @@ async def analyze_spending_patterns():
         analyzer = ml_analytics.get_pattern_analyzer()
         return analyzer.analyze_patterns(transactions)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to analyze spending patterns: {exc}") from exc
+        raise _server_error("analyze spending patterns", exc) from exc
 
 
 @router.get("/cash-flow-forecast")
@@ -132,7 +152,7 @@ async def forecast_cash_flow(months_ahead: int = Query(3, ge=1, le=12)):
         forecaster = ml_analytics.get_forecaster()
         return forecaster.forecast_cash_flow(transactions, months_ahead)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to forecast cash flow: {exc}") from exc
+        raise _server_error("forecast cash flow", exc) from exc
 
 
 @router.post("/optimize-budget")
@@ -213,7 +233,7 @@ async def get_recommendations():
         engine = ml_goals.get_recommendation_engine()
         return engine.generate_recommendations(transactions)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to generate recommendations: {exc}") from exc
+        raise _server_error("generate recommendations", exc) from exc
 
 
 @router.get("/anomalies")
@@ -225,7 +245,7 @@ async def get_anomalies():
         detector = ml_analytics.get_anomaly_detector()
         return detector.detect_anomalies(transactions)
     except Exception as exc:
-        raise HTTPException(500, f"Failed to detect anomalies: {exc}") from exc
+        raise _server_error("detect anomalies", exc) from exc
 
 
 @router.post("/qa")
@@ -266,7 +286,7 @@ async def ask_question(request: QuestionRequest):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(500, f"Failed to answer question: {exc}") from exc
+        raise _server_error("answer question", exc) from exc
 
 
 @router.get("/qa/suggestions")

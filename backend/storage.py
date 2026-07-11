@@ -15,8 +15,9 @@ import logging
 from pathlib import Path
 from typing import Optional, Any, Dict, List, Set, Tuple
 
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import SQLModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine
 
 logger = logging.getLogger("batua.storage")
