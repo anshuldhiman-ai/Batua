@@ -209,6 +209,72 @@ export default function QAChatWidget() {
   const [supported, setSupported] = React.useState(true);
   const [interim, setInterim] = React.useState("");
   const recognitionRef = React.useRef(null);
+  // Whisper (local offline transcription via backend)
+  const [whisperAvailable, setWhisperAvailable] = React.useState(false);
+  const mediaRecorderRef = React.useRef(null);
+  const audioChunksRef = React.useRef([]);
+
+  // Audio visualizer state
+  const [micVolume, setMicVolume] = React.useState(0);
+  const audioContextRef = React.useRef(null);
+  const analyserRef = React.useRef(null);
+  const animationFrameRef = React.useRef(null);
+  const visualStreamRef = React.useRef(null);
+
+  const startAudioAnalysis = (stream) => {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const checkVolume = () => {
+        if (!analyserRef.current) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        let count = 0;
+        // Focus on lower/middle human speech frequencies
+        for (let i = 2; i < bufferLength - 10; i++) {
+          sum += dataArray[i];
+          count++;
+        }
+        const average = count > 0 ? sum / count : 0;
+        // Scale and amplify slightly for UI responsiveness
+        const volume = Math.min(100, Math.round((average / 140) * 100));
+        setMicVolume(volume);
+        animationFrameRef.current = requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
+    } catch (e) {
+      console.warn("Audio analysis failed", e);
+    }
+  };
+
+  const stopAudioAnalysis = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setMicVolume(0);
+    if (visualStreamRef.current) {
+      visualStreamRef.current.getTracks().forEach((t) => t.stop());
+      visualStreamRef.current = null;
+    }
+  };
 
   const scrollRef = React.useRef(null);
   const inputRef = React.useRef(null);
@@ -225,11 +291,25 @@ export default function QAChatWidget() {
       .then((r) => setLlm({ enabled: Boolean(r.data?.qa_llm_enabled), model: r.data?.qa_llm_model }))
       .catch(() => setLlm(null));
 
+    // Check if local Whisper transcription is available on the backend
+    api.get("/transcribe/status")
+      .then((r) => {
+        if (r.data?.available) {
+          setWhisperAvailable(true);
+          setSupported(true); // Whisper works regardless of browser Speech API
+        }
+      })
+      .catch(() => setWhisperAvailable(false));
+
     if (!sessionId) setSessionId(crypto.randomUUID());
 
     return () => {
       recognitionRef.current?.abort?.();
       recognitionRef.current = null;
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      stopAudioAnalysis();
     };
   }, []);
 
@@ -320,16 +400,102 @@ export default function QAChatWidget() {
     toast.success("Conversation cleared");
   };
 
-  const toggleRecording = () => {
-    if (!supported) {
-      toast.error("Speech recognition not supported here. Use Chrome/Edge on https:// or localhost.");
-      return;
-    }
-    if (recording) {
-      recognitionRef.current?.stop?.();
+  /* ── Whisper-based recording (local, offline) ──────────────────────── */
+  const startWhisperRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm",
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      // Start volume analysis for blinking/active state
+      startAudioAnalysis(stream);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Stop audio visualizer and release mic tracks
+        stopAudioAnalysis();
+        stream.getTracks().forEach((t) => t.stop());
+
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        audioChunksRef.current = [];
+        if (blob.size < 100) {
+          toast.error("Recording was too short. Try again.");
+          return;
+        }
+
+        setInterim("Transcribing…");
+        try {
+          const form = new FormData();
+          form.append("file", blob, "voice.webm");
+          const { data } = await api.post("/transcribe", form, {
+            headers: { "Content-Type": "multipart/form-data" },
+            timeout: 30000,
+          });
+          const transcript = data?.text?.trim();
+          setInterim("");
+          if (!transcript) {
+            toast.error("Couldn't understand that — try speaking louder or longer.");
+            return;
+          }
+          setInput(transcript);
+          toast.success(`Heard: "${transcript}"`, { duration: 1800 });
+          submit(transcript);
+        } catch (err) {
+          setInterim("");
+          const detail = err.response?.data?.detail || "Transcription failed. Try again.";
+          toast.error(detail, { duration: 3500 });
+        }
+      };
+
+      mediaRecorder.onerror = () => {
+        stopAudioAnalysis();
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        setInterim("");
+        toast.error("Recording failed. Please try again.");
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+      setInterim("Local mode active...");
+      toast.info("Listening (Local Whisper)… ask your question", { duration: 2500 });
+    } catch (err) {
+      console.error(err);
+      if (err.name === "NotAllowedError") {
+        toast.error("Microphone permission denied. Allow it in your browser settings.");
+      } else {
+        toast.error("Could not access microphone. Please check your device settings.");
+      }
       setRecording(false);
       setInterim("");
-      return;
+      stopAudioAnalysis();
+    }
+  };
+
+  const stopWhisperRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    setRecording(false);
+  };
+
+  /* ── Browser Speech API recording (cloud, fallback) ────────────────── */
+  const startBrowserRecording = async () => {
+    // Try requesting mic stream pure for real-time visual feedback
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      visualStreamRef.current = stream;
+      startAudioAnalysis(stream);
+    } catch (e) {
+      console.warn("Could not start visual feedback stream", e);
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -343,7 +509,7 @@ export default function QAChatWidget() {
     recognition.onstart = () => {
       setRecording(true);
       setInterim("");
-      toast.info("Listening… ask your question", { duration: 2000 });
+      toast.info("Listening (Cloud Speech)… ask your question", { duration: 2000 });
     };
     recognition.onresult = (event) => {
       let finalText = "";
@@ -364,23 +530,34 @@ export default function QAChatWidget() {
     };
     recognition.onerror = (e) => {
       const code = e.error || "unknown";
+      
+      // Auto-fallback to local Whisper recording if cloud fails due to connection/network
+      if (code === "network" && whisperAvailable) {
+        stopAudioAnalysis();
+        toast.info("Cloud voice engine offline. Switching to local transcription...");
+        startWhisperRecording();
+        return;
+      }
+
       const messages = {
         "not-allowed": "Microphone permission denied. Allow it in your browser settings.",
         "service-not-allowed": "Speech service blocked. Try Chrome/Edge on https:// or localhost.",
         "no-speech": "Didn't catch anything — try again a little louder.",
         "audio-capture": "No microphone found.",
-        "network": "Network error reaching the speech service. Check your connection.",
+        "network": "Speech recognition requires an internet connection (audio is processed by Google's servers). Check your connection and try again.",
         "aborted": "",
       };
       const msg = messages[code] || `Voice input error (${code})`;
       if (msg) toast.error(msg, { duration: 3500 });
       setRecording(false);
       setInterim("");
+      stopAudioAnalysis();
     };
     recognition.onend = () => {
       setRecording(false);
       setInterim("");
       recognitionRef.current = null;
+      stopAudioAnalysis();
     };
 
     try {
@@ -391,6 +568,38 @@ export default function QAChatWidget() {
       setRecording(false);
       setInterim("");
       recognitionRef.current = null;
+      stopAudioAnalysis();
+    }
+  };
+
+  const stopBrowserRecording = () => {
+    recognitionRef.current?.stop?.();
+    setRecording(false);
+    setInterim("");
+  };
+
+  /* ── Toggle: pick Browser first (for live text), with automatic Whisper fallback ──── */
+  const toggleRecording = () => {
+    if (!supported && !whisperAvailable) {
+      toast.error("Speech recognition not supported. Install faster-whisper on the server, or use Chrome/Edge.");
+      return;
+    }
+
+    if (recording) {
+      if (mediaRecorderRef.current?.state === "recording") {
+        stopWhisperRecording();
+      } else {
+        stopBrowserRecording();
+      }
+      return;
+    }
+
+    // Try browser SpeechRecognition first for real-time live preview
+    // If it triggers connection/network error, it automatically falls back to local Whisper.
+    if (supported) {
+      startBrowserRecording();
+    } else {
+      startWhisperRecording();
     }
   };
 
@@ -415,7 +624,7 @@ export default function QAChatWidget() {
                 <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-emerald-500" title="Online" />
               </div>
               <div className="min-w-0">
-                <p className="font-display text-sm font-semibold leading-tight">Batua Assistant</p>
+                <p className="font-display text-xs font-semibold leading-tight">Batua Assistant</p>
                 <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   {llm?.enabled ? `Online · ${llm.model}` : "Online · Smart rules"}
@@ -467,7 +676,7 @@ export default function QAChatWidget() {
             {history.length === 0 ? (
               <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-2 text-center">
                 <AssistantAvatar className="mb-3 h-12 w-12" />
-                <p className="font-display text-base font-semibold">Hi, I'm Batua 👋</p>
+                <p className="font-display text-sm font-semibold">Hi, I'm Batua 👋</p>
                 <p className="mt-1 max-w-[260px] text-xs text-muted-foreground">
                   Ask me anything about your money — I answer from your own transactions.
                 </p>
@@ -599,11 +808,15 @@ export default function QAChatWidget() {
                   aria-pressed={recording}
                   aria-label={recording ? "Stop voice input" : "Start voice input"}
                   className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all",
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-75",
                     recording
-                      ? "animate-pulse bg-red-500 text-white shadow-md shadow-red-500/40"
+                      ? "bg-red-500 text-white"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
+                  style={recording ? {
+                    transform: `scale(${1 + (micVolume / 280)})`,
+                    boxShadow: `0 0 ${8 + (micVolume / 3)}px rgba(239, 68, 68, ${0.5 + (micVolume / 100)})`,
+                  } : undefined}
                   title={recording ? "Tap to stop" : "Tap to ask with voice"}
                 >
                   <Mic className="h-4 w-4" />

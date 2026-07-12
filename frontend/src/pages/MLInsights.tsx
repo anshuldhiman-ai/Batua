@@ -488,7 +488,7 @@ export default function MLInsights() {
               <Card>
                 <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
-                    <h3 className="font-display text-base font-semibold">Personalized Savings Optimization</h3>
+                    <h3 className="font-display text-sm font-semibold">Personalized Savings Optimization</h3>
                     <p className="text-sm text-muted-foreground">Automated audit of monthly categories indicating potential budget savings</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 sm:shrink-0">

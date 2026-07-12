@@ -42,7 +42,7 @@ function SectionHeader({ icon: Icon, title, subtitle, action }) {
           </div>
         )}
         <div>
-          <h2 className="font-display text-base font-semibold tracking-tight">{title}</h2>
+          <h2 className="font-display text-sm font-semibold tracking-tight">{title}</h2>
           {subtitle && (
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           )}
@@ -243,7 +243,7 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base">
+                <CardTitle className="flex items-center gap-2 text-sm">
                   <LineChart className="h-4 w-4 text-primary" />
                   Income vs Expense
                 </CardTitle>
@@ -396,7 +396,7 @@ export default function Dashboard() {
           {/* Category donut */}
           <Card className="lg:col-span-5">
             <CardHeader>
-              <CardTitle className="text-base">By Category</CardTitle>
+              <CardTitle className="text-sm">By Category</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -418,7 +418,7 @@ export default function Dashboard() {
           {/* Top 5 ranked categories */}
           <Card className="lg:col-span-7">
             <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
+              <CardTitle className="flex items-center justify-between text-sm">
                 <span>Top Categories</span>
                 {top5.length > 0 && (
                   <span className="text-xs font-normal text-muted-foreground">
@@ -485,7 +485,7 @@ export default function Dashboard() {
         {/* AI Insights */}
         <Card data-testid="ai-insights" className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2 text-base">
+            <CardTitle className="flex items-center justify-between gap-2 text-sm">
               <span className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 AI Insights
@@ -536,7 +536,7 @@ export default function Dashboard() {
         {/* Lifetime context — all-time numbers as low-priority reference */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-sm">
               <TrendingUp className="h-4 w-4 text-primary" />
               Lifetime
             </CardTitle>

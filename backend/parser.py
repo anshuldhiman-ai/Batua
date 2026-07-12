@@ -123,12 +123,59 @@ MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 
 FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in"}
 
+# Container / counting units used to detect quantity, e.g. "2 packet", "3 plate".
+# The leading number is captured as the quantity; the unit word stays in the
+# description ("2 packet lays" -> quantity 2, description "Lays Packet").
+_QUANTITY_UNITS = [
+    "packets", "packet", "plates", "plate", "cups", "cup", "glasses", "glass",
+    "bottles", "bottle", "pieces", "piece", "pcs", "pc", "nos", "dozen",
+    "boxes", "box", "thalis", "thali", "kg", "kgs", "litre", "litres", "ltr",
+    "packs", "pack",
+]
+_QUANTITY_RE = re.compile(
+    r"\b(\d+)\s*(" + "|".join(_QUANTITY_UNITS) + r")\b", re.IGNORECASE
+)
+
+# Item separators inside a spoken segment ("chai 10 aur samosa 15").
+_ITEM_SPLIT_RE = re.compile(r"\b(?:aur|and)\b", re.IGNORECASE)
+
+# A single priced unit in a spoken enumeration, e.g. "10 ka", "ek 10 ka"
+# (after number-word normalisation "ek" -> "1", so "1 10 ka"). The optional
+# leading number is the count at that price; the second number is the price.
+_PRICE_UNIT = r"(?:\d+(?:\.\d+)?\s+)?\d+(?:\.\d+)?\s*(?:ka|ke|ki|wala|wale|wali)\b"
+_PRICE_UNIT_RE = re.compile(
+    r"(?:(\d+(?:\.\d+)?)\s+)?(\d+(?:\.\d+)?)\s*(?:ka|ke|ki|wala|wale|wali)\b",
+    re.IGNORECASE,
+)
+# An enumeration is two or more priced units in a row: "ek 10 ka ek 20 ka".
+_PRICE_ENUM_RE = re.compile(
+    _PRICE_UNIT + r"(?:\s*(?:aur|and|,)?\s*" + _PRICE_UNIT + r")+", re.IGNORECASE
+)
+
 
 _SPOKEN_DEVANAGARI_REPLACEMENTS = {
     "आज": "today",
+    "कल": "kal",
     "मैंने": "maine",
     "मेने": "maine",
     "मैनें": "maine",
+    "और": "aur",
+    "तथा": "aur",
+    "लिए": "liye",
+    "लिये": "liye",
+    "खरीदा": "kharida",
+    "खरीदे": "kharide",
+    "गया": "gaya",
+    "गयी": "gayi",
+    "गए": "gaye",
+    "था": "tha",
+    "थी": "thi",
+    "थे": "the",
+    "हुआ": "hua",
+    "मुझे": "mujhe",
+    "नहीं": "nahi",
+    "कुछ": "kuch",
+    "भी": "bhi",
     "फिर": "phir",
     "बजे": "baje",
     "बजे दिन": "baje din",
@@ -138,6 +185,8 @@ _SPOKEN_DEVANAGARI_REPLACEMENTS = {
     "शाम": "shaam",
     "रात": "raat",
     "कुरकुरे": "kurkure",
+    "लेज़": "lays",
+    "लेज": "lays",
     "पैकेट": "packet",
     "लिया": "liya",
     "खाया": "khaya",
@@ -230,6 +279,14 @@ _SPOKEN_FILLER_WORDS = {
     "khaye", "khayi", "khaya", "khaaye", "kharida", "kharide", "bought",
     "purchase", "li", "le", "ka", "ke", "ki", "ko", "se", "wala", "wale",
     "wali", "rs", "rupees", "rupaye", "rupiya", "k", "din",
+    # Common spoken verbs / pronouns that are chatter, not part of a
+    # transaction description ("main market gaya tha" -> keep only the item).
+    "gaya", "gayi", "gaye", "gaya", "tha", "thi", "the", "hua", "hui", "huye",
+    "raha", "rahi", "rahe", "kar", "karke", "kiya", "kiye", "diya", "diye",
+    "aa", "aaya", "aayi", "aaye", "hu", "hun", "ho", "tab", "jab", "bhi",
+    "kuch", "wagera", "vagera", "mujhe", "nahi", "nhi", "phir", "fir",
+    "dala", "daala", "dali", "mangaya", "mangwaya", "manga", "order",
+    "uth", "jaate", "hue", "khana", "wala", "wale",
 }
 
 _SPOKEN_TIME_RE = re.compile(
@@ -264,6 +321,9 @@ def _normalise_spoken_text(text: str) -> str:
     out = out.lower()
     replacements = {
         r"\b(aaj|aj)\b": "today",
+        # "kal" is ambiguous (yesterday/tomorrow); for expense logging the past
+        # reading is the safe default.
+        r"\b(kal|kl)\b": "yesterday",
         r"\b(phir|fir|fer|then|uske baad|baad mein)\b": "\n",
         r"\b(bajya|baje|bajey|bje|bj)\b": "baje",
         r"\b(gol\s*gappe|gol\s*gappa|golgappe|golgappa)\b": "gol gappe",
@@ -272,7 +332,10 @@ def _normalise_spoken_text(text: str) -> str:
         out = re.sub(pattern, target, out, flags=re.IGNORECASE)
     for word, number in sorted(_SPOKEN_NUMBER_WORDS.items(), key=lambda item: len(item[0]), reverse=True):
         out = re.sub(r"\b" + re.escape(word) + r"\b", number, out, flags=re.IGNORECASE)
-    out = re.sub(r"[,.!?;]+", " ", out)
+    # A comma between items ("chai 10, samosa 15") separates transactions, but a
+    # comma inside a number ("50,000") does not. Convert only the former.
+    out = re.sub(r"(?<!\d),(?!\d)", " aur ", out)
+    out = re.sub(r"[.!?;]+", " ", out)
     out = re.sub(r"\s*\n\s*", "\n", out)
     return re.sub(r"[ \t]{2,}", " ", out).strip()
 
@@ -354,6 +417,26 @@ def _apply_suffix(num: float, suffix: str | None) -> float:
     if not suffix:
         return num
     return num * _SUFFIX.get(suffix.lower(), 1)
+
+
+def _detect_quantity(text: str) -> tuple[int, str]:
+    """Return (quantity, remaining_text). Detects '2 packet', '3 plate', etc.
+
+    The counted number is removed so it is not later mistaken for an amount; the
+    unit word is left in place so it can still form part of the description.
+    """
+    m = _QUANTITY_RE.search(text)
+    if not m:
+        return 1, text
+    try:
+        qty = int(m.group(1))
+    except ValueError:
+        return 1, text
+    if qty < 1:
+        return 1, text
+    # Drop just the number, keep the unit word (start .. before the unit).
+    text = _remove(text, m.start(1), m.end(1))
+    return qty, text
 
 
 def _detect_amount(text: str) -> tuple[float | None, bool, str]:
@@ -507,6 +590,7 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
     working = " " + original + " "
 
     method, working = _detect_payment(working)
+    quantity, working = _detect_quantity(working)
     amount_abs, explicit_pos, working = _detect_amount(working)
     date_str, working = _detect_date(working, today)
     category = _detect_category(original)
@@ -528,7 +612,7 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
         "date": date_str,
         "category": category,
         "payment_method": method,
-        "quantity": 1,
+        "quantity": quantity,
         "txn_type": "credit" if amount >= 0 else "debit",
     }
 
@@ -547,7 +631,10 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
                 result["category"] = ml_result["category"]
             if ml_result.get("date"):
                 result["date"] = ml_result["date"]
-            if amount_abs is None and ml_result.get("amount") not in (None, 0):
+            # Only borrow the ML amount when the regex found none AND no counted
+            # quantity was detected — otherwise the ML parser would mistake the
+            # item count ("2 packet") for the price.
+            if amount_abs is None and quantity == 1 and ml_result.get("amount") not in (None, 0):
                 try:
                     result["amount"] = float(ml_result["amount"])
                 except (TypeError, ValueError):
@@ -804,34 +891,163 @@ def parse_bulk_lines(text: str, today: datetime | None = None) -> list[dict]:
     return items
 
 
+def _extract_price_enumerations(text: str) -> tuple[str, list[dict]]:
+    """Collapse a spoken price list ("ek 10 ka ek 20 ka") into one grouped item.
+
+    Each enumeration is replaced by an ``ENUMTOKEN<i>`` placeholder that stays
+    attached to the preceding item words, so later item-splitting on "aur" does
+    not tear a single item's price list apart. Returns (text, enumerations)
+    where each enumeration has: quantity, amount (positive total) and a human
+    breakdown like "1×₹10, 1×₹20".
+    """
+    enums: list[dict] = []
+
+    def repl(match: re.Match) -> str:
+        pairs = _PRICE_UNIT_RE.findall(match.group(0))
+        quantity = 0
+        total = 0.0
+        parts: list[str] = []
+        for count_str, price_str in pairs:
+            count = int(float(count_str)) if count_str else 1
+            price = float(price_str)
+            quantity += count
+            total += count * price
+            parts.append(f"{count:g}×₹{price:g}")
+        idx = len(enums)
+        enums.append(
+            {"quantity": max(quantity, 1), "amount": total, "breakdown": ", ".join(parts)}
+        )
+        return f" ENUMTOKEN{idx} "
+
+    return _PRICE_ENUM_RE.sub(repl, text), enums
+
+
+def _split_items(text: str) -> list[str]:
+    """Split a segment into transaction items on 'aur'/'and'.
+
+    Fragments without a number are merged forward into the next priced fragment
+    so "bread aur butter 50" stays one item, while "chai 10 aur samosa 15"
+    becomes two. (ENUMTOKENs count as carrying a value.)
+    """
+    parts = [p.strip(" -") for p in _ITEM_SPLIT_RE.split(text) if p.strip(" -")]
+    items: list[str] = []
+    buffer = ""
+    for part in parts:
+        buffer = f"{buffer} {part}".strip() if buffer else part
+        if re.search(r"\d|ENUMTOKEN", buffer):
+            items.append(buffer)
+            buffer = ""
+    if buffer:
+        if items:
+            items[-1] = f"{items[-1]} {buffer}".strip()
+        else:
+            items.append(buffer)
+    return items
+
+
+_LEAD_COUNT_RE = re.compile(r"^\s*(\d{1,3})\s+(?=[a-z])", re.IGNORECASE)
+# Words after a leading number that mean it is a date/time, not a quantity.
+_TEMPORAL_AFTER = {
+    "day", "days", "week", "weeks", "month", "months", "year", "years",
+    "saal", "din", "ago", "bje", "baje",
+} | set(MONTHS)
+
+
+def _extract_lead_quantity(text: str) -> tuple[int | None, str]:
+    """Pull a leading count that acts as quantity, e.g. 'ek coffee 60' -> 1.
+
+    Voice-only: 'ek'/'do'/... normalise to a bare number in front of the item.
+    Only fires when a *separate* price number follows and the next word is not a
+    date/time unit, so amounts ('500 petrol') and dates ('2 june') are untouched.
+    """
+    m = _LEAD_COUNT_RE.match(text)
+    if not m:
+        return None, text
+    rest = text[m.end():]
+    if not re.search(r"\d", rest):  # no separate price -> leave the number alone
+        return None, text
+    word = re.match(r"([a-z]+)", rest, re.IGNORECASE)
+    if word and word.group(1).lower() in _TEMPORAL_AFTER:
+        return None, text
+    return int(m.group(1)), rest
+
+
+def _parse_voice_item(
+    text: str, today: datetime, enums: list[dict], date_context: str
+) -> dict | None:
+    """Parse a single spoken item into a transaction dict."""
+    raw_item = text.lower()
+    # Time is stripped so a spoken clock value ("11 bje") is not misread as an
+    # amount, but it is intentionally discarded — only the date is recorded.
+    text, _ = _extract_spoken_time(text)
+
+    enum: dict | None = None
+    token = re.search(r"ENUMTOKEN(\d+)", text)
+    if token:
+        idx = int(token.group(1))
+        if 0 <= idx < len(enums):
+            enum = enums[idx]
+        text = (text[: token.start()] + " " + text[token.end():]).strip()
+
+    text = _strip_spoken_fillers(text)
+    lead_qty, text = _extract_lead_quantity(text)
+    if date_context and not _spoken_date_context(text):
+        text = f"{date_context} {text}"
+    if not text.strip() and enum is None:
+        return None
+
+    parsed = parse_nl_input(text.strip() or "item", today)
+    if parsed.get("date") in {"today", "yesterday", "tomorrow"}:
+        parsed["date"] = _detect_date(parsed["date"], today)[0]
+    if lead_qty is not None and enum is None:
+        parsed["quantity"] = lead_qty
+
+    if enum is not None:
+        # The base amount can be polluted by ML fallback, so infer income from
+        # the words/category instead of the base sign.
+        is_income = parsed["category"] == "Income" or any(
+            re.search(r"\b" + re.escape(w) + r"\b", raw_item) for w in INCOME_WORDS
+        )
+        total = enum["amount"]
+        parsed["amount"] = total if is_income else -total
+        parsed["quantity"] = enum["quantity"]
+        parsed["txn_type"] = "credit" if parsed["amount"] >= 0 else "debit"
+        if enum["breakdown"]:
+            parsed["notes"] = enum["breakdown"]
+
+    # A transaction needs a value. Items with no amount are spoken filler /
+    # chatter ("phir ghar aa gaya") and are dropped so only real entries remain.
+    if enum is None and parsed["amount"] == 0:
+        return None
+    return parsed
+
+
 def parse_voice_input(text: str, today: datetime | None = None) -> list[dict]:
     """Parse a spoken Hinglish paragraph into one or more transactions.
 
+    Handles three kinds of structure at once:
+      * multiple transactions joined by "phir"/"then"/"aur"/","
+      * quantities ("2 packet lays")
+      * per-item price lists ("ek 10 ka ek 20 ka" -> one grouped item)
+
     Example:
-    "aaj 11 bje kurkure packet 10 wala phir 2 bje din gol gappe 20 k"
-    -> two snack expenses, with times preserved in notes.
+    "aaj lays k 2 packet ek 10 ka ek 20 ka aur chai 10"
+    -> Lays Packet (qty 2, -30, breakdown note) + Chai (-10).
     """
     today = today or datetime.now()
     normalized = _normalise_spoken_text(text)
     date_context = _spoken_date_context(normalized)
-    chunks = [chunk.strip(" -") for chunk in normalized.splitlines() if chunk.strip(" -")]
-    if not chunks:
+    segments = [seg.strip(" -") for seg in normalized.splitlines() if seg.strip(" -")]
+    if not segments:
         return []
 
     items: list[dict] = []
-    for chunk in chunks:
-        if date_context and not _spoken_date_context(chunk):
-            chunk = f"{date_context} {chunk}"
-        chunk, time_notes = _extract_spoken_time(chunk)
-        chunk = _strip_spoken_fillers(chunk)
-        if not chunk:
-            continue
-        parsed = parse_nl_input(chunk, today)
-        if parsed.get("date") in {"today", "yesterday", "tomorrow"}:
-            parsed["date"] = _detect_date(parsed["date"], today)[0]
-        if time_notes:
-            parsed["notes"] = "; ".join(time_notes)
-        items.append(parsed)
+    for segment in segments:
+        segment, enums = _extract_price_enumerations(segment)
+        for sub in _split_items(segment):
+            parsed = _parse_voice_item(sub, today, enums, date_context)
+            if parsed:
+                items.append(parsed)
 
     if items:
         return items

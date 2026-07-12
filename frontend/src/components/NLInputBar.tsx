@@ -96,6 +96,21 @@ export default function NLInputBar({ onSaved }) {
     }
   };
 
+  /** Route parsed voice items into the single/bulk preview. */
+  const applyVoiceItems = (items) => {
+    if (items.length > 1) {
+      setMode("bulk");
+      setBulkDrafts(items);
+      setDraft(null);
+    } else if (items.length === 1) {
+      setDraft(items[0]);
+      setBulkDrafts(null);
+    } else {
+      toast.error("Could not find transactions in that voice note.");
+    }
+  };
+
+  // Browser Web Speech path: we get a transcript string, parse it on the server.
   const parseVoiceTranscript = async (transcript) => {
     const spoken = transcript.trim();
     if (!spoken) return;
@@ -104,19 +119,37 @@ export default function NLInputBar({ onSaved }) {
     setParsing(true);
     try {
       const { data } = await api.post("/parse-nl/voice", { text: spoken });
-      const items = data.items || [];
-      if (items.length > 1) {
-        setMode("bulk");
-        setBulkDrafts(items);
-        setDraft(null);
-      } else if (items.length === 1) {
-        setDraft(items[0]);
-        setBulkDrafts(null);
-      } else {
-        toast.error("Could not find transactions in that voice note.");
-      }
+      applyVoiceItems(data.items || []);
     } catch {
       toast.error("Could not parse that voice note. Try speaking a little slower.");
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  // Offline path: upload recorded audio; the server transcribes AND parses it.
+  const transcribeAudio = async (blob) => {
+    if (!blob || !blob.size) return;
+    setParsing(true);
+    try {
+      const form = new FormData();
+      const ext = (blob.type.split("/")[1] || "webm").split(";")[0];
+      form.append("file", blob, `voice.${ext}`);
+      const { data } = await api.post("/transcribe", form);
+      const spoken = (data.text || "").trim();
+      if (spoken) {
+        setText(spoken);
+        setBulkText(spoken);
+        toast.success(`Heard: "${spoken}"`, { duration: 2200 });
+      }
+      applyVoiceItems(data.items || []);
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 503) {
+        toast.error("Offline voice isn't set up on the server yet.");
+      } else {
+        toast.error("Could not transcribe that. Please try again.");
+      }
     } finally {
       setParsing(false);
     }
@@ -242,6 +275,7 @@ export default function NLInputBar({ onSaved }) {
               onChange={setText}
               onParse={parseSingle}
               onVoiceResult={parseVoiceTranscript}
+              onAudioResult={transcribeAudio}
               parsing={parsing}
               placeholder='e.g. "zomato 450 yesterday upi"'
               onFocus={() => setFocused(true)}
@@ -256,6 +290,7 @@ export default function NLInputBar({ onSaved }) {
               onChange={setText}
               onParse={parseSingle}
               onVoiceResult={parseVoiceTranscript}
+              onAudioResult={transcribeAudio}
               parsing={parsing}
               placeholder='e.g. "salary +5k on 1st every month"'
               onFocus={() => setFocused(true)}
@@ -311,46 +346,213 @@ export default function NLInputBar({ onSaved }) {
   );
 }
 
-function InputRow({ value, onChange, onParse, onVoiceResult, parsing, placeholder, onFocus, onBlur }) {
+function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, parsing, placeholder, onFocus, onBlur }) {
   const [recording, setRecording] = React.useState(false);
   const [supported, setSupported] = React.useState(true);
   const [interim, setInterim] = React.useState("");
+  // "backend" = record audio + transcribe offline on the server (works without
+  // Google). "browser" = Web Speech API. Decided from /transcribe/status.
+  const [sttMode, setSttMode] = React.useState("browser");
   const recognitionRef = React.useRef(null);
   const retryRef = React.useRef(0);
   const finalTranscriptRef = React.useRef("");
-  const skipParseOnEndRef = React.useRef(false);
+  const restartingRef = React.useRef(false); // true while auto-restarting (retry / silent drop)
+  const manualStopRef = React.useRef(false);  // true when the user tapped stop
+  const restartTimerRef = React.useRef(null);
+  // MediaRecorder state for the offline backend path.
+  const mediaRecorderRef = React.useRef(null);
+  const mediaStreamRef = React.useRef(null);
+  const audioChunksRef = React.useRef([]);
+
+  // Audio visualizer state
+  const [micVolume, setMicVolume] = React.useState(0);
+  const audioContextRef = React.useRef(null);
+  const analyserRef = React.useRef(null);
+  const visualAnimationFrameRef = React.useRef(null);
+  const visualStreamRef = React.useRef(null);
+
+  const startAudioAnalysis = (stream) => {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      const checkVolume = () => {
+        if (!analyserRef.current) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        let count = 0;
+        // Focus on speech frequencies
+        for (let i = 2; i < bufferLength - 10; i++) {
+          sum += dataArray[i];
+          count++;
+        }
+        const average = count > 0 ? sum / count : 0;
+        const volume = Math.min(100, Math.round((average / 140) * 100));
+        setMicVolume(volume);
+        visualAnimationFrameRef.current = requestAnimationFrame(checkVolume);
+      };
+
+      checkVolume();
+    } catch (e) {
+      console.warn("Audio analysis failed", e);
+    }
+  };
+
+  const stopAudioAnalysis = () => {
+    if (visualAnimationFrameRef.current) {
+      cancelAnimationFrame(visualAnimationFrameRef.current);
+      visualAnimationFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setMicVolume(0);
+    if (visualStreamRef.current) {
+      visualStreamRef.current.getTracks().forEach((t) => t.stop());
+      visualStreamRef.current = null;
+    }
+  };
+
+  const [whisperAvailable, setWhisperAvailable] = React.useState(false);
 
   React.useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSupported(false);
-    }
+    const hasRecorder =
+      typeof window.MediaRecorder !== "undefined" &&
+      !!navigator.mediaDevices?.getUserMedia;
+
+    // Prefer browser speech recognition first for real-time live typing.
+    // If browser lacks speech support but backend Whisper is ready, use backend.
+    let cancelled = false;
+    (async () => {
+      let backendReady = false;
+      if (hasRecorder && onAudioResult) {
+        try {
+          const { data } = await api.get("/transcribe/status");
+          backendReady = !!data?.available;
+        } catch {
+          backendReady = false;
+        }
+      }
+      if (cancelled) return;
+      
+      setWhisperAvailable(backendReady);
+      
+      if (SpeechRecognition) {
+        setSttMode("browser");
+        setSupported(true);
+      } else if (backendReady) {
+        setSttMode("backend");
+        setSupported(true);
+      } else {
+        setSttMode("browser");
+        setSupported(false);
+      }
+    })();
+
     return () => {
+      cancelled = true;
+      manualStopRef.current = true;
+      if (restartTimerRef.current) window.clearTimeout(restartTimerRef.current);
       recognitionRef.current?.abort?.();
       recognitionRef.current = null;
+      stopMediaTracks();
+      stopAudioAnalysis();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const MAX_VOICE_RETRIES = 2;
+  const stopMediaTracks = () => {
+    try {
+      mediaStreamRef.current?.getTracks?.().forEach((t) => t.stop());
+    } catch {
+      /* ignore */
+    }
+    mediaStreamRef.current = null;
+  };
+
+  // Chrome/Edge stream mic audio to Google, so transient "network" drops are
+  // common. Retry generously and, crucially, keep whatever was already heard.
+  const MAX_VOICE_RETRIES = 5;
+
+  /** Send whatever was captured downstream. Returns true if anything was parsed. */
+  const flushTranscript = () => {
+    const transcript = finalTranscriptRef.current.trim();
+    if (!transcript) return false;
+    onChange(transcript);
+    toast.success(`Heard: "${transcript}"`, { duration: 1800 });
+    if (onVoiceResult) onVoiceResult(transcript);
+    else onParse(transcript);
+    return true;
+  };
+
+  const stopEverything = () => {
+    if (restartTimerRef.current) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+    restartingRef.current = false;
+    retryRef.current = 0;
+    setRecording(false);
+    setInterim("");
+    stopAudioAnalysis();
+  };
+
+  const scheduleRestart = (delay) => {
+    restartingRef.current = true;
+    if (restartTimerRef.current) window.clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = window.setTimeout(() => {
+      restartTimerRef.current = null;
+      if (manualStopRef.current) {
+        stopEverything();
+        return;
+      }
+      try {
+        beginRecognition();
+      } catch {
+        // Couldn't relaunch — salvage anything we already heard.
+        if (!flushTranscript()) {
+          toast.error("Voice input stopped unexpectedly. Please try again.");
+        }
+        stopEverything();
+      }
+    }, delay);
+  };
 
   const beginRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     // Continuous mode lets users speak a full voice note with multiple
-    // transactions. Parse only when recognition ends, so partial chunks do
-    // not create premature drafts.
+    // transactions. maxAlternatives=1 keeps the audio round-trips minimal,
+    // which reduces spurious "network" errors from the cloud recognizer.
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "hi-IN";
-    recognition.maxAlternatives = 3;
+    recognition.lang = "en-IN"; // English/Indian accent default
+    recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setRecording(true);
-      setInterim("");
-      finalTranscriptRef.current = "";
-      skipParseOnEndRef.current = false;
-      toast.info("Listening… speak your transactions", { duration: 2000 });
+      setInterim(finalTranscriptRef.current); // keep prior words visible on restart
+      // Only announce + reset on a genuine fresh start, not on an auto-restart,
+      // so a mid-note reconnect never wipes what was already captured.
+      if (!restartingRef.current) {
+        finalTranscriptRef.current = "";
+        toast.info("Listening (Cloud)… speak your transactions", { duration: 2000 });
+      }
+      restartingRef.current = false;
     };
 
     recognition.onresult = (event) => {
@@ -372,71 +574,83 @@ function InputRow({ value, onChange, onParse, onVoiceResult, parsing, placeholde
 
     recognition.onerror = (e) => {
       const code = e.error || "unknown";
-      // The Web Speech API streams audio to a cloud service, so "network"
-      // errors are frequently transient. Auto-retry a couple of times before
-      // surfacing the failure to the user.
-      if (code === "network" && retryRef.current < MAX_VOICE_RETRIES) {
-        retryRef.current += 1;
-        skipParseOnEndRef.current = true;
-        recognitionRef.current = null;
-        toast.info(
-          `Reconnecting to speech service… (${retryRef.current}/${MAX_VOICE_RETRIES})`,
-          { duration: 1500 }
-        );
-        window.setTimeout(() => {
-          try {
-            beginRecognition();
-          } catch {
-            setRecording(false);
-            setInterim("");
-          }
-        }, 600);
+      // "aborted" fires on our own stop()/abort() — ignore, onend handles it.
+      if (code === "aborted") return;
+
+      // Auto-fallback to local Whisper recording if cloud fails due to connection/network
+      if (code === "network" && whisperAvailable) {
+        stopAudioAnalysis();
+        toast.info("Cloud voice engine offline. Switching to local transcription...");
+        setSttMode("backend");
+        startBackendRecording();
         return;
       }
+
+      // Transient cloud drops: retry with a short backoff, preserving the
+      // transcript. Only give up after several attempts.
+      const transient = code === "network" || code === "no-speech";
+      if (transient && !manualStopRef.current && retryRef.current < MAX_VOICE_RETRIES) {
+        retryRef.current += 1;
+        if (code === "network") {
+          toast.info(
+            `Reconnecting to speech service… (${retryRef.current}/${MAX_VOICE_RETRIES})`,
+            { duration: 1500 }
+          );
+        }
+        recognitionRef.current = null;
+        scheduleRestart(500 + retryRef.current * 400); // 0.9s, 1.3s, 1.7s, …
+        return;
+      }
+
+      // Out of retries or a hard error. Salvage anything we heard before failing.
+      const salvaged = code === "network" && flushTranscript();
+
       const messages = {
         "not-allowed": "Microphone permission denied. Allow it in your browser settings.",
         "service-not-allowed": "Speech service blocked. Try Chrome/Edge on https:// or localhost.",
-        "no-speech": "Didn't catch anything — try again a little louder.",
+        "no-speech": "Didn't catch anything — tap the mic and try again a little louder.",
         "audio-capture": "No microphone found.",
-        "network":
-          "Voice input couldn't reach the speech service after retrying. The browser's mic feature needs an internet connection (Chrome/Edge stream audio to Google) — type your entry instead.",
-        "aborted": "",
+        "network": salvaged
+          ? "" // we recovered a partial transcript — don't alarm the user
+          : "Voice input keeps losing the speech service. This browser streams mic audio to Google and needs a stable internet connection — check your network/VPN, or type your entry instead.",
+        "language-not-supported": "Hindi voice isn't available here — type your entry instead.",
       };
-      const msg = messages[code] || `Voice input error (${code})`;
+      const msg = code in messages ? messages[code] : `Voice input error (${code})`;
       if (msg) toast.error(msg, { duration: 5000 });
-      skipParseOnEndRef.current = true;
-      retryRef.current = 0;
-      setRecording(false);
-      setInterim("");
+      recognitionRef.current = null;
+      stopEverything();
     };
 
     recognition.onend = () => {
-      const transcript = finalTranscriptRef.current.trim();
-      if (!skipParseOnEndRef.current && transcript) {
-        onChange(transcript);
-        toast.success(`Heard: "${transcript}"`, { duration: 1800 });
-        if (onVoiceResult) onVoiceResult(transcript);
-        else onParse(transcript);
-      }
-      setRecording(false);
-      setInterim("");
+      // A pending network-retry restart owns the lifecycle — let it relaunch.
+      if (restartingRef.current) return;
+
+      // Otherwise the session is over (user tapped stop, or Chrome ended it
+      // after a silence gap): parse whatever we captured. We deliberately do
+      // NOT auto-restart here — that made the mic feel impossible to stop.
+      flushTranscript();
       recognitionRef.current = null;
       finalTranscriptRef.current = "";
-      skipParseOnEndRef.current = false;
+      stopEverything();
     };
 
     try {
       recognition.start();
     } catch (err) {
       console.error(err);
+      // start() throws if a prior instance is still winding down; retry once.
+      if (!manualStopRef.current && retryRef.current < MAX_VOICE_RETRIES) {
+        retryRef.current += 1;
+        scheduleRestart(400);
+        return;
+      }
       toast.error("Could not start voice input. Please try again.");
-      setRecording(false);
-      setInterim("");
       recognitionRef.current = null;
+      stopEverything();
     }
   };
 
-  const toggleRecording = () => {
+  const toggleBrowserRecording = async () => {
     if (!supported) {
       toast.error(
         "Speech recognition not supported here. Use Chrome/Edge on https:// or localhost."
@@ -445,17 +659,150 @@ function InputRow({ value, onChange, onParse, onVoiceResult, parsing, placeholde
     }
 
     if (recording) {
+      // User taps stop: parse what we have and don't auto-restart.
+      manualStopRef.current = true;
+      restartingRef.current = false;
+      if (restartTimerRef.current) {
+        window.clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = null;
+      }
       recognitionRef.current?.stop?.();
-      setRecording(false);
-      setInterim("");
+      stopAudioAnalysis();
+      // If recognition already died, stop() won't fire onend — flush directly.
+      if (!recognitionRef.current) {
+        flushTranscript();
+        stopEverything();
+      }
       return;
     }
 
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      toast.error(
+        "You appear to be offline. Browser voice input needs an internet connection — type your entry instead."
+      );
+      return;
+    }
+
+    // Try requesting mic stream pure for real-time visual feedback
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      visualStreamRef.current = stream;
+      startAudioAnalysis(stream);
+    } catch (e) {
+      console.warn("Could not start visual feedback stream", e);
+    }
+
+    manualStopRef.current = false;
+    restartingRef.current = false;
     retryRef.current = 0;
+    finalTranscriptRef.current = "";
     beginRecognition();
   };
 
+  // --- Offline backend path: record audio, upload, transcribe on the server ---
+
+  const startBackendRecording = async () => {
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      const denied = err?.name === "NotAllowedError" || err?.name === "SecurityError";
+      toast.error(
+        denied
+          ? "Microphone permission denied. Allow it in your browser settings."
+          : "No microphone found."
+      );
+      stopAudioAnalysis();
+      return;
+    }
+    mediaStreamRef.current = stream;
+    audioChunksRef.current = [];
+
+    // Start volume visualizer
+    startAudioAnalysis(stream);
+
+    // Pick a mime type the browser actually supports (Safari lacks webm).
+    const preferred = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    const mimeType = preferred.find((t) => window.MediaRecorder.isTypeSupported?.(t)) || "";
+    let recorder;
+    try {
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    } catch {
+      recorder = new MediaRecorder(stream);
+    }
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      stopAudioAnalysis();
+      stopMediaTracks();
+      setRecording(false);
+      setInterim("");
+      const chunks = audioChunksRef.current;
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = null;
+      if (!chunks.length) {
+        toast.error("Didn't catch any audio — tap the mic and try again.");
+        return;
+      }
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      onAudioResult?.(blob);
+    };
+
+    recorder.onerror = () => {
+      toast.error("Recording error. Please try again.");
+      stopAudioAnalysis();
+      stopMediaTracks();
+      setRecording(false);
+      setInterim("");
+      mediaRecorderRef.current = null;
+    };
+
+    recorder.start();
+    setRecording(true);
+    setInterim("Local mode active...");
+    toast.info("Recording (Local Whisper)… tap the mic again when you're done", { duration: 2500 });
+  };
+
+  const toggleBackendRecording = () => {
+    if (recording) {
+      try {
+        mediaRecorderRef.current?.stop?.();
+      } catch {
+        stopAudioAnalysis();
+        stopMediaTracks();
+        setRecording(false);
+      }
+      return;
+    }
+    startBackendRecording();
+  };
+
+  const toggleRecording = () => {
+    if (recording) {
+      if (mediaRecorderRef.current?.state === "recording") {
+        toggleBackendRecording();
+      } else {
+        toggleBrowserRecording();
+      }
+      return;
+    }
+    sttMode === "backend" ? toggleBackendRecording() : toggleBrowserRecording();
+  };
+
+  const isBackend = sttMode === "backend";
+  const recordingPlaceholder = isBackend ? "Recording… tap mic to stop" : "Listening…";
+
   return (
+   <>
     <div className="flex flex-col gap-2 sm:flex-row">
       <div className="relative flex-1">
         <Input
@@ -465,10 +812,10 @@ function InputRow({ value, onChange, onParse, onVoiceResult, parsing, placeholde
           onFocus={onFocus}
           onBlur={onBlur}
           onKeyDown={(e) => e.key === "Enter" && onParse()}
-          placeholder={recording ? "Listening…" : placeholder}
+          placeholder={recording ? recordingPlaceholder : placeholder}
           className={cn(
             "h-12 text-base pr-12",
-            recording && interim && "border-red-500/50 ring-1 ring-red-500/30"
+            recording && "border-red-500/50 ring-1 ring-red-500/30"
           )}
         />
         {supported && (
@@ -478,12 +825,22 @@ function InputRow({ value, onChange, onParse, onVoiceResult, parsing, placeholde
             aria-pressed={recording}
             aria-label={recording ? "Stop voice input" : "Start voice input"}
             className={cn(
-              "absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300",
+              "absolute right-3 top-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-75",
               recording
-                ? "bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/40"
+                ? "bg-red-500 text-white"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
-            title={recording ? "Tap to stop" : "Tap to speak"}
+            style={{
+              transform: `translateY(-50%) scale(${recording ? 1 + (micVolume / 280) : 1})`,
+              boxShadow: recording ? `0 0 ${8 + (micVolume / 3)}px rgba(239, 68, 68, ${0.5 + (micVolume / 100)})` : undefined
+            }}
+            title={
+              recording
+                ? "Tap to stop"
+                : isBackend
+                ? "Tap to speak (offline voice)"
+                : "Tap to speak"
+            }
           >
             <Mic className="h-4 w-4" />
           </button>
@@ -500,6 +857,23 @@ function InputRow({ value, onChange, onParse, onVoiceResult, parsing, placeholde
         Parse
       </Button>
     </div>
+    {supported && (
+      <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        {recording ? (
+          <span className="font-medium text-red-500">
+            ● {isBackend ? "Recording — tap the mic again to stop" : "Listening — tap the mic to stop"}
+          </span>
+        ) : (
+          <>
+            <Mic className="h-3 w-3" />
+            {isBackend
+              ? "Offline voice ready — speak Hindi or English, then tap the mic to stop"
+              : "Browser voice (needs internet) — speak, then tap the mic to stop"}
+          </>
+        )}
+      </p>
+    )}
+   </>
   );
 }
 
@@ -535,7 +909,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <Field label="Description">
           <Input value={draft.description} onChange={(e) => updateDraft("description", e.target.value)} data-testid="preview-description" />
         </Field>
@@ -554,6 +928,17 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         {!isRecurring && (
           <Field label="Date">
             <DateInput value={draft.date} onChange={(v) => updateDraft("date", v)} data-testid="preview-date" />
+          </Field>
+        )}
+        {!isRecurring && (
+          <Field label="Qty">
+            <Input
+              type="number"
+              min={1}
+              value={draft.quantity ?? 1}
+              onChange={(e) => updateDraft("quantity", Math.max(1, parseInt(e.target.value, 10) || 1))}
+              data-testid="preview-quantity"
+            />
           </Field>
         )}
         {isRecurring && (
@@ -616,7 +1001,17 @@ function BulkPreview({ items, onDiscard, onSave, saving }) {
       <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
         {items.map((item, i) => (
           <li key={i} className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
-            <span className="font-medium">{item.description}</span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate font-medium">
+                {item.description}
+                {item.quantity > 1 && (
+                  <span className="ml-1 text-xs text-muted-foreground">× {item.quantity}</span>
+                )}
+              </span>
+              {item.notes && (
+                <span className="truncate text-[11px] text-muted-foreground">{item.notes}</span>
+              )}
+            </span>
             <span className="flex items-center gap-2">
               {item.kind === "recurring" && (
                 <Badge variant="outline">{item.count || item.months?.length}×</Badge>

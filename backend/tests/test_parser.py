@@ -9,6 +9,7 @@ from parser import (
     _detect_amount,
     _detect_date,
     _detect_category,
+    _detect_quantity,
     _clean_description
 )
 
@@ -167,13 +168,66 @@ def test_parse_voice_hinglish_multi_transaction():
     assert items[0]["amount"] == -10.0
     assert items[0]["date"] == "2026-06-19"
     assert items[0]["category"] == "Snacks"
-    assert items[0]["notes"] == "Time: 11:00"
+    # Spoken time is stripped (so it is not misread as an amount) but not stored.
+    assert items[0].get("notes", "") == ""
 
     assert items[1]["description"] == "Gol Gappe"
     assert items[1]["amount"] == -20.0
     assert items[1]["date"] == "2026-06-19"
     assert items[1]["category"] == "Snacks"
-    assert items[1]["notes"] == "Time: 14:00"
+    assert items[1].get("notes", "") == ""
+
+
+def test_parse_voice_quantity_and_price_enumeration():
+    today = datetime(2026, 6, 19)
+    # "2 packets of lays, one ₹10 and one ₹20" -> single grouped item.
+    items = parse_voice_input("aaj maine lays k 2 packet liye ek 10 ka ek 20 ka", today)
+    assert len(items) == 1
+    item = items[0]
+    assert item["category"] == "Snacks"
+    assert item["quantity"] == 2
+    assert item["amount"] == -30.0
+    assert item["txn_type"] == "debit"
+    assert "10" in item["notes"] and "20" in item["notes"]
+
+
+def test_parse_voice_hindi_script_quantity_price_is_expense():
+    today = datetime(2026, 6, 19)
+    items = parse_voice_input("आज मैंने लेज़ के 2 पैकेट लिये एक 10 का एक 20 का", today)
+    assert len(items) == 1
+    # A quantity count must never flip an expense into income.
+    assert items[0]["amount"] == -30.0
+    assert items[0]["quantity"] == 2
+
+
+def test_parse_voice_multi_item_split_and_noise():
+    today = datetime(2026, 6, 19)
+    items = parse_voice_input(
+        "aaj main market gaya tha aur maine chai 10 ki phir samosa 15 ka khaya "
+        "aur shaam ko zomato se 450 ka khana mangaya",
+        today,
+    )
+    # Three real transactions; the chatter ("market gaya tha") is dropped.
+    assert len(items) == 3
+    amounts = sorted(i["amount"] for i in items)
+    assert amounts == [-450.0, -15.0, -10.0]
+    # No leftover chatter verbs in descriptions.
+    joined = " ".join(i["description"].lower() for i in items)
+    assert "gaya" not in joined and "mangaya" not in joined
+
+
+def test_parse_voice_lead_count_is_quantity_not_amount():
+    today = datetime(2026, 6, 19)
+    items = parse_voice_input("do plate momos 120 aur ek coffee 60", today)
+    assert len(items) == 2
+    assert items[0]["quantity"] == 2 and items[0]["amount"] == -120.0
+    assert items[1]["quantity"] == 1 and items[1]["amount"] == -60.0
+
+
+def test_detect_quantity():
+    assert _detect_quantity("2 packet lays")[0] == 2
+    assert _detect_quantity("3 plate momos")[0] == 3
+    assert _detect_quantity("just lays")[0] == 1  # default when no unit
 
 
 def test_parse_voice_hindi_script_output():

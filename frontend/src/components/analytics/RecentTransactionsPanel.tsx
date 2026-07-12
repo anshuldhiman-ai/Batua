@@ -26,7 +26,7 @@ export default function RecentTransactionsPanel({ transactions, loading }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-center gap-2 text-sm">
           <ReceiptText className="h-4 w-4 text-primary" />
           Recent Transactions
         </CardTitle>

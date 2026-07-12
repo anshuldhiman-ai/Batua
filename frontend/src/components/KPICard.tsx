@@ -86,7 +86,7 @@ export default function KPICard({
       {/* Value */}
       <div className={cn(
         "kpi-number leading-tight",
-        hero ? "mt-1 text-xl md:text-2xl" : "mt-0.5 text-lg",
+        hero ? "mt-1 text-lg md:text-xl" : "mt-0.5 text-base",
         valueClassName
       )}>
         {showSign && typeof value === 'string' && !value.startsWith('₹') && !value.startsWith('-') ? '+' : ''}{value}

@@ -65,7 +65,7 @@ const DialogHeader = ({ className, ...props }) => (
 
 const DialogTitle = ({ className, ...props }) => (
   <h2
-    className={cn("font-display text-lg font-semibold tracking-tight", className)}
+    className={cn("font-display text-base font-semibold tracking-tight", className)}
     {...props}
   />
 );

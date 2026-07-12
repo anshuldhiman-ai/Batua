@@ -57,11 +57,70 @@ def test_parse_voice_route(client):
     assert items[0]["description"] == "Kurkure Packet"
     assert items[0]["amount"] == -10.0
     assert items[0]["category"] == "Snacks"
-    assert items[0]["notes"] == "Time: 11:00"
+    # Time is stripped but not stored — only the date is kept.
+    assert items[0].get("notes", "") == ""
     assert items[1]["description"] == "Gol Gappe"
     assert items[1]["amount"] == -20.0
     assert items[1]["category"] == "Snacks"
-    assert items[1]["notes"] == "Time: 14:00"
+    assert items[1].get("notes", "") == ""
+
+
+def test_parse_voice_route_quantity_and_multiprice(client):
+    response = client.post(
+        "/api/parse-nl/voice",
+        json={"text": "aaj maine lays k 2 packet liye ek 10 ka ek 20 ka aur chai 10"},
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 2
+    lays = items[0]
+    assert lays["quantity"] == 2
+    assert lays["amount"] == -30.0
+    assert lays["category"] == "Snacks"
+    assert items[1]["amount"] == -10.0
+
+
+def test_transcribe_status_route(client):
+    response = client.get("/api/transcribe/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "available" in data
+    assert "model" in data
+
+
+def test_transcribe_route_success(client):
+    # Mock the whisper engine so the test needs no audio model / real decoding.
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.transcribe_file", return_value="chai 10 aur samosa 15"):
+        response = client.post(
+            "/api/transcribe",
+            files={"file": ("voice.webm", b"fake-audio-bytes", "audio/webm")},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["text"] == "chai 10 aur samosa 15"
+    # The transcript is run through the same voice parser -> two items.
+    assert len(data["items"]) == 2
+    assert data["items"][0]["amount"] == -10.0
+    assert data["items"][1]["amount"] == -15.0
+
+
+def test_transcribe_route_unavailable(client):
+    with patch("transcribe.is_enabled", return_value=False):
+        response = client.post(
+            "/api/transcribe",
+            files={"file": ("voice.webm", b"fake-audio-bytes", "audio/webm")},
+        )
+    assert response.status_code == 503
+
+
+def test_transcribe_route_empty_audio(client):
+    with patch("transcribe.is_enabled", return_value=True):
+        response = client.post(
+            "/api/transcribe",
+            files={"file": ("voice.webm", b"", "audio/webm")},
+        )
+    assert response.status_code == 400
 
 
 def test_transaction_crud(client):

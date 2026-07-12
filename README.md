@@ -51,7 +51,13 @@
 
 ### Capture
 - **Natural-language entry** — `swiggy 320 upi`, `salary 85000 credit`, parsed into structured transactions.
-- **Bulk & voice input** — paste multiple lines or dictate; each line is parsed independently.
+- **Multi-transaction voice input (Hindi/Hinglish)** — dictate a whole note like
+  *"aaj lays k 2 packet ek 10 ka ek 20 ka aur chai 10 phir zomato 450 upi"* and it splits into
+  separate entries, detecting quantity, per-item prices, categories, and dates.
+- **Offline transcription** — with `faster-whisper` installed, voice notes are transcribed
+  **locally** on the backend, so voice works even when the browser's cloud mic (Google) is
+  blocked or offline. Falls back to the browser Web Speech API automatically.
+- **Bulk input** — paste multiple lines; each line is parsed independently.
 - **Recurring entries** — replicate a transaction across selected months in one action, with idempotent de-duplication.
 - **Excel / CSV import** — column auto-detection, staged progress reporting, 25 MB guard, and fingerprint-based dedupe on re-upload.
 
@@ -204,6 +210,7 @@ All routes are mounted under `/api`. Highlights:
 | **Budgets** | `GET/POST /budgets` · `DELETE /budgets/{id}` · `GET /budgets/status` |
 | **Insights** | `GET /insights` · `POST /insights/refresh` |
 | **NL parsing** | `POST /parse-nl` · `parse-nl/bulk` · `parse-nl/voice` |
+| **Voice / transcription** | `GET /transcribe/status` · `POST /transcribe` (offline audio → text → parsed) |
 | **ML** | `/ml/spending-patterns` · `cash-flow-forecast` · `optimize-budget` · `recommendations` · `anomalies` · `qa` · `classify` |
 | **Import / Export** | `POST /upload-excel` (+ staged `start` / `upload-progress/{id}`) · `GET /export/csv` · `/export/excel` |
 
