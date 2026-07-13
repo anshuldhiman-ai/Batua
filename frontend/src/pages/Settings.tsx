@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { ThemeContext } from "@/App";
 import PageHeader from "@/components/PageHeader";
+import MicTest from "@/components/MicTest";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ACCENTS, CUSTOM_ACCENT } from "@/lib/themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -206,6 +207,8 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      <MicTest />
 
       <Card className="border-rose-500/40">
         <CardHeader>

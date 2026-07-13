@@ -9,8 +9,9 @@ import logging
 import os
 import tempfile
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 
 import transcribe as stt
 from parser import parse_voice_input
@@ -27,9 +28,99 @@ async def transcribe_status():
     """Report whether offline transcription is available.
 
     The frontend calls this once to decide between backend transcription and
-    the browser Web Speech API. Cheap: does not force the model download.
+    the browser Web Speech API. Cheap: does not force the model download. Also
+    powers the Settings mic-test panel (model picker + which are loaded).
     """
-    return {"available": stt.is_enabled(), "model": stt.model_name()}
+    return {
+        "available": stt.is_enabled(),
+        "model": stt.model_name(),
+        "models": stt.available_models(),
+        "loaded": stt.loaded_models(),
+    }
+
+
+class ModelChoice(BaseModel):
+    model: str
+
+
+@router.post("/transcribe/model")
+async def set_transcribe_model(choice: ModelChoice):
+    """Switch the app-wide Whisper model and persist the choice.
+
+    The new model downloads/loads lazily on the next transcription, so this
+    returns immediately even for a multi-GB model.
+    """
+    if not stt.is_enabled():
+        raise HTTPException(503, "Offline transcription isn't available on the server.")
+    try:
+        active = stt.set_active_model(choice.model)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {"model": active, "models": stt.available_models(), "loaded": stt.loaded_models()}
+
+
+@router.post("/transcribe/warm")
+async def warm_transcribe_model(choice: ModelChoice | None = None):
+    """Preload a model (downloading on first use) so the next test is fast.
+
+    Lets the UI show a distinct "Loading model…" step instead of a mysteriously
+    slow first transcription. Defaults to the active model.
+    """
+    if not stt.is_enabled():
+        raise HTTPException(503, "Offline transcription isn't available on the server.")
+    size = (choice.model if choice else None) or stt.model_name()
+    if size not in stt.available_models():
+        raise HTTPException(400, f"Unknown model '{size}'.")
+    ok = await run_in_threadpool(stt.warm_model, size)
+    if not ok:
+        raise HTTPException(500, f"Could not load model '{size}'.")
+    return {"model": size, "loaded": stt.loaded_models()}
+
+
+@router.post("/transcribe/test")
+async def transcribe_test(
+    file: UploadFile = File(...),
+    model: str | None = Form(default=None),
+):
+    """Transcribe a mic-test clip and return the raw text + detection details.
+
+    Unlike ``POST /transcribe`` this does NOT parse the text into transactions —
+    it's the Settings "check your microphone" tool. ``model`` optionally
+    overrides the active model just for this test.
+    """
+    if not stt.is_enabled():
+        raise HTTPException(503, "Offline transcription isn't available on the server.")
+    if model and model not in stt.available_models():
+        raise HTTPException(400, f"Unknown model '{model}'.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "Empty audio upload")
+    if len(content) > MAX_AUDIO_SIZE:
+        raise HTTPException(
+            400, f"Audio too large. Maximum size is {MAX_AUDIO_SIZE // (1024 * 1024)}MB"
+        )
+
+    suffix = os.path.splitext(file.filename or "")[1] or ".webm"
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        details = await run_in_threadpool(stt.transcribe_details, tmp_path, model)
+    except Exception as exc:
+        logger.warning("Mic-test transcription error: %s", exc)
+        raise HTTPException(500, "Could not transcribe the audio. Please try again.")
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    if not details:
+        raise HTTPException(500, "Could not transcribe the audio. Please try again.")
+    return details
 
 
 @router.post("/transcribe")

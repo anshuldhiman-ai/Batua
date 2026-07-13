@@ -123,6 +123,115 @@ def test_transcribe_route_empty_audio(client):
     assert response.status_code == 400
 
 
+def test_transcribe_status_lists_models(client):
+    response = client.get("/api/transcribe/status")
+    data = response.json()
+    # The Settings mic-test panel needs the choices + which are loaded.
+    assert isinstance(data["models"], list) and data["model"] in data["models"]
+    assert isinstance(data["loaded"], list)
+
+
+def test_transcribe_set_model(client):
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.set_active_model", return_value="base") as set_model:
+        response = client.post("/api/transcribe/model", json={"model": "base"})
+    assert response.status_code == 200
+    assert response.json()["model"] == "base"
+    set_model.assert_called_once_with("base")
+
+
+def test_transcribe_set_model_rejects_unknown(client):
+    with patch("transcribe.is_enabled", return_value=True):
+        response = client.post("/api/transcribe/model", json={"model": "bogus"})
+    assert response.status_code == 400
+
+
+def test_transcribe_test_route_returns_details(client):
+    # Mic test returns raw text + detection metadata, NOT parsed transactions.
+    details = {
+        "text": "chai 10 aur samosa 15",
+        "model": "small",
+        "language": "hi",
+        "language_probability": 0.98,
+        "duration_ms": 1200,
+    }
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.transcribe_details", return_value=details):
+        response = client.post(
+            "/api/transcribe/test",
+            files={"file": ("voice.webm", b"fake-audio-bytes", "audio/webm")},
+            data={"model": "small"},
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert data == details
+    assert "items" not in data  # unlike /transcribe, no parsing here
+
+
+def test_transcribe_test_route_unavailable(client):
+    with patch("transcribe.is_enabled", return_value=False):
+        response = client.post(
+            "/api/transcribe/test",
+            files={"file": ("voice.webm", b"fake-audio-bytes", "audio/webm")},
+        )
+    assert response.status_code == 503
+
+
+def test_transcribe_warm_success(client):
+    """Warming a known model that loads fine returns 200 with model + loaded list."""
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.model_name", return_value="small"), \
+         patch("transcribe.available_models", return_value=["tiny", "base", "small", "medium", "large-v3"]), \
+         patch("transcribe.warm_model", return_value=True) as warm, \
+         patch("transcribe.loaded_models", return_value=["small"]):
+        response = client.post("/api/transcribe/warm", json={"model": "small"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model"] == "small"
+    assert "loaded" in data
+    warm.assert_called_once_with("small")
+
+
+def test_transcribe_warm_default_model(client):
+    """Omitting the model payload warms the currently active model."""
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.model_name", return_value="base"), \
+         patch("transcribe.available_models", return_value=["tiny", "base", "small", "medium", "large-v3"]), \
+         patch("transcribe.warm_model", return_value=True) as warm, \
+         patch("transcribe.loaded_models", return_value=["base"]):
+        # Send an empty JSON body — the route should fall back to model_name().
+        response = client.post("/api/transcribe/warm")
+    assert response.status_code == 200
+    assert response.json()["model"] == "base"
+    warm.assert_called_once_with("base")
+
+
+def test_transcribe_warm_rejects_unknown(client):
+    """An unknown model size returns 400."""
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.model_name", return_value="small"), \
+         patch("transcribe.available_models", return_value=["tiny", "base", "small", "medium", "large-v3"]):
+        response = client.post("/api/transcribe/warm", json={"model": "bogus"})
+    assert response.status_code == 400
+
+
+def test_transcribe_warm_load_failure(client):
+    """If warm_model returns False (load failed), the route returns 500."""
+    with patch("transcribe.is_enabled", return_value=True), \
+         patch("transcribe.model_name", return_value="small"), \
+         patch("transcribe.available_models", return_value=["tiny", "base", "small", "medium", "large-v3"]), \
+         patch("transcribe.warm_model", return_value=False):
+        response = client.post("/api/transcribe/warm", json={"model": "small"})
+    assert response.status_code == 500
+
+
+def test_transcribe_warm_unavailable(client):
+    """If offline transcription is disabled, the route returns 503."""
+    with patch("transcribe.is_enabled", return_value=False):
+        response = client.post("/api/transcribe/warm", json={"model": "small"})
+    assert response.status_code == 503
+
+
 def test_transaction_crud(client):
     # 1. Create a transaction
     payload = {
