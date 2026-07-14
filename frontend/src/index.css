@@ -89,6 +89,35 @@
     -webkit-font-smoothing: antialiased;
     /* Guard against stray full-bleed children causing sideways scroll on phones */
     overflow-x: hidden;
+    /* Ambient depth — two faint accent-tinted glows anchored to the top corners.
+       `fixed` keeps them in place as the page scrolls, so long pages don't reveal
+       a hard edge. Very low opacity so it reads as atmosphere, not decoration. */
+    background-image:
+      radial-gradient(
+        60% 50% at 100% 0%,
+        hsl(var(--primary) / 0.06),
+        transparent 70%
+      ),
+      radial-gradient(
+        50% 40% at 0% 0%,
+        hsl(var(--ring) / 0.05),
+        transparent 70%
+      );
+    background-attachment: fixed;
+  }
+
+  /* Honour the OS "reduce motion" setting everywhere — kills the ambient and
+     component animations for users who ask for calm. framer-motion also reads
+     this via useReducedMotion() at the component level. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   /* Media never forces the layout wider than the screen */
@@ -118,6 +147,82 @@
   .card-hover:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 28px -12px hsl(var(--primary) / 0.25);
+  }
+
+  /* Layered elevation — richer than shadow-sm, used on hero surfaces. */
+  .shadow-elevated {
+    box-shadow:
+      0 1px 2px -1px hsl(var(--foreground) / 0.08),
+      0 8px 24px -12px hsl(var(--foreground) / 0.18),
+      0 24px 48px -24px hsl(var(--primary) / 0.12);
+  }
+
+  /* Frosted-glass surface — translucent card over a blurred backdrop with a
+     hairline gradient border. Pairs with the ambient page gradient below. */
+  .surface-glass {
+    background:
+      linear-gradient(
+        135deg,
+        hsl(var(--card) / 0.85),
+        hsl(var(--card) / 0.6)
+      );
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  /* Expressive gradient surface — the "hero band" behind flagship cards. */
+  .surface-gradient {
+    background:
+      radial-gradient(
+        120% 120% at 100% 0%,
+        hsl(var(--primary) / 0.14),
+        transparent 55%
+      ),
+      linear-gradient(135deg, hsl(var(--card)), hsl(var(--card)));
+    border: 1px solid hsl(var(--primary) / 0.18);
+  }
+
+  /* Gradient text — for the occasional hero number / wordmark accent. */
+  .text-gradient-primary {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)),
+      hsl(var(--accent-foreground))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  /* Slow sheen sweep for the headline-insight banner. */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 20%,
+      hsl(var(--primary) / 0.12) 40%,
+      transparent 60%
+    );
+    transform: translateX(-120%);
+    animation: sheen 5.5s ease-in-out infinite;
+  }
+  @keyframes sheen {
+    0%,
+    35% {
+      transform: translateX(-120%);
+    }
+    70%,
+    100% {
+      transform: translateX(120%);
+    }
   }
 
   .kpi-number {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   LayoutDashboard,
   ReceiptText,
@@ -15,6 +16,7 @@ import {
 
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
+import { spring } from "@/lib/motion";
 
 // Pick the right on-brand logo tile for the current theme.
 // In light UI we want the dark-tile logo to stand out; in dark UI we want the
@@ -34,19 +36,32 @@ const NAV = [
 
 function ThemeToggle({ className }) {
   const { theme, toggle } = React.useContext(ThemeContext);
+  const reduce = useReducedMotion();
+  const isDark = theme === "dark";
   return (
     <button
       onClick={toggle}
       data-testid="dark-mode-toggle"
       aria-label="Toggle dark mode"
       className={cn(
-        "flex h-10 w-10 items-center justify-center rounded-xl",
+        "relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl",
         "text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground",
         "outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className
       )}
     >
-      {theme === "dark" ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={isDark ? "sun" : "moon"}
+          initial={reduce ? false : { rotate: -90, scale: 0.4, opacity: 0 }}
+          animate={{ rotate: 0, scale: 1, opacity: 1 }}
+          exit={reduce ? undefined : { rotate: 90, scale: 0.4, opacity: 0 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          className="flex items-center justify-center"
+        >
+          {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+        </motion.span>
+      </AnimatePresence>
     </button>
   );
 }
@@ -83,22 +98,30 @@ function DesktopSidebar() {
               data-testid={`nav-${tab.label.toLowerCase().replace(/\s/g, "-")}`}
               title={tab.label}
               className={cn(
-                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                 "outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isActive
-                  ? "bg-primary/10 text-primary"
+                  ? "text-primary"
                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
               )}
               aria-current={isActive ? "page" : undefined}
             >
+              {/* Shared-element pill — slides between tabs on navigation. */}
+              {isActive && (
+                <motion.span
+                  layoutId="nav-active-pill"
+                  transition={spring}
+                  className="absolute inset-0 rounded-xl bg-primary/10 ring-1 ring-inset ring-primary/15"
+                />
+              )}
               <Icon
                 size={20}
                 strokeWidth={isActive ? 2.2 : 1.75}
-                className="shrink-0"
+                className="relative shrink-0"
               />
-              <span className="hidden truncate xl:inline">{tab.label}</span>
+              <span className="relative hidden truncate xl:inline">{tab.label}</span>
               {isActive && (
-                <span className="ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary xl:inline-block" />
+                <span className="relative ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary xl:inline-block" />
               )}
             </NavLink>
           );

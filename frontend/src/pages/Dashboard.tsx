@@ -16,8 +16,10 @@ import {
   Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 import KPICard from "@/components/KPICard";
+import CountUp from "@/components/CountUp";
 import PageHeader from "@/components/PageHeader";
 import CardDetailDialog from "@/components/CardDetailDialog";
 import BudgetHealth from "@/components/BudgetHealth";
@@ -30,6 +32,12 @@ import { Badge } from "@/components/ui/badge";
 import { api, formatINR, formatMonth, categoryColor } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { staggerContainer, fadeUp, scaleIn } from "@/lib/motion";
+
+// Count-up formatters — feed raw numbers to KPICard so the value springs up.
+const fmtFull = (n) => formatINR(n, { compact: false });
+const fmtCompact = (n) => formatINR(n, { compact: true });
+const fmtPct = (n) => `${Math.round(n)}%`;
 
 /* ─── Section header ──────────────────────────────────────────────── */
 function SectionHeader({ icon: Icon, title, subtitle, action }) {
@@ -64,7 +72,11 @@ const TONE_CLASS = {
 
 function StatPill({ label, value, sub, tone = "primary", icon: Icon }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border/50 bg-card px-3 py-2 transition-shadow hover:shadow-sm">
+    <motion.div
+      whileHover={{ y: -2 }}
+      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      className="flex items-center gap-2.5 rounded-lg border border-border/50 bg-card px-3 py-2 transition-shadow hover:shadow-sm"
+    >
       {Icon && (
         <div className={cn(
           "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
@@ -82,7 +94,7 @@ function StatPill({ label, value, sub, tone = "primary", icon: Icon }) {
         <p className={cn("kpi-number text-sm font-semibold leading-tight", TONE_CLASS[tone])}>{value}</p>
         {sub && <p className="text-[9px] text-muted-foreground">{sub}</p>}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -215,31 +227,38 @@ export default function Dashboard() {
   const goAddTransaction = () => navigate("/transactions");
 
   return (
-    <div className="page-enter space-y-6">
+    <motion.div
+      className="space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
       {/* ════════════════════════════════════════════════════════════
           SECTION 1: Page Header
           ════════════════════════════════════════════════════════════ */}
-      <PageHeader
-        title="Dashboard"
-        subtitle="Your financial overview at a glance"
-        actions={
-          metrics?.current_month && (
-            <Badge variant="outline" className="gap-1.5 px-2.5 py-1 text-xs font-medium">
-              <Calendar className="h-3.5 w-3.5 text-primary" />
-              {formatMonth(metrics.current_month)}
-            </Badge>
-          )
-        }
-      />
+      <motion.div variants={fadeUp}>
+        <PageHeader
+          title="Dashboard"
+          subtitle="Your financial overview at a glance"
+          actions={
+            metrics?.current_month && (
+              <Badge variant="outline" className="gap-1.5 px-2.5 py-1 text-xs font-medium">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                {formatMonth(metrics.current_month)}
+              </Badge>
+            )
+          }
+        />
+      </motion.div>
 
       {/* ════════════════════════════════════════════════════════════
           SECTION 2: HERO — Trend chart (left) + This-Month KPIs (right)
           Visualization leads; the precise figures sit alongside it so the
           whole "how am I doing this month?" story reads in one glance.
           ════════════════════════════════════════════════════════════ */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <motion.section variants={fadeUp} className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Trend chart — the hero visualization */}
-        <Card className="lg:col-span-7">
+        <Card className="surface-gradient shadow-elevated lg:col-span-7">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -260,7 +279,8 @@ export default function Dashboard() {
                     "kpi-number text-lg leading-tight",
                     netPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
                   )}>
-                    {netPositive ? "" : "−"}{formatINR(Math.abs(metrics.net), { compact: true })}
+                    {netPositive ? "" : "−"}
+                    <CountUp value={Math.abs(metrics.net)} format={fmtCompact} />
                   </p>
                 </div>
               )}
@@ -300,7 +320,8 @@ export default function Dashboard() {
               <KPICard
                 testId="kpi-net"
                 label={metrics.net < 0 ? "Overspent this month" : "Funds Left this month"}
-                value={formatINR(Math.abs(metrics.net), { compact: false })}
+                count={Math.abs(metrics.net)}
+                countFormat={fmtFull}
                 change={metrics.net_change}
                 icon={metrics.net < 0 ? AlertTriangle : Wallet}
                 accent={metrics.net < 0 ? "rose" : "primary"}
@@ -319,7 +340,8 @@ export default function Dashboard() {
                 <KPICard
                   testId="kpi-income"
                   label="Income"
-                  value={formatINR(metrics.income, { compact: true })}
+                  count={metrics.income}
+                  countFormat={fmtCompact}
                   change={metrics.income_change}
                   icon={TrendingUp}
                   accent="emerald"
@@ -330,7 +352,8 @@ export default function Dashboard() {
                 <KPICard
                   testId="kpi-expense"
                   label="Expense"
-                  value={formatINR(metrics.expense, { compact: true })}
+                  count={metrics.expense}
+                  countFormat={fmtCompact}
                   change={metrics.expense_change}
                   icon={TrendingDown}
                   accent="rose"
@@ -341,7 +364,8 @@ export default function Dashboard() {
                 <KPICard
                   testId="kpi-investments"
                   label="Investments / SIP"
-                  value={formatINR(metrics.investments, { compact: true })}
+                  count={metrics.investments}
+                  countFormat={fmtCompact}
                   change={metrics.investments_change}
                   icon={LineChart}
                   accent="violet"
@@ -352,7 +376,8 @@ export default function Dashboard() {
                 <KPICard
                   testId="kpi-savings-rate"
                   label="Savings Rate"
-                  value={`${metrics.savings_rate}%`}
+                  count={metrics.savings_rate}
+                  countFormat={fmtPct}
                   icon={PiggyBank}
                   accent={metrics.net < 0 ? "rose" : metrics.savings_rate >= 20 ? "emerald" : "sky"}
                   valueClassName={metrics.net < 0 ? "text-rose-500" : undefined}
@@ -363,21 +388,23 @@ export default function Dashboard() {
             </>
           )}
         </div>
-      </section>
+      </motion.section>
 
       {/* Headline Insight — high-signal takeaway right under the hero */}
       {!loading && insights && insights.insights && insights.insights.length > 0 && (
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-          <CardContent className="flex items-start gap-3 px-4 py-3.5">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <p className="text-sm leading-relaxed">
-              <span className="font-semibold text-primary">Key insight · </span>
-              {insights.insights[0]}
-            </p>
-          </CardContent>
-        </Card>
+        <motion.div variants={fadeUp}>
+          <Card className="sheen border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+            <CardContent className="relative flex items-start gap-3 px-4 py-3.5">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <p className="text-sm leading-relaxed">
+                <span className="font-semibold text-primary">Key insight · </span>
+                {insights.insights[0]}
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
       )}
 
       {/* ════════════════════════════════════════════════════════════
@@ -385,7 +412,7 @@ export default function Dashboard() {
           The donut shows proportion; the ranked bars give exact amounts.
           Pairing them answers "where did my money go?" at a glance.
           ════════════════════════════════════════════════════════════ */}
-      <section className="space-y-4">
+      <motion.section variants={fadeUp} className="space-y-4">
         <SectionHeader
           icon={PieChart}
           title="Spending Breakdown"
@@ -467,21 +494,21 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-      </section>
+      </motion.section>
 
       {/* ════════════════════════════════════════════════════════════
           SECTION 4: Budget Health
           ════════════════════════════════════════════════════════════ */}
       {!loading && metrics && (
-        <section>
+        <motion.section variants={fadeUp}>
           <BudgetHealth month={metrics.current_month} />
-        </section>
+        </motion.section>
       )}
 
       {/* ════════════════════════════════════════════════════════════
           SECTION 5: AI Insights (left) + Lifetime context (right)
           ════════════════════════════════════════════════════════════ */}
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <motion.section variants={fadeUp} className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* AI Insights */}
         <Card data-testid="ai-insights" className="lg:col-span-2">
           <CardHeader>
@@ -584,7 +611,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-      </section>
+      </motion.section>
 
       {/* Drill-down dialog */}
       <CardDetailDialog
@@ -592,6 +619,6 @@ export default function Dashboard() {
         metrics={metrics}
         onClose={() => setDrill(null)}
       />
-    </div>
+    </motion.div>
   );
 }

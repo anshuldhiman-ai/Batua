@@ -15,6 +15,7 @@ import {
 } from "recharts";
 
 import { formatINR, formatMonth, categoryColor } from "@/lib/utils-finance";
+import CountUp from "@/components/CountUp";
 
 /* Shared chart theme tokens — import these instead of redefining per chart. */
 export const CHART_AXIS = "hsl(var(--muted-foreground))";
@@ -62,13 +63,23 @@ export function TimelineChart({ data, height = 300 }) {
       <AreaChart data={data} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
         <defs>
           <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={INCOME_COLOR} stopOpacity={0.35} />
+            <stop offset="0%" stopColor={INCOME_COLOR} stopOpacity={0.5} />
+            <stop offset="60%" stopColor={INCOME_COLOR} stopOpacity={0.12} />
             <stop offset="100%" stopColor={INCOME_COLOR} stopOpacity={0} />
           </linearGradient>
           <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.3} />
+            <stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.45} />
+            <stop offset="60%" stopColor={EXPENSE_COLOR} stopOpacity={0.1} />
             <stop offset="100%" stopColor={EXPENSE_COLOR} stopOpacity={0} />
           </linearGradient>
+          {/* Soft glow so the stroke reads as a lit line, not a flat one. */}
+          <filter id="lineGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
         <XAxis
@@ -87,10 +98,35 @@ export function TimelineChart({ data, height = 300 }) {
           axisLine={false}
           tickFormatter={(v) => formatINR(v, { compact: true })}
         />
-        <Tooltip content={<ChartTooltip labelFormatter={formatMonth} />} />
+        <Tooltip content={<ChartTooltip labelFormatter={formatMonth} />} cursor={{ stroke: CHART_GRID, strokeWidth: 1 }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Area type="monotone" dataKey="income" name="Income" stroke={INCOME_COLOR} strokeWidth={2} fill="url(#gInc)" />
-        <Area type="monotone" dataKey="expense" name="Expense" stroke={EXPENSE_COLOR} strokeWidth={2} fill="url(#gExp)" />
+        <Area
+          type="monotone"
+          dataKey="income"
+          name="Income"
+          stroke={INCOME_COLOR}
+          strokeWidth={2.5}
+          fill="url(#gInc)"
+          style={{ filter: "url(#lineGlow)" }}
+          dot={false}
+          activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--card))" }}
+          isAnimationActive
+          animationDuration={1100}
+          animationEasing="ease-out"
+        />
+        <Area
+          type="monotone"
+          dataKey="expense"
+          name="Expense"
+          stroke={EXPENSE_COLOR}
+          strokeWidth={2.5}
+          fill="url(#gExp)"
+          dot={false}
+          activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--card))" }}
+          isAnimationActive
+          animationDuration={1100}
+          animationEasing="ease-out"
+        />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -166,6 +202,9 @@ export function CategoryDonut({ data, height = 300, centerLabel = "Total spend" 
             activeShape={renderActiveDonutShape}
             onMouseEnter={(_, i) => setActiveIndex(i)}
             onMouseLeave={() => setActiveIndex(-1)}
+            isAnimationActive
+            animationDuration={900}
+            animationBegin={120}
           >
             {data.map((d) => (
               <Cell key={d.category} fill={categoryColor(d.category)} className="cursor-pointer focus:outline-none" />
@@ -175,7 +214,11 @@ export function CategoryDonut({ data, height = 300, centerLabel = "Total spend" 
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-xs text-muted-foreground">{centerLabel}</span>
-        <span className="kpi-number text-2xl">{formatINR(total, { compact: true })}</span>
+        <CountUp
+          className="kpi-number text-2xl"
+          value={total}
+          format={(n) => formatINR(n, { compact: true })}
+        />
       </div>
     </div>
   );

@@ -1,12 +1,27 @@
 import React from "react";
-import { ArrowUpRight, ArrowDownRight, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Card } from "@/components/ui/card";
+import CountUp from "@/components/CountUp";
 import { cn } from "@/lib/utils";
+import { spring } from "@/lib/motion";
+
+// Per-accent styling: icon chip color + a subtle corner gradient wash that
+// gives each tile its own identity without overpowering the number.
+const ACCENT = {
+  primary: { chip: "bg-primary/10 text-primary", wash: "from-primary/10" },
+  rose: { chip: "bg-rose-500/10 text-rose-500", wash: "from-rose-500/10" },
+  emerald: { chip: "bg-emerald-500/10 text-emerald-500", wash: "from-emerald-500/10" },
+  sky: { chip: "bg-sky-500/10 text-sky-500", wash: "from-sky-500/10" },
+  violet: { chip: "bg-violet-500/10 text-violet-500", wash: "from-violet-500/10" },
+};
 
 /**
  * Reusable KPI metric card.
- * @param change percentage change vs previous month
+ * @param change     percentage change vs previous month
  * @param goodWhenUp whether an increase is "good" (green) — false for expenses
+ * @param count      optional raw number → animated count-up (with countFormat)
+ * @param countFormat (n:number)=>string formatter used when `count` is provided
  */
 export default function KPICard({
   label,
@@ -22,124 +37,174 @@ export default function KPICard({
   showSign = false,
   sparkline = null,
   valueClassName,
+  count,
+  countFormat,
 }) {
+  const reduce = useReducedMotion();
   const hasChange = change !== undefined && change !== null;
   const up = (change || 0) >= 0;
   const positive = goodWhenUp ? up : !up;
   const clickable = typeof onClick === "function";
   const hasSparkline = sparkline && sparkline.length > 0;
   const sparkMax = hasSparkline ? Math.max(...sparkline, 1) : 1;
+  const hasCount = typeof count === "number" && typeof countFormat === "function";
+  const tone = ACCENT[accent] || ACCENT.primary;
 
   return (
-    <Card
-      className={cn(
-        "card-hover relative group overflow-hidden",
-        hero ? "px-4 py-3.5" : "px-3 py-2.5",
-        clickable &&
-          "cursor-pointer transition-shadow hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-      )}
-      data-testid={testId}
-      onClick={onClick}
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onKeyDown={
-        clickable
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
+    <motion.div
+      whileHover={clickable && !reduce ? { y: -4, scale: 1.015 } : undefined}
+      whileTap={clickable && !reduce ? { scale: 0.985 } : undefined}
+      transition={spring}
+      className="h-full"
     >
-      {/* Header row: label + icon */}
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn(
-          "font-medium text-muted-foreground truncate",
-          hero ? "text-sm" : "text-xs"
-        )}>
-          {label}
-        </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {Icon && (
+      <Card
+        className={cn(
+          "relative group h-full overflow-hidden",
+          hero ? "px-4 py-3.5" : "px-3 py-2.5",
+          clickable &&
+            "cursor-pointer transition-shadow hover:shadow-[0_16px_40px_-16px_hsl(var(--primary)/0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        )}
+        data-testid={testId}
+        onClick={onClick}
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onKeyDown={
+          clickable
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onClick();
+                }
+              }
+            : undefined
+        }
+      >
+        {/* Corner gradient wash — accent identity, fades toward transparent */}
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-gradient-to-br to-transparent opacity-70 blur-2xl transition-opacity duration-300 group-hover:opacity-100",
+            tone.wash
+          )}
+        />
+
+        <div className="relative">
+          {/* Header row: label + icon */}
+          <div className="flex items-center justify-between gap-2">
             <span
               className={cn(
-                "flex items-center justify-center rounded-md",
-                hero ? "h-7 w-7" : "h-6 w-6",
-                accent === "primary" && "bg-primary/10 text-primary",
-                accent === "rose" && "bg-rose-500/10 text-rose-500",
-                accent === "emerald" && "bg-emerald-500/10 text-emerald-500",
-                accent === "sky" && "bg-sky-500/10 text-sky-500",
-                accent === "violet" && "bg-violet-500/10 text-violet-500"
+                "font-medium text-muted-foreground truncate",
+                hero ? "text-sm" : "text-xs"
               )}
             >
-              <Icon className={cn(hero ? "h-3.5 w-3.5" : "h-3 w-3")} />
+              {label}
             </span>
-          )}
-          {clickable && (
-            <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-          )}
-        </div>
-      </div>
-
-      {/* Value */}
-      <div className={cn(
-        "kpi-number leading-tight",
-        hero ? "mt-1 text-lg md:text-xl" : "mt-0.5 text-base",
-        valueClassName
-      )}>
-        {showSign && typeof value === 'string' && !value.startsWith('₹') && !value.startsWith('-') ? '+' : ''}{value}
-      </div>
-
-      {/* Note + change — inline on the same row to save vertical space */}
-      {(note || hasChange) && (
-        <div className={cn(
-          "flex flex-wrap items-center gap-x-2 gap-y-0",
-          hero ? "mt-1" : "mt-0.5"
-        )}>
-          {note && (
-            <span className={cn(
-              "text-muted-foreground",
-              hero ? "text-xs" : "text-[10px]"
-            )}>
-              {note}
-            </span>
-          )}
-          {hasChange && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-0.5 font-semibold",
-                hero ? "text-xs" : "text-[10px]",
-                positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"
+            <div className="flex items-center gap-1.5 shrink-0">
+              {Icon && (
+                <span
+                  className={cn(
+                    "flex items-center justify-center rounded-md",
+                    hero ? "h-7 w-7" : "h-6 w-6",
+                    tone.chip
+                  )}
+                >
+                  <Icon className={cn(hero ? "h-3.5 w-3.5" : "h-3 w-3")} />
+                </span>
               )}
-            >
-              {up ? "↑" : "↓"} {Math.abs(change)}%
-            </span>
-          )}
-        </div>
-      )}
+              {clickable && (
+                <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 -translate-x-1 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
+              )}
+            </div>
+          </div>
 
-      {/* Sparkline — thinner */}
-      {hasSparkline && (
-        <div className="mt-1.5 h-5 w-full">
-          <svg
-            width="100%"
-            height="100%"
-            viewBox={`0 0 ${sparkline.length * 10} 24`}
-            preserveAspectRatio="none"
+          {/* Value */}
+          <div
+            className={cn(
+              "kpi-number leading-tight",
+              hero ? "mt-1 text-lg md:text-xl" : "mt-0.5 text-base",
+              valueClassName
+            )}
           >
-            <polyline
-              fill="none"
-              stroke={positive ? "hsl(var(--chart-income))" : "hsl(var(--chart-expense))"}
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              points={sparkline.map((val, i) => `${i * 10},${22 - (val / sparkMax) * 20}`).join(" ")}
-            />
-          </svg>
+            {hasCount ? (
+              <CountUp value={count} format={countFormat} />
+            ) : (
+              <>
+                {showSign &&
+                typeof value === "string" &&
+                !value.startsWith("₹") &&
+                !value.startsWith("-")
+                  ? "+"
+                  : ""}
+                {value}
+              </>
+            )}
+          </div>
+
+          {/* Note + change — inline to save vertical space */}
+          {(note || hasChange) && (
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-x-2 gap-y-0",
+                hero ? "mt-1" : "mt-0.5"
+              )}
+            >
+              {note && (
+                <span
+                  className={cn(
+                    "text-muted-foreground",
+                    hero ? "text-xs" : "text-[10px]"
+                  )}
+                >
+                  {note}
+                </span>
+              )}
+              {hasChange && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5 font-semibold",
+                    hero ? "text-xs" : "text-[10px]",
+                    positive
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-rose-500"
+                  )}
+                >
+                  {up ? "↑" : "↓"} {Math.abs(change)}%
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Sparkline — animated draw-in */}
+          {hasSparkline && (
+            <div className="mt-1.5 h-5 w-full">
+              <svg
+                width="100%"
+                height="100%"
+                viewBox={`0 0 ${sparkline.length * 10} 24`}
+                preserveAspectRatio="none"
+              >
+                <motion.polyline
+                  fill="none"
+                  stroke={
+                    positive
+                      ? "hsl(var(--chart-income))"
+                      : "hsl(var(--chart-expense))"
+                  }
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={sparkline
+                    .map((val, i) => `${i * 10},${22 - (val / sparkMax) * 20}`)
+                    .join(" ")}
+                  initial={reduce ? false : { pathLength: 0, opacity: 0 }}
+                  animate={reduce ? undefined : { pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </svg>
+            </div>
+          )}
         </div>
-      )}
-    </Card>
+      </Card>
+    </motion.div>
   );
 }
