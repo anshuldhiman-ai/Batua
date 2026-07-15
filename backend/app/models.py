@@ -1,7 +1,7 @@
 """Pydantic models for Batua backend."""
 import uuid
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 class Transaction(BaseModel):
@@ -14,9 +14,20 @@ class Transaction(BaseModel):
     category: str = "Other"
     payment_method: str = ""
     quantity: int = 1  # quantity of items purchased/credited
+    price: float = 0.0  # per-item price (₹); quantity × price = |amount|
     txn_type: str = ""  # "credit" (money in) | "debit" (money out) — derived from amount
     notes: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    @model_validator(mode="after")
+    def _derive_price(self):
+        """Fill in per-item price when the caller didn't supply one, so every
+        stored transaction carries quantity × price = |amount| (like the
+        Quantity / Price / Total Amount columns of an expense sheet)."""
+        if self.price <= 0:
+            qty = self.quantity if self.quantity and self.quantity > 0 else 1
+            self.price = round(abs(self.amount) / qty, 2)
+        return self
 
 
 class TransactionCreate(BaseModel):
@@ -28,6 +39,7 @@ class TransactionCreate(BaseModel):
     category: str = "Other"
     payment_method: str = ""
     quantity: int = 1
+    price: float = 0.0
     notes: str = ""
 
 
@@ -40,6 +52,7 @@ class TransactionUpdate(BaseModel):
     category: str | None = None
     payment_method: str | None = None
     quantity: int | None = None
+    price: float | None = None
     notes: str | None = None
 
 

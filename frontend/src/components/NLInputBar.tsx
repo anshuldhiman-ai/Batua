@@ -921,6 +921,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               const amount = parseFloat(e.target.value) || 0;
               updateDraft("amount", amount);
               if (isRecurring) updateDraft("total", round2(amount * (draft.months?.length || 0)));
+              else updateDraft("price", round2(Math.abs(amount) / (draft.quantity > 0 ? draft.quantity : 1)));
             }}
             data-testid="preview-amount"
           />
@@ -936,8 +937,28 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               type="number"
               min={1}
               value={draft.quantity ?? 1}
-              onChange={(e) => updateDraft("quantity", Math.max(1, parseInt(e.target.value, 10) || 1))}
+              onChange={(e) => {
+                const qty = Math.max(1, parseInt(e.target.value, 10) || 1);
+                updateDraft("quantity", qty);
+                updateDraft("price", round2(Math.abs(draft.amount || 0) / qty));
+              }}
               data-testid="preview-quantity"
+            />
+          </Field>
+        )}
+        {!isRecurring && (
+          <Field label="Price / item (₹)">
+            <Input
+              type="number"
+              min={0}
+              value={draft.price ?? round2(Math.abs(draft.amount || 0) / (draft.quantity > 0 ? draft.quantity : 1))}
+              onChange={(e) => {
+                const price = Math.abs(parseFloat(e.target.value) || 0);
+                const qty = draft.quantity > 0 ? draft.quantity : 1;
+                updateDraft("price", price);
+                updateDraft("amount", draft.amount < 0 ? -round2(price * qty) : round2(price * qty));
+              }}
+              data-testid="preview-price"
             />
           </Field>
         )}
@@ -1005,7 +1026,10 @@ function BulkPreview({ items, onDiscard, onSave, saving }) {
               <span className="truncate font-medium">
                 {item.description}
                 {item.quantity > 1 && (
-                  <span className="ml-1 text-xs text-muted-foreground">× {item.quantity}</span>
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    × {item.quantity}
+                    {item.price > 0 && <> @ {formatINR(item.price)}</>}
+                  </span>
                 )}
               </span>
               {item.notes && (

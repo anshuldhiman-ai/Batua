@@ -288,6 +288,37 @@ def test_transaction_crud(client):
     response = client.delete("/api/transactions/non-existent-id")
     assert response.status_code == 404
 
+
+def test_transaction_price_derivation(client):
+    """Test that POST without price derives price and PUT changing quantity recomputes price."""
+    # 1. POST without price - should derive price = |amount|/quantity
+    payload = {
+        "date": "2026-06-19",
+        "description": "Lays chips",
+        "amount": -90.0,
+        "quantity": 3,
+        "category": "Snacks"
+    }
+    response = client.post("/api/transactions", json=payload)
+    assert response.status_code == 200
+    txn = response.json()
+    assert txn["price"] == 30.0  # 90/3 = 30
+    
+    txn_id = txn["id"]
+    
+    # 2. PUT changing quantity without explicit price - should recompute price
+    response = client.put(f"/api/transactions/{txn_id}", json={"quantity": 2})
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["quantity"] == 2
+    assert updated["price"] == 45.0  # 90/2 = 45
+    
+    # 3. PUT with explicit price - should use provided price
+    response = client.put(f"/api/transactions/{txn_id}", json={"price": 40.0})
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["price"] == 40.0
+
 def test_bulk_delete(client):
     # Insert two transactions
     t1 = client.post("/api/transactions", json={"date": "2026-06-19", "description": "T1", "amount": -10}).json()

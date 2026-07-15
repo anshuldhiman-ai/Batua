@@ -656,7 +656,18 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
                     pass
 
     result["txn_type"] = "credit" if result["amount"] >= 0 else "debit"
+    _set_unit_price(result)
     return result
+
+
+def _set_unit_price(parsed: dict) -> dict:
+    """Stamp the per-item price (quantity × price = |amount|), mirroring the
+    Quantity / Price / Total Amount columns of the expense sheet format."""
+    qty = parsed.get("quantity") or 1
+    if qty < 1:
+        qty = 1
+    parsed["price"] = round(abs(parsed.get("amount", 0) or 0) / qty, 2)
+    return parsed
 
 
 def _gemini_parse(text: str, today: datetime) -> dict | None:
@@ -1019,7 +1030,8 @@ def _parse_voice_item(
     # chatter ("phir ghar aa gaya") and are dropped so only real entries remain.
     if enum is None and parsed["amount"] == 0:
         return None
-    return parsed
+    # Quantity/amount may have been overridden above — re-derive price.
+    return _set_unit_price(parsed)
 
 
 def parse_voice_input(text: str, today: datetime | None = None) -> list[dict]:

@@ -69,6 +69,12 @@ COLUMN_ALIASES = {
     "quantity": [
         "quantity", "qty", "no of items", "items count", "units", "quantity count", "no. of items", "quantity (qty)", "qty/units"
     ],
+    # Per-item price. Listed AFTER amount so a "Total Amount" column is claimed
+    # as the amount first and a standalone "Price" column lands here.
+    "unit_price": [
+        "unit price", "price per item", "price per unit", "price each",
+        "unit cost", "rate", "price",
+    ],
 }
 
 _NOISE_DESCRIPTIONS = {
@@ -456,7 +462,11 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
                 "date": _find_col(cells, ["date of purchase", "date"]),
                 "mode": _find_col(cells, ["mode of payment", "mode", "payment", "bank"]),
                 "quantity": _find_col(cells, ["quantity", "qty", "no of items", "units", "items count"]),
+                # Separate per-item price column ("Price" next to "Total Amount").
+                "unit_price": _find_col(cells, ["price per item", "unit price", "price"]),
             }
+            if cols["unit_price"] == cols["price"]:
+                cols["unit_price"] = None
             if current is not None:
                 current["cols"] = cols
             continue
@@ -492,12 +502,22 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
             except Exception:
                 pass
 
+        # Per-item price: use the sheet's Price cell when it is one clean
+        # number; expressions like "₹15*2+₹20" fall back to total ÷ quantity.
+        unit_price = None
+        up = c.get("unit_price")
+        if up is not None and up < len(cells) and _is_number(cells[up]):
+            parsed = _clean_amount(cells[up])
+            if parsed and parsed > 0:
+                unit_price = parsed
+
         current["items"].append({
             "item": item,
             "amount": amount,
             "raw_date": raw_date,
             "mode": mode,
-            "quantity": qty
+            "quantity": qty,
+            "price": unit_price,
         })
 
     out: list[dict] = []
@@ -509,7 +529,7 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
         for it in b["items"]:
             date_str = _resolve_swapped_date(it["raw_date"], real_month, real_year, default)
             amt = -abs(it["amount"])  # stacked entries are expenses
-            out.append(_make_txn(date_str, it["item"], amt, _detect_category(it["item"]), it["mode"], it.get("quantity", 1)))
+            out.append(_make_txn(date_str, it["item"], amt, _detect_category(it["item"]), it["mode"], it.get("quantity", 1), it.get("price")))
     return out
 
 
@@ -609,11 +629,21 @@ def _parse_tabular(df: pd.DataFrame, use_ai: bool) -> list[dict]:
             except Exception:
                 pass
 
-        out.append(_make_txn(date_str, desc.title(), amount, category, pm, qty))
+        unit_price = None
+        if mp.get("unit_price") and mp["unit_price"] != mp.get("amount"):
+            raw_price = rowd.get(mp["unit_price"])
+            if raw_price is not None and _is_number(raw_price):
+                parsed = _clean_amount(raw_price)
+                if parsed and parsed > 0:
+                    unit_price = parsed
+
+        out.append(_make_txn(date_str, desc.title(), amount, category, pm, qty, unit_price))
     return out
 
 
-def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, qty: int = 1) -> dict:
+def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, qty: int = 1, price: float | None = None) -> dict:
+    q = qty if qty and qty > 0 else 1
+    unit = round(price, 2) if price and price > 0 else round(abs(amount) / q, 2)
     return {
         "id": str(uuid.uuid4()),
         "date": date_str,
@@ -621,7 +651,8 @@ def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, q
         "amount": amount,
         "category": category or "Other",
         "payment_method": pm,
-        "quantity": qty,
+        "quantity": q,
+        "price": unit,
         "txn_type": "credit" if amount >= 0 else "debit",
         "notes": "",
         "created_at": _now_iso(),

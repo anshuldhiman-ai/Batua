@@ -11,7 +11,7 @@ async def test_sqlite_storage_operations(tmp_path):
     assert txns == []
     
     # 2. Test insert
-    doc1 = {"id": "txn-1", "date": "2026-06-01", "description": "Zomato", "amount": -450.0, "category": "Food & Dining", "quantity": 1}
+    doc1 = {"id": "txn-1", "date": "2026-06-01", "description": "Zomato", "amount": -450.0, "category": "Food & Dining", "quantity": 1, "price": 450.0}
     inserted = await storage.insert("transactions", doc1)
     assert inserted == doc1
     
@@ -27,8 +27,8 @@ async def test_sqlite_storage_operations(tmp_path):
     assert all_docs[0] == doc1
     
     # 4. Test insert_many
-    doc2 = {"id": "txn-2", "date": "2026-06-02", "description": "Salary", "amount": 50000.0, "category": "Income", "quantity": 1}
-    doc3 = {"id": "txn-3", "date": "2026-06-03", "description": "Airtel", "amount": -799.0, "category": "Utilities", "quantity": 1}
+    doc2 = {"id": "txn-2", "date": "2026-06-02", "description": "Salary", "amount": 50000.0, "category": "Income", "quantity": 1, "price": 50000.0}
+    doc3 = {"id": "txn-3", "date": "2026-06-03", "description": "Airtel", "amount": -799.0, "category": "Utilities", "quantity": 1, "price": 799.0}
     count = await storage.insert_many("transactions", [doc2, doc3])
     assert count == 2
     
@@ -41,11 +41,12 @@ async def test_sqlite_storage_operations(tmp_path):
     assert income_docs[0]["id"] == "txn-2"
     
     # 5. Test update
-    updated = await storage.update("transactions", "txn-1", {"amount": -500.0, "notes": "Updated Zomato"})
+    updated = await storage.update("transactions", "txn-1", {"amount": -500.0, "notes": "Updated Zomato", "price": 500.0})
     assert updated is not None
     assert updated["amount"] == -500.0
     assert updated["notes"] == "Updated Zomato"
     assert updated["description"] == "Zomato" # unchanged field
+    assert updated["price"] == 500.0
     
     update_non_existent = await storage.update("transactions", "txn-none", {"amount": 0})
     assert update_non_existent is None
@@ -75,6 +76,28 @@ async def test_sqlite_storage_operations(tmp_path):
     
     all_docs = await storage.all("transactions")
     assert len(all_docs) == 0
+    
+    await storage.close()
+
+
+@pytest.mark.asyncio
+async def test_storage_price_field(tmp_path):
+    """Test that price field is properly stored and retrieved."""
+    temp_db_file = tmp_path / "test_price.db"
+    storage = SQLiteStorage(str(temp_db_file))
+    
+    # Insert with price
+    doc = {"id": "price-test", "date": "2026-06-01", "description": "Test", "amount": -100.0, "quantity": 2, "price": 50.0}
+    inserted = await storage.insert("transactions", doc)
+    assert inserted["price"] == 50.0
+    
+    # Retrieve and verify price
+    retrieved = await storage.get("transactions", "price-test")
+    assert retrieved["price"] == 50.0
+    
+    # Update price
+    updated = await storage.update("transactions", "price-test", {"price": 75.0})
+    assert updated["price"] == 75.0
     
     await storage.close()
 

@@ -280,3 +280,20 @@ def test_local_ml_fallback_without_spacy_preserves_expense_sign():
     assert res["category"] == "Utilities"
     assert res["amount"] == -900.0
     assert res["txn_type"] == "debit"
+
+
+def test_parse_transaction_price_derivation():
+    today = datetime(2026, 6, 19)
+    
+    # Test that price is derived from amount/quantity
+    result = parse_transaction("2 packet lays 40", today)
+    assert result["quantity"] == 2
+    assert result["amount"] == -40.0
+    assert result["price"] == 20.0  # 40/2 = 20
+    
+    # Test voice enumeration case where price = total ÷ quantity
+    items = parse_voice_input("aaj maine lays k 2 packet liye ek 10 ka ek 20 ka", today)
+    assert len(items) == 1
+    assert items[0]["quantity"] == 2
+    assert items[0]["amount"] == -30.0
+    assert items[0]["price"] == 15.0  # 30/2 = 15

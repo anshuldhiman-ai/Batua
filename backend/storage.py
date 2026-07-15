@@ -36,6 +36,7 @@ class TransactionDB(SQLModel, table=True):
     category: Optional[str] = Field(default="Other", index=True, nullable=True)
     payment_method: Optional[str] = Field(default="", nullable=True)
     quantity: Optional[int] = Field(default=1, nullable=True)
+    price: Optional[float] = Field(default=0.0, nullable=True)  # per-item price; quantity × price = |amount|
     txn_type: Optional[str] = Field(default="", nullable=True)  # "credit" | "debit"
     notes: Optional[str] = Field(default="", nullable=True)
     created_at: Optional[str] = Field(default=None, nullable=True)
@@ -124,7 +125,17 @@ class SQLiteStorage:
                 return
             async with self._engine.begin() as conn:
                 await conn.run_sync(SQLModel.metadata.create_all)
+                await conn.run_sync(self._migrate_columns)
             self._initialized = True
+
+    @staticmethod
+    def _migrate_columns(conn):
+        """Add columns that create_all won't add to a pre-existing table
+        (SQLite has no auto-migration; older store.db files lack `price`)."""
+        from sqlalchemy import text
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transactions)"))}
+        if existing and "price" not in existing:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN price FLOAT DEFAULT 0.0"))
 
     async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
         await self._ensure_db()

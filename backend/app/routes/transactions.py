@@ -160,6 +160,14 @@ async def update_transaction(txn_id: str, payload: TransactionUpdate):
     if "amount" in patch:
         patch["txn_type"] = _kind(patch["amount"])
     storage = get_storage()
+    # Keep quantity × price consistent with the (possibly new) total when the
+    # caller changed amount/quantity but didn't send an explicit price.
+    if ("amount" in patch or "quantity" in patch) and "price" not in patch:
+        existing = await storage.get("transactions", txn_id)
+        if existing:
+            amt = patch.get("amount", existing.get("amount", 0))
+            qty = patch.get("quantity", existing.get("quantity", 1)) or 1
+            patch["price"] = round(abs(amt) / qty, 2)
     updated = await storage.update("transactions", txn_id, patch)
     if not updated:
         raise HTTPException(404, "Transaction not found")

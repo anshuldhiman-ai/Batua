@@ -39,7 +39,14 @@ import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
 
 const PAGE_SIZE = 15;
-const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1 };
+const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1, price: 0 };
+
+// Per-item price of a transaction — falls back to |amount| ÷ quantity for
+// rows saved before the price column existed.
+const unitPrice = (t) =>
+  t.price && t.price > 0 ? t.price : Math.abs(t.amount || 0) / (t.quantity > 0 ? t.quantity : 1);
+
+const round2 = (n) => Math.round(n * 100) / 100;
 
 export default function Transactions() {
   const queryClient = useQueryClient();
@@ -254,7 +261,7 @@ export default function Transactions() {
   };
   const openEdit = (txn) => {
     setEditing(txn);
-    setForm({ ...txn });
+    setForm({ ...txn, price: Number(unitPrice(txn).toFixed(2)) });
     setModalOpen(true);
   };
 
@@ -473,6 +480,9 @@ export default function Transactions() {
                   <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("quantity")}>
                     Qty {sortBy === "quantity" && (sortOrder === "asc" ? "↑" : "↓")}
                   </th>
+                  <th className="p-3 text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("price")}>
+                    Price {sortBy === "price" && (sortOrder === "asc" ? "↑" : "↓")}
+                  </th>
                   <th className="p-3 cursor-pointer hover:text-foreground" onClick={() => handleSort("amount")}>
                     Type {sortBy === "amount" && (sortOrder === "asc" ? "↑" : "↓")}
                   </th>
@@ -484,9 +494,9 @@ export default function Transactions() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">Loading…</td></tr>
+                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">Loading…</td></tr>
                 ) : data.items.length === 0 ? (
-                  <tr><td colSpan={9} className="p-8 text-center text-muted-foreground">No transactions found.</td></tr>
+                  <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No transactions found.</td></tr>
                 ) : (
                   data.items.map((t) => (
                     <tr key={t.id} data-testid={`txn-row-${t.id}`} className="border-b border-border/60 hover:bg-accent/40">
@@ -501,6 +511,10 @@ export default function Transactions() {
                       </td>
                       <td className="p-3 text-muted-foreground">{t.payment_method || "—"}</td>
                       <td className="p-3 text-center font-medium tabular-nums text-muted-foreground">{t.quantity ?? 1}</td>
+                      <td className="whitespace-nowrap p-3 text-right tabular-nums text-muted-foreground" data-testid={`price-${t.id}`}>
+                        {formatINR(unitPrice(t))}
+                        {(t.quantity ?? 1) > 1 && <span className="text-[10px] text-muted-foreground/70"> /item</span>}
+                      </td>
                       <td className="p-3">
                         <Badge variant={t.amount >= 0 ? "success" : "secondary"} data-testid={`type-${t.id}`}>
                           {t.amount >= 0 ? "Credit" : "Debit"}
@@ -575,7 +589,12 @@ export default function Transactions() {
                 value={Math.abs(form.amount)}
                 onChange={(e) => {
                   const mag = Math.abs(parseFloat(e.target.value) || 0);
-                  setForm({ ...form, amount: form.amount < 0 ? -mag : mag });
+                  const qty = form.quantity > 0 ? form.quantity : 1;
+                  setForm({
+                    ...form,
+                    amount: form.amount < 0 ? -mag : mag,
+                    price: round2(mag / qty),
+                  });
                 }}
                 data-testid="form-amount"
               />
@@ -595,9 +614,24 @@ export default function Transactions() {
                 value={form.quantity ?? 1}
                 onChange={(e) => {
                   const val = parseInt(e.target.value) || 1;
-                  setForm({ ...form, quantity: val > 0 ? val : 1 });
+                  const qty = val > 0 ? val : 1;
+                  setForm({ ...form, quantity: qty, price: round2(Math.abs(form.amount) / qty) });
                 }}
                 data-testid="form-quantity"
+              />
+            </Field>
+            <Field label="Price / item (₹)">
+              <Input
+                type="number"
+                min="0"
+                value={form.price ?? 0}
+                onChange={(e) => {
+                  const price = Math.abs(parseFloat(e.target.value) || 0);
+                  const qty = form.quantity > 0 ? form.quantity : 1;
+                  const mag = round2(price * qty);
+                  setForm({ ...form, price, amount: form.amount < 0 ? -mag : mag });
+                }}
+                data-testid="form-price"
               />
             </Field>
             <Field label="Notes">
