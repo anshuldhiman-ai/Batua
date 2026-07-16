@@ -1,16 +1,35 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
-      className
-    )}
-    {...props}
-  />
-));
+/* Card with a cursor-tracking glow (.glow-card in index.css). Pointer position
+   is written to --glow-x/--glow-y on the element itself — no re-renders, the
+   ::before pseudo-element does the painting. Opt out with glow={false}. */
+const Card = React.forwardRef(({ className, glow = true, onPointerMove, ...props }, ref) => {
+  const handlePointerMove = React.useCallback(
+    (e) => {
+      if (e.pointerType === "mouse") {
+        const rect = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty("--glow-x", `${e.clientX - rect.left}px`);
+        e.currentTarget.style.setProperty("--glow-y", `${e.clientY - rect.top}px`);
+      }
+      onPointerMove?.(e);
+    },
+    [onPointerMove]
+  );
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
+        glow && "glow-card",
+        className
+      )}
+      onPointerMove={glow ? handlePointerMove : onPointerMove}
+      {...props}
+    />
+  );
+});
 Card.displayName = "Card";
 
 /* Uniform paddings: header p-4 pb-2, content p-4 pt-0 — the rhythm used app-wide. */

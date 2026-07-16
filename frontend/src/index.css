@@ -225,6 +225,39 @@
     }
   }
 
+  /* Cursor-tracking glow — a soft radial blob that follows the pointer
+     inside the card (driven by GlowCard setting --glow-x/--glow-y).
+     Painted at z:-1 inside an isolated stacking context so it sits above
+     the card background but underneath every child, whatever its markup. */
+  .glow-card {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .glow-card::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: var(--glow-x, 50%);
+    top: var(--glow-y, 30%);
+    width: var(--glow-size, 240px);
+    height: var(--glow-size, 240px);
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      var(--glow-color, hsl(var(--primary) / 0.22)) 0%,
+      transparent 70%
+    );
+    filter: blur(44px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .glow-card:hover::before {
+    opacity: 1;
+  }
+
   .kpi-number {
     font-family: "Outfit", sans-serif;
     font-weight: 700;

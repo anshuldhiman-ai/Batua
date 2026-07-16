@@ -105,7 +105,13 @@ export default function Budgets() {
           rows.map((b) => {
             const s = STATUS[b.status] || STATUS.ok;
             return (
-              <Card key={b.id} className="card-hover" data-testid={`budget-card-${b.category}`}>
+              <Card
+                key={b.id}
+                className="card-hover"
+                data-testid={`budget-card-${b.category}`}
+                /* Cursor glow tinted to the category color (8-digit hex ≈ 22% alpha) */
+                style={{ "--glow-color": `${categoryColor(b.category)}38` }}
+              >
                 <CardContent className="p-4">
                   <div className="mb-3 flex items-start justify-between">
                     <div className="flex items-center gap-2">

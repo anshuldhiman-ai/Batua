@@ -8,12 +8,14 @@ import { spring } from "@/lib/motion";
 
 // Per-accent styling: icon chip color + a subtle corner gradient wash that
 // gives each tile its own identity without overpowering the number.
+// `glow` feeds the cursor-tracking glow (--glow-color) so each tile glows
+// in its own accent when hovered.
 const ACCENT = {
-  primary: { chip: "bg-primary/10 text-primary", wash: "from-primary/10" },
-  rose: { chip: "bg-rose-500/10 text-rose-500", wash: "from-rose-500/10" },
-  emerald: { chip: "bg-emerald-500/10 text-emerald-500", wash: "from-emerald-500/10" },
-  sky: { chip: "bg-sky-500/10 text-sky-500", wash: "from-sky-500/10" },
-  violet: { chip: "bg-violet-500/10 text-violet-500", wash: "from-violet-500/10" },
+  primary: { chip: "bg-primary/10 text-primary", wash: "from-primary/10", glow: "hsl(var(--primary) / 0.25)" },
+  rose: { chip: "bg-rose-500/10 text-rose-500", wash: "from-rose-500/10", glow: "rgba(244,63,94,0.22)" },
+  emerald: { chip: "bg-emerald-500/10 text-emerald-500", wash: "from-emerald-500/10", glow: "rgba(16,185,129,0.22)" },
+  sky: { chip: "bg-sky-500/10 text-sky-500", wash: "from-sky-500/10", glow: "rgba(14,165,233,0.22)" },
+  violet: { chip: "bg-violet-500/10 text-violet-500", wash: "from-violet-500/10", glow: "rgba(139,92,246,0.22)" },
 };
 
 /**
@@ -65,6 +67,7 @@ export default function KPICard({
             "cursor-pointer transition-shadow hover:shadow-[0_16px_40px_-16px_hsl(var(--primary)/0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         )}
         data-testid={testId}
+        style={{ "--glow-color": tone.glow }}
         onClick={onClick}
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
