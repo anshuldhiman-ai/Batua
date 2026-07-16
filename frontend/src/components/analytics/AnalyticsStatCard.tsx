@@ -41,8 +41,8 @@ export default function AnalyticsStatCard({
   const content = (
     <Card
       className={cn(
-        "group relative overflow-hidden transition-all duration-200 hover:shadow-md",
-        onClick && "cursor-pointer hover:border-primary/30",
+        "group relative overflow-hidden transition-shadow duration-200 hover:shadow-md",
+        onClick && "cursor-pointer",
         className
       )}
       onClick={onClick}

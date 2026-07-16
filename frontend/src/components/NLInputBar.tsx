@@ -3,6 +3,7 @@ import { Sparkles, Wand2, Check, X, Loader2, Repeat, List, Mic } from "lucide-re
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
+import AnimatedGlowBorder from "@/components/AnimatedGlowBorder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -247,12 +248,13 @@ export default function NLInputBar({ onSaved }) {
 
   return (
     <Card
-      className={cn(
-        "bg-card/60 backdrop-blur-sm transition-shadow",
-        focused && "animate-glow-pulse ring-2 ring-primary/40"
-      )}
+      glow={false}
+      className="relative overflow-hidden bg-card/60 backdrop-blur-sm"
     >
-      <div className="p-5">
+      {/* Animated luminous border that continuously orbits the prompt bar. */}
+      <AnimatedGlowBorder radius={12} speed={focused ? 8 : 5} />
+
+      <div className="relative z-10 p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-primary">
           <Sparkles className="h-4 w-4" />
           Add transactions in plain English

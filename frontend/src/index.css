@@ -43,6 +43,10 @@
     --input: 150 14% 88%;
     --ring: 162 94% 30%;
     --radius: 0.75rem;
+    /* Cursor-glow tint — a neutral soft light so the hover glow reads as a
+       highlight, not a colour. Kept out of the accent system on purpose. */
+    --glow-color: 210 16% 32%;
+    --glow-alpha: 0.12;
     /* Semantic chart colors — income uses primary accent; expense uses destructive */
     --chart-income: var(--primary);
     --chart-expense: var(--destructive);
@@ -67,6 +71,9 @@
     --border: 165 16% 18%;
     --input: 165 16% 20%;
     --ring: 158 84% 45%;
+    /* Soft white glow in dark mode — a clean highlight against dark cards. */
+    --glow-color: 0 0% 100%;
+    --glow-alpha: 0.07;
     --chart-income: var(--primary);
     --chart-expense: var(--destructive);
     --chart-neutral: var(--muted-foreground);
@@ -171,18 +178,6 @@
     border: 1px solid hsl(var(--border) / 0.6);
   }
 
-  /* Expressive gradient surface — the "hero band" behind flagship cards. */
-  .surface-gradient {
-    background:
-      radial-gradient(
-        120% 120% at 100% 0%,
-        hsl(var(--primary) / 0.14),
-        transparent 55%
-      ),
-      linear-gradient(135deg, hsl(var(--card)), hsl(var(--card)));
-    border: 1px solid hsl(var(--primary) / 0.18);
-  }
-
   /* Gradient text — for the occasional hero number / wordmark accent. */
   .text-gradient-primary {
     background: linear-gradient(
@@ -194,35 +189,6 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
-  }
-
-  /* Slow sheen sweep for the headline-insight banner. */
-  .sheen {
-    position: relative;
-    overflow: hidden;
-  }
-  .sheen::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      110deg,
-      transparent 20%,
-      hsl(var(--primary) / 0.12) 40%,
-      transparent 60%
-    );
-    transform: translateX(-120%);
-    animation: sheen 5.5s ease-in-out infinite;
-  }
-  @keyframes sheen {
-    0%,
-    35% {
-      transform: translateX(-120%);
-    }
-    70%,
-    100% {
-      transform: translateX(120%);
-    }
   }
 
   /* Cursor-tracking glow — a soft radial blob that follows the pointer
@@ -246,7 +212,7 @@
     border-radius: 50%;
     background: radial-gradient(
       circle,
-      var(--glow-color, hsl(var(--primary) / 0.22)) 0%,
+      hsl(var(--glow-color) / var(--glow-alpha)) 0%,
       transparent 70%
     );
     filter: blur(44px);

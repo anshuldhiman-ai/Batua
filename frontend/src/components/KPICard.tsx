@@ -6,16 +6,15 @@ import CountUp from "@/components/CountUp";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 
-// Per-accent styling: icon chip color + a subtle corner gradient wash that
-// gives each tile its own identity without overpowering the number.
-// `glow` feeds the cursor-tracking glow (--glow-color) so each tile glows
-// in its own accent when hovered.
+// Per-accent styling: icon chip colour gives each tile its own identity.
+// The cursor-tracking glow itself is a single neutral highlight (see
+// .glow-card in index.css) — deliberately not tinted per accent.
 const ACCENT = {
-  primary: { chip: "bg-primary/10 text-primary", wash: "from-primary/10", glow: "hsl(var(--primary) / 0.25)" },
-  rose: { chip: "bg-rose-500/10 text-rose-500", wash: "from-rose-500/10", glow: "rgba(244,63,94,0.22)" },
-  emerald: { chip: "bg-emerald-500/10 text-emerald-500", wash: "from-emerald-500/10", glow: "rgba(16,185,129,0.22)" },
-  sky: { chip: "bg-sky-500/10 text-sky-500", wash: "from-sky-500/10", glow: "rgba(14,165,233,0.22)" },
-  violet: { chip: "bg-violet-500/10 text-violet-500", wash: "from-violet-500/10", glow: "rgba(139,92,246,0.22)" },
+  primary: { chip: "bg-primary/10 text-primary" },
+  rose: { chip: "bg-rose-500/10 text-rose-500" },
+  emerald: { chip: "bg-emerald-500/10 text-emerald-500" },
+  sky: { chip: "bg-sky-500/10 text-sky-500" },
+  violet: { chip: "bg-violet-500/10 text-violet-500" },
 };
 
 /**
@@ -64,10 +63,9 @@ export default function KPICard({
           "relative group h-full overflow-hidden",
           hero ? "px-4 py-3.5" : "px-3 py-2.5",
           clickable &&
-            "cursor-pointer transition-shadow hover:shadow-[0_16px_40px_-16px_hsl(var(--primary)/0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            "cursor-pointer transition-shadow hover:shadow-[0_16px_40px_-16px_hsl(var(--foreground)/0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         )}
         data-testid={testId}
-        style={{ "--glow-color": tone.glow }}
         onClick={onClick}
         role={clickable ? "button" : undefined}
         tabIndex={clickable ? 0 : undefined}
@@ -82,14 +80,8 @@ export default function KPICard({
             : undefined
         }
       >
-        {/* Corner gradient wash — accent identity, fades toward transparent */}
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-gradient-to-br to-transparent opacity-70 blur-2xl transition-opacity duration-300 group-hover:opacity-100",
-            tone.wash
-          )}
-        />
+        {/* Corner gradient wash removed — the cursor-tracking glow (.glow-card)
+            now carries the hover identity; the wash competed with it. */}
 
         <div className="relative">
           {/* Header row: label + icon */}

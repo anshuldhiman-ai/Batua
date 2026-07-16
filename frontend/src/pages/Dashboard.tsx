@@ -258,7 +258,7 @@ export default function Dashboard() {
           ════════════════════════════════════════════════════════════ */}
       <motion.section variants={fadeUp} className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Trend chart — the hero visualization */}
-        <Card className="surface-gradient shadow-elevated lg:col-span-7">
+        <Card className="shadow-elevated lg:col-span-7">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -393,7 +393,7 @@ export default function Dashboard() {
       {/* Headline Insight — high-signal takeaway right under the hero */}
       {!loading && insights && insights.insights && insights.insights.length > 0 && (
         <motion.div variants={fadeUp}>
-          <Card className="sheen border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+          <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
             <CardContent className="relative flex items-start gap-3 px-4 py-3.5">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
