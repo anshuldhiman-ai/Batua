@@ -43,13 +43,14 @@
     --input: 150 14% 88%;
     --ring: 162 94% 30%;
     --radius: 0.75rem;
-    /* Cursor-glow tint — a neutral soft light so the hover glow reads as a
-       highlight, not a colour. Kept out of the accent system on purpose. */
-    --glow-color: 210 16% 32%;
-    --glow-alpha: 0.12;
-    /* Semantic chart colors — income uses primary accent; expense uses destructive */
-    --chart-income: var(--primary);
-    --chart-expense: var(--destructive);
+    /* Cursor-glow tint — follows the chosen accent so the hover glow always
+       matches the active colour theme (updates live via applyAccent). */
+    --glow-color: var(--primary);
+    --glow-alpha: 0.18;
+    /* Semantic chart colors — income is always neon green #00FF00 (good/positive),
+       expense is always pop red (alert/negative); both independent of accent */
+    --chart-income: 120 100% 50%;
+    --chart-expense: 348 95% 46%;
     --chart-neutral: var(--muted-foreground);
   }
 
@@ -71,11 +72,13 @@
     --border: 165 16% 18%;
     --input: 165 16% 20%;
     --ring: 158 84% 45%;
-    /* Soft white glow in dark mode — a clean highlight against dark cards. */
-    --glow-color: 0 0% 100%;
-    --glow-alpha: 0.07;
-    --chart-income: var(--primary);
-    --chart-expense: var(--destructive);
+    /* Accent-tinted glow in dark mode too — slightly stronger so it stays
+       visible against dark cards. */
+    --glow-color: var(--primary);
+    --glow-alpha: 0.26;
+    /* True neon green #00FF00 / neon red on dark — read as lit signals */
+    --chart-income: 120 100% 50%;
+    --chart-expense: 350 100% 60%;
     --chart-neutral: var(--muted-foreground);
   }
 
@@ -206,8 +209,8 @@
     z-index: -1;
     left: var(--glow-x, 50%);
     top: var(--glow-y, 30%);
-    width: var(--glow-size, 240px);
-    height: var(--glow-size, 240px);
+    width: var(--glow-size, 300px);
+    height: var(--glow-size, 300px);
     transform: translate(-50%, -50%);
     border-radius: 50%;
     background: radial-gradient(

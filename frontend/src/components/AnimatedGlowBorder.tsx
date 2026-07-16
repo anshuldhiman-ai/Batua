@@ -2,25 +2,27 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * A glowing head + fading trail that continuously orbits the border of its
- * parent — a React port of the animated prompt-bar effect. Rendered on a
- * <canvas> so the motion stays buttery without re-rendering React.
+ * A crisp comet — a thin bright line with a broader arrowhead — that
+ * continuously orbits the border of its parent. Rendered on a <canvas> so
+ * the motion stays buttery without re-rendering React.
+ *
+ * The line is deliberately sharp (no blur): a ~1.5px stroke whose tail fades
+ * out, led by an arrowhead ~3× the line's width (1:3 line-to-arrow ratio).
+ * Colours follow the active accent theme (`--primary`) live, so switching
+ * the accent in Settings recolours the orbit instantly.
  *
  * The parent MUST be `position: relative` and `overflow-hidden`; this canvas
- * fills it (inset-0) and the glow rides the rounded-rect edge, reading as an
- * animated luminous border. Honours prefers-reduced-motion (draws one static
- * frame and stops).
+ * fills it (inset-0). Honours prefers-reduced-motion (draws one static frame
+ * and stops).
  *
  * @param radius  corner radius in px — match the parent's border-radius
  * @param speed   1–10, laps get faster as this rises
- * @param color1  head colour (hex) — the bright leading dot
- * @param color2  tail colour (hex) — the trail fades toward this hue
+ * @param color   optional CSS colour override; defaults to the theme accent
  */
 export default function AnimatedGlowBorder({
   radius = 12,
   speed = 5,
-  color1 = "#10b981",
-  color2 = "#6ee7b7",
+  color,
   className,
 }) {
   const canvasRef = React.useRef(null);
@@ -98,49 +100,62 @@ export default function AnimatedGlowBorder({
       return { x: R + Math.cos(a) * R, y: R + Math.sin(a) * R };
     };
 
-    const hexToRgb = (hex) => ({
-      r: parseInt(hex.slice(1, 3), 16),
-      g: parseInt(hex.slice(3, 5), 16),
-      b: parseInt(hex.slice(5, 7), 16),
-    });
-    const lerp = (c1, c2, f) => ({
-      r: Math.round(c1.r + (c2.r - c1.r) * f),
-      g: Math.round(c1.g + (c2.g - c1.g) * f),
-      b: Math.round(c1.b + (c2.b - c1.b) * f),
-    });
-    const rgb1 = hexToRgb(color1);
-    const rgb2 = hexToRgb(color2);
+    /** Current accent colour as an "H S% L%" triplet, read live from the theme. */
+    const themeTriplet = () => {
+      if (color) return null; // explicit colour override wins
+      const v = getComputedStyle(document.documentElement)
+        .getPropertyValue("--primary")
+        .trim();
+      return v || "158 84% 39%";
+    };
+    const strokeColor = (alpha) => {
+      const t = themeTriplet();
+      return t ? `hsl(${t} / ${alpha})` : color;
+    };
+
+    const LINE_W = 1.5;           // crisp, thin trail
+    const ARROW_W = LINE_W * 3;   // arrowhead is 3× the line width (1:3)
+    const ARROW_LEN = ARROW_W * 2;
 
     let t = 0;
     let last = 0;
 
     const draw = () => {
       ctx.clearRect(0, 0, W, H);
-      const steps = 60;
-      const trail = 0.24;
-      for (let i = 0; i <= steps; i++) {
+
+      // Trail — short stroked segments with alpha fading toward the tail.
+      // Crisp on purpose: no shadowBlur, no radial gradients.
+      const steps = 48;
+      const trail = 0.22;
+      ctx.lineCap = "round";
+      ctx.lineWidth = LINE_W;
+      let prev = pointOnPath(t);
+      for (let i = 1; i <= steps; i++) {
         const f = i / steps;
         const pt = pointOnPath(t - f * trail);
-        const alpha = (1 - f) * 0.85;
-        const size = (1 - f) * 8 + 2;
-        const c = lerp(rgb1, rgb2, f);
-        const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, size);
-        g.addColorStop(0, `rgba(${c.r},${c.g},${c.b},${alpha})`);
-        g.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0)`);
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, size, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(pt.x, pt.y);
+        ctx.strokeStyle = strokeColor((1 - f) * 0.9);
+        ctx.stroke();
+        prev = pt;
       }
-      // bright bloom at the head
+
+      // Arrowhead — a solid triangle pointing along the direction of travel.
       const head = pointOnPath(t);
-      const b = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 18);
-      b.addColorStop(0, `rgba(${rgb1.r},${rgb1.g},${rgb1.b},0.9)`);
-      b.addColorStop(0.5, `rgba(${rgb1.r},${rgb1.g},${rgb1.b},0.3)`);
-      b.addColorStop(1, `rgba(${rgb1.r},${rgb1.g},${rgb1.b},0)`);
+      const back = pointOnPath(t - 0.004);
+      const ang = Math.atan2(head.y - back.y, head.x - back.x);
+      const tipX = head.x + Math.cos(ang) * ARROW_LEN * 0.5;
+      const tipY = head.y + Math.sin(ang) * ARROW_LEN * 0.5;
+      const baseX = head.x - Math.cos(ang) * ARROW_LEN * 0.5;
+      const baseY = head.y - Math.sin(ang) * ARROW_LEN * 0.5;
+      const perp = ang + Math.PI / 2;
       ctx.beginPath();
-      ctx.arc(head.x, head.y, 18, 0, Math.PI * 2);
-      ctx.fillStyle = b;
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(baseX + Math.cos(perp) * ARROW_W * 0.5, baseY + Math.sin(perp) * ARROW_W * 0.5);
+      ctx.lineTo(baseX - Math.cos(perp) * ARROW_W * 0.5, baseY - Math.sin(perp) * ARROW_W * 0.5);
+      ctx.closePath();
+      ctx.fillStyle = strokeColor(1);
       ctx.fill();
     };
 
@@ -167,7 +182,7 @@ export default function AnimatedGlowBorder({
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
-  }, [radius, speed, color1, color2]);
+  }, [radius, speed, color]);
 
   return (
     <canvas

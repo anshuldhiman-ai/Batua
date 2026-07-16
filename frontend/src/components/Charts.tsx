@@ -121,6 +121,7 @@ export function TimelineChart({ data, height = 300 }) {
           stroke={EXPENSE_COLOR}
           strokeWidth={2.5}
           fill="url(#gExp)"
+          style={{ filter: "url(#lineGlow)" }}
           dot={false}
           activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--card))" }}
           isAnimationActive
