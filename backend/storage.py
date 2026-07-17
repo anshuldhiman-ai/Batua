@@ -37,6 +37,7 @@ class TransactionDB(SQLModel, table=True):
     payment_method: Optional[str] = Field(default="", nullable=True)
     quantity: Optional[int] = Field(default=1, nullable=True)
     price: Optional[float] = Field(default=0.0, nullable=True)  # per-item price; quantity × price = |amount|
+    price_text: Optional[str] = Field(default="", nullable=True)  # verbatim price cell (e.g. "120+240")
     txn_type: Optional[str] = Field(default="", nullable=True)  # "credit" | "debit"
     notes: Optional[str] = Field(default="", nullable=True)
     created_at: Optional[str] = Field(default=None, nullable=True)
@@ -136,6 +137,8 @@ class SQLiteStorage:
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transactions)"))}
         if existing and "price" not in existing:
             conn.execute(text("ALTER TABLE transactions ADD COLUMN price FLOAT DEFAULT 0.0"))
+        if existing and "price_text" not in existing:
+            conn.execute(text("ALTER TABLE transactions ADD COLUMN price_text VARCHAR DEFAULT ''"))
 
     async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
         await self._ensure_db()

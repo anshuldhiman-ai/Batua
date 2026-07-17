@@ -139,6 +139,16 @@ export default function AnalyticsGraph({
                 <stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.3} />
                 <stop offset="100%" stopColor={EXPENSE_COLOR} stopOpacity={0} />
               </linearGradient>
+              {/* Soft glow so the strokes read as lit lines — same treatment
+                  as the Dashboard TimelineChart, so the hero charts match. */}
+              <filter id="analyticsLineGlow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
             <XAxis
@@ -164,8 +174,9 @@ export default function AnalyticsGraph({
               dataKey="income"
               name="Income"
               stroke={INCOME_COLOR}
-              strokeWidth={2}
+              strokeWidth={2.5}
               fill="url(#analyticsIncome)"
+              style={{ filter: "url(#analyticsLineGlow)" }}
               animationDuration={500}
             />
             <Area
@@ -173,8 +184,9 @@ export default function AnalyticsGraph({
               dataKey="expense"
               name="Expense"
               stroke={EXPENSE_COLOR}
-              strokeWidth={2}
+              strokeWidth={2.5}
               fill="url(#analyticsExpense)"
+              style={{ filter: "url(#analyticsLineGlow)" }}
               animationDuration={500}
             />
           </AreaChart>

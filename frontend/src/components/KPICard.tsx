@@ -9,12 +9,15 @@ import { spring } from "@/lib/motion";
 // Per-accent styling: icon chip colour gives each tile its own identity.
 // The cursor-tracking glow itself is a single neutral highlight (see
 // .glow-card in index.css) — deliberately not tinted per accent.
+// `spark` colours the sparkline by the card's identity (rose card = rose
+// line) so users never read a green line on the Expense card as income —
+// the ↑/↓ chip alone carries the good/bad signal.
 const ACCENT = {
-  primary: { chip: "bg-primary/10 text-primary" },
-  rose: { chip: "bg-rose-500/10 text-rose-500" },
-  emerald: { chip: "bg-emerald-500/10 text-emerald-500" },
-  sky: { chip: "bg-sky-500/10 text-sky-500" },
-  violet: { chip: "bg-violet-500/10 text-violet-500" },
+  primary: { chip: "bg-primary/10 text-primary", spark: "hsl(var(--primary))" },
+  rose: { chip: "bg-rose-500/10 text-rose-500", spark: "hsl(var(--chart-expense))" },
+  emerald: { chip: "bg-emerald-500/10 text-emerald-500", spark: "hsl(var(--chart-income))" },
+  sky: { chip: "bg-sky-500/10 text-sky-500", spark: "hsl(199 89% 48%)" },
+  violet: { chip: "bg-violet-500/10 text-violet-500", spark: "hsl(258 90% 66%)" },
 };
 
 /**
@@ -180,11 +183,7 @@ export default function KPICard({
               >
                 <motion.polyline
                   fill="none"
-                  stroke={
-                    positive
-                      ? "hsl(var(--chart-income))"
-                      : "hsl(var(--chart-expense))"
-                  }
+                  stroke={tone.spark}
                   strokeWidth="1.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"

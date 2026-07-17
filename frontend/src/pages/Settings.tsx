@@ -20,6 +20,7 @@ import { ACCENTS, CUSTOM_ACCENT } from "@/lib/themes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -56,6 +57,7 @@ export default function Settings() {
     React.useContext(ThemeContext);
   const customActive = accent === CUSTOM_ACCENT;
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmText, setConfirmText] = React.useState("");
   const [health, setHealth] = React.useState(null);
   const [qaMode, setQaMode] = useLocalStorage("batua-qa-mode", "hybrid");
   const [chatSessionId] = useLocalStorage("batua-chat-session-id", null);
@@ -67,6 +69,7 @@ export default function Settings() {
   const clearAll = async () => {
     await api.delete("/transactions/");
     setConfirmOpen(false);
+    setConfirmText("");
     toast.success("All transactions cleared");
   };
 
@@ -176,6 +179,30 @@ export default function Settings() {
                   </label>
                 </div>
               </div>
+
+              {/* Live preview — repaints instantly when an accent is picked,
+                  so the choice is felt on this page, not just elsewhere. */}
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+                <div className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Preview
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <Button size="sm">Primary button</Button>
+                  <Badge>Badge</Badge>
+                  <svg width="120" height="28" viewBox="0 0 120 28" aria-hidden="true">
+                    <polyline
+                      fill="none"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points="2,22 22,16 42,19 62,9 82,13 102,4 118,8"
+                    />
+                    <circle cx="118" cy="8" r="3" fill="hsl(var(--primary))" />
+                  </svg>
+                  <span className="text-sm font-medium text-primary">Accent text</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -273,17 +300,30 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent onClose={() => setConfirmOpen(false)}>
+      <Dialog open={confirmOpen} onOpenChange={(o) => { setConfirmOpen(o); if (!o) setConfirmText(""); }}>
+        <DialogContent onClose={() => { setConfirmOpen(false); setConfirmText(""); }}>
           <DialogHeader>
             <DialogTitle>Are you absolutely sure?</DialogTitle>
             <DialogDescription>
               This will permanently delete all your transactions. This action cannot be undone.
+              Type <strong>DELETE</strong> below to confirm.
             </DialogDescription>
           </DialogHeader>
+          <Input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder='Type "DELETE" to confirm'
+            data-testid="confirm-clear-input"
+            autoFocus
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={clearAll} data-testid="confirm-clear-btn">
+            <Button variant="outline" onClick={() => { setConfirmOpen(false); setConfirmText(""); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={clearAll}
+              disabled={confirmText.trim().toUpperCase() !== "DELETE"}
+              data-testid="confirm-clear-btn"
+            >
               Yes, delete everything
             </Button>
           </DialogFooter>

@@ -817,7 +817,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
           placeholder={recording ? recordingPlaceholder : placeholder}
           className={cn(
             "h-12 text-base pr-12",
-            recording && "border-red-500/50 ring-1 ring-red-500/30"
+            recording && "border-destructive/50 ring-1 ring-destructive/30"
           )}
         />
         {supported && (
@@ -829,12 +829,12 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
             className={cn(
               "absolute right-3 top-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-75",
               recording
-                ? "bg-red-500 text-white"
+                ? "bg-destructive text-destructive-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
             style={{
               transform: `translateY(-50%) scale(${recording ? 1 + (micVolume / 280) : 1})`,
-              boxShadow: recording ? `0 0 ${8 + (micVolume / 3)}px rgba(239, 68, 68, ${0.5 + (micVolume / 100)})` : undefined
+              boxShadow: recording ? `0 0 ${8 + (micVolume / 3)}px hsl(var(--destructive) / ${0.5 + (micVolume / 100)})` : undefined
             }}
             title={
               recording
@@ -862,7 +862,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
     {supported && (
       <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
         {recording ? (
-          <span className="font-medium text-red-500">
+          <span className="font-medium text-destructive">
             ● {isBackend ? "Recording — tap the mic again to stop" : "Listening — tap the mic to stop"}
           </span>
         ) : (

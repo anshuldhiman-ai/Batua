@@ -17,6 +17,7 @@ Transaction-shaped dicts (negative amount = expense, positive = income).
 """
 import io
 import re
+import ast
 import json
 import uuid
 import calendar
@@ -117,6 +118,87 @@ def _clean_amount(raw) -> float | None:
         return None
     val = float(m.group(0))
     return -val if (neg and val > 0) else val
+
+
+def _eval_price_expr(raw) -> float | None:
+    """Safely evaluate an arithmetic price breakdown like ``₹15*2+₹20``.
+
+    Only +, -, *, / and parentheses over plain numbers are allowed — anything
+    else (names, calls, attributes) is rejected. Returns None when the cell
+    isn't a pure arithmetic expression.
+    """
+    s = str(raw).replace("₹", "").replace("$", "").replace(",", "").strip()
+    if not s or not re.fullmatch(r"[\d+\-*/(). ]+", s):
+        return None
+
+    def ev(node):
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+            a, b = ev(node.left), ev(node.right)
+            if isinstance(node.op, ast.Add):
+                return a + b
+            if isinstance(node.op, ast.Sub):
+                return a - b
+            if isinstance(node.op, ast.Mult):
+                return a * b
+            return a / b
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            return -ev(node.operand)
+        raise ValueError("unsupported expression")
+
+    try:
+        return float(ev(ast.parse(s, mode="eval")))
+    except (ValueError, SyntaxError, ZeroDivisionError, RecursionError):
+        return None
+
+
+def _price_expr_text(raw) -> str:
+    """The price cell's verbatim arithmetic breakdown (e.g. ``120+240``), or ``""``.
+
+    Only expression cells are kept — a plain number carries no extra
+    information over the parsed price, but a breakdown like ``15*2+20`` is
+    what the user actually wrote in the sheet and is shown as-is in the app.
+    """
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    s = str(raw).strip()
+    if not s or s.lower() in ("nan", "none"):
+        return ""
+    if _is_number(s):
+        return ""
+    # Must actually evaluate as arithmetic to be worth keeping.
+    return s if _eval_price_expr(s) is not None else ""
+
+
+def _price_from_cell(raw, total: float | None, qty: int) -> float | None:
+    """Exact price from a sheet's Price cell — never an average.
+
+    A clean single number is used as-is. An arithmetic breakdown such as
+    ``₹15*2+₹20`` is evaluated and accepted when it reconciles with the row's
+    total — either as the total itself or as a per-item price × quantity — so
+    the app shows the file's real figure. Anything that can't be reconciled
+    returns None and the caller falls back to total ÷ quantity.
+    """
+    if raw is None:
+        return None
+    if _is_number(raw):
+        parsed = _clean_amount(raw)
+        return round(parsed, 2) if parsed and parsed > 0 else None
+    val = _eval_price_expr(raw)
+    if val is None or val <= 0:
+        return None
+    if total is not None:
+        t = abs(total)
+        q = qty if qty and qty > 0 else 1
+        # Accept the evaluated expression when it reconciles with the row:
+        # either it's a per-item price (× quantity == total) or it's the exact
+        # basket breakdown ("₹15*2+₹20" == total). Otherwise reject.
+        if abs(val * q - t) < 0.01 or abs(val - t) < 0.01:
+            return round(val, 2)
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -477,7 +559,14 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
         item = cells[c["item"]] if c["item"] is not None else ""
         if not item or item.lower() in _NOISE_DESCRIPTIONS:
             continue
-        amount = _clean_amount(cells[c["price"]]) if c["price"] is not None else None
+        raw_amt = cells[c["price"]] if c["price"] is not None else None
+        # A breakdown like "120+240" in the amount cell must be summed, not
+        # truncated at the first number (which _clean_amount would do).
+        amount = None
+        if raw_amt is not None and not _is_number(raw_amt):
+            amount = _eval_price_expr(raw_amt)
+        if amount is None:
+            amount = _clean_amount(raw_amt) if raw_amt is not None else None
         if amount is None:
             continue
         di = c["date"]
@@ -502,14 +591,19 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
             except Exception:
                 pass
 
-        # Per-item price: use the sheet's Price cell when it is one clean
-        # number; expressions like "₹15*2+₹20" fall back to total ÷ quantity.
+        # Per-item price: taken exactly from the sheet's Price cell — a clean
+        # number is used as-is and an arithmetic breakdown like "₹15*2+₹20" is
+        # evaluated; only an irreconcilable cell falls back to total ÷ quantity.
+        # The breakdown's verbatim text (e.g. "120+240") is kept alongside so
+        # the app can show exactly what the file says.
         unit_price = None
+        price_text = ""
         up = c.get("unit_price")
-        if up is not None and up < len(cells) and _is_number(cells[up]):
-            parsed = _clean_amount(cells[up])
-            if parsed and parsed > 0:
-                unit_price = parsed
+        if up is not None and up < len(cells):
+            unit_price = _price_from_cell(cells[up], amount, qty)
+            price_text = _price_expr_text(cells[up])
+        if not price_text and c["price"] is not None and c["price"] < len(cells):
+            price_text = _price_expr_text(cells[c["price"]])
 
         current["items"].append({
             "item": item,
@@ -518,6 +612,7 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
             "mode": mode,
             "quantity": qty,
             "price": unit_price,
+            "price_text": price_text,
         })
 
     out: list[dict] = []
@@ -529,7 +624,7 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
         for it in b["items"]:
             date_str = _resolve_swapped_date(it["raw_date"], real_month, real_year, default)
             amt = -abs(it["amount"])  # stacked entries are expenses
-            out.append(_make_txn(date_str, it["item"], amt, _detect_category(it["item"]), it["mode"], it.get("quantity", 1), it.get("price")))
+            out.append(_make_txn(date_str, it["item"], amt, _detect_category(it["item"]), it["mode"], it.get("quantity", 1), it.get("price"), it.get("price_text", "")))
     return out
 
 
@@ -630,18 +725,16 @@ def _parse_tabular(df: pd.DataFrame, use_ai: bool) -> list[dict]:
                 pass
 
         unit_price = None
+        price_text = ""
         if mp.get("unit_price") and mp["unit_price"] != mp.get("amount"):
-            raw_price = rowd.get(mp["unit_price"])
-            if raw_price is not None and _is_number(raw_price):
-                parsed = _clean_amount(raw_price)
-                if parsed and parsed > 0:
-                    unit_price = parsed
+            unit_price = _price_from_cell(rowd.get(mp["unit_price"]), amount, qty)
+            price_text = _price_expr_text(rowd.get(mp["unit_price"]))
 
-        out.append(_make_txn(date_str, desc.title(), amount, category, pm, qty, unit_price))
+        out.append(_make_txn(date_str, desc.title(), amount, category, pm, qty, unit_price, price_text))
     return out
 
 
-def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, qty: int = 1, price: float | None = None) -> dict:
+def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, qty: int = 1, price: float | None = None, price_text: str = "") -> dict:
     q = qty if qty and qty > 0 else 1
     unit = round(price, 2) if price and price > 0 else round(abs(amount) / q, 2)
     return {
@@ -653,6 +746,7 @@ def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, q
         "payment_method": pm,
         "quantity": q,
         "price": unit,
+        "price_text": price_text or "",
         "txn_type": "credit" if amount >= 0 else "debit",
         "notes": "",
         "created_at": _now_iso(),

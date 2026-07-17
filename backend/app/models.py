@@ -15,6 +15,7 @@ class Transaction(BaseModel):
     payment_method: str = ""
     quantity: int = 1  # quantity of items purchased/credited
     price: float = 0.0  # per-item price (₹); quantity × price = |amount|
+    price_text: str = ""  # verbatim price cell from the source file (e.g. "120+240")
     txn_type: str = ""  # "credit" (money in) | "debit" (money out) — derived from amount
     notes: str = ""
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -40,6 +41,7 @@ class TransactionCreate(BaseModel):
     payment_method: str = ""
     quantity: int = 1
     price: float = 0.0
+    price_text: str = ""
     notes: str = ""
 
 
@@ -53,6 +55,7 @@ class TransactionUpdate(BaseModel):
     payment_method: str | None = None
     quantity: int | None = None
     price: float | None = None
+    price_text: str | None = None
     notes: str | None = None
 
 

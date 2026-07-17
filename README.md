@@ -59,10 +59,12 @@
   blocked or offline. Falls back to the browser Web Speech API automatically.
 - **Bulk input** — paste multiple lines; each line is parsed independently.
 - **Recurring entries** — replicate a transaction across selected months in one action, with idempotent de-duplication.
-- **Excel / CSV import** — column auto-detection, staged progress reporting, 25 MB guard, and fingerprint-based dedupe on re-upload.
+- **Excel / CSV import** — column auto-detection (including quantity and per-item price columns), staged progress reporting, 25 MB guard, and fingerprint-based dedupe on re-upload.
+- **Exact prices from your sheet** — a price cell written as an arithmetic breakdown (e.g. `120+240` or `₹15*2+₹20`) is evaluated for the total *and* shown verbatim in the Transactions table, so the app displays exactly what your file says.
 
 ### Understand
 - **Analytics suite** — spending timelines, category breakdowns, top merchants, payment-method mix, treemaps, and a GitHub-style calendar heatmap.
+- **Flexible time filters** — daily/weekly/monthly/yearly views over presets (this month, last 30/90 days, last 3 months, this/last year), a single-month picker, month ranges, and fully custom date spans — filters persist across visits.
 - **Dashboard KPIs** — income, expense, net, and savings-rate with month-over-month deltas.
 - **Budgets** — per-category limits with live health indicators.
 - **AI insights** — instant rule-based coaching, optionally reworded by a local or cloud LLM for a natural tone.
@@ -73,6 +75,9 @@
 
 ### Export
 - One-click **CSV** and **Excel** export of all transactions.
+
+### Experience
+- **Polished, theme-aware UI** — light/dark modes with switchable accent themes, cursor-tracking card glows, an animated comet border on the input bar, and semantic chart colours (income always emerald, expense always red — matching the KPI indicators) so charts read consistently at a glance.
 
 ---
 

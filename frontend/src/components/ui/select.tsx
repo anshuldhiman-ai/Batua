@@ -1,12 +1,15 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * Homegrown `<Select>` that mirrors the shadcn/Radix API used elsewhere in
  * the UI. Controlled via `value` + `onValueChange`; renders a button trigger
- * plus a positioned dropdown. Lightweight (no portal) — the menu uses
- * `position: absolute` and is clamped inside the viewport.
+ * plus a dropdown portalled to <body> — cards use overflow-hidden (for the
+ * cursor glow), which clipped an absolutely-positioned menu and made options
+ * below the card edge unclickable. The portal is position: fixed against the
+ * trigger's rect and flips upward when there's no room below.
  */
 
 const SelectContext = React.createContext({
@@ -148,21 +151,60 @@ const SelectContent = React.forwardRef(function SelectContent(
   ref
 ) {
   const ctx = React.useContext(SelectContext);
-  return (
+  const [pos, setPos] = React.useState(null);
+
+  // Track the trigger's viewport rect while open so the fixed-position menu
+  // follows it through scrolls/resizes; flip above when the bottom is tight.
+  React.useLayoutEffect(() => {
+    if (!ctx.open) return;
+    const update = () => {
+      const r = ctx.triggerRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const menuMax = 240; // matches max-h-60
+      const openUp = r.bottom + menuMax > window.innerHeight && r.top > menuMax;
+      setPos({
+        left: r.left,
+        width: r.width,
+        top: openUp ? undefined : r.bottom + 4,
+        bottom: openUp ? window.innerHeight - r.top + 4 : undefined,
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [ctx.open, ctx.triggerRef]);
+
+  if (!ctx.open || !pos) {
+    // Keep items mounted (display:none) so they register their labels —
+    // SelectValue resolves the trigger text from that registry even before
+    // the menu has ever been opened.
+    return createPortal(
+      <div role="listbox" tabIndex={-1} style={{ display: "none" }} {...props}>
+        {children}
+      </div>,
+      document.body
+    );
+  }
+
+  return createPortal(
     <div
       ref={ref}
       role="listbox"
       tabIndex={-1}
-      hidden={!ctx.open}
+      style={{ position: "fixed", left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom }}
       className={cn(
-        "absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md animate-fade-up",
-        !ctx.open && "pointer-events-none invisible",
+        "z-50 max-h-60 overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md animate-fade-up",
         className
       )}
       {...props}
     >
       {children}
-    </div>
+    </div>,
+    document.body
   );
 });
 

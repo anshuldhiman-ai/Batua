@@ -39,12 +39,16 @@ import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
 
 const PAGE_SIZE = 15;
-const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1, price: 0 };
+const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1, price: 0, price_text: "" };
 
 // Per-item price of a transaction — falls back to |amount| ÷ quantity for
 // rows saved before the price column existed.
 const unitPrice = (t) =>
   t.price && t.price > 0 ? t.price : Math.abs(t.amount || 0) / (t.quantity > 0 ? t.quantity : 1);
+
+// Verbatim price cell from the imported file (e.g. "120+240"); shown exactly
+// as written when present, otherwise the formatted per-item price.
+const priceDisplay = (t) => (t.price_text ? t.price_text : null);
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -512,8 +516,8 @@ export default function Transactions() {
                       <td className="p-3 text-muted-foreground">{t.payment_method || "—"}</td>
                       <td className="p-3 text-center font-medium tabular-nums text-muted-foreground">{t.quantity ?? 1}</td>
                       <td className="whitespace-nowrap p-3 text-right tabular-nums text-muted-foreground" data-testid={`price-${t.id}`}>
-                        {formatINR(unitPrice(t))}
-                        {(t.quantity ?? 1) > 1 && <span className="text-[10px] text-muted-foreground/70"> /item</span>}
+                        {priceDisplay(t) ?? formatINR(unitPrice(t))}
+                        {!priceDisplay(t) && (t.quantity ?? 1) > 1 && <span className="text-[10px] text-muted-foreground/70"> /item</span>}
                       </td>
                       <td className="p-3">
                         <Badge variant={t.amount >= 0 ? "success" : "secondary"} data-testid={`type-${t.id}`}>
@@ -594,6 +598,7 @@ export default function Transactions() {
                     ...form,
                     amount: form.amount < 0 ? -mag : mag,
                     price: round2(mag / qty),
+                    price_text: "",
                   });
                 }}
                 data-testid="form-amount"
@@ -615,7 +620,7 @@ export default function Transactions() {
                 onChange={(e) => {
                   const val = parseInt(e.target.value) || 1;
                   const qty = val > 0 ? val : 1;
-                  setForm({ ...form, quantity: qty, price: round2(Math.abs(form.amount) / qty) });
+                  setForm({ ...form, quantity: qty, price: round2(Math.abs(form.amount) / qty), price_text: "" });
                 }}
                 data-testid="form-quantity"
               />
@@ -629,7 +634,7 @@ export default function Transactions() {
                   const price = Math.abs(parseFloat(e.target.value) || 0);
                   const qty = form.quantity > 0 ? form.quantity : 1;
                   const mag = round2(price * qty);
-                  setForm({ ...form, price, amount: form.amount < 0 ? -mag : mag });
+                  setForm({ ...form, price, amount: form.amount < 0 ? -mag : mag, price_text: "" });
                 }}
                 data-testid="form-price"
               />

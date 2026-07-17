@@ -40,17 +40,27 @@ export default function AnimatedGlowBorder({
     let W = 0;
     let H = 0;
     let R = radius;
+    // Inset the orbit path from the canvas edge so the stroke (and the
+    // arrowhead, whose half-width is ARROW_W/2 = 3px) never gets clipped by
+    // the parent's overflow-hidden.
+    const INSET = 4;
 
     const resize = () => {
-      const rect = parent.getBoundingClientRect();
-      W = rect.width;
-      H = rect.height;
-      R = Math.min(radius, W / 2, H / 2);
-      canvas.width = W * dpr;
-      canvas.height = H * dpr;
-      canvas.style.width = `${W}px`;
-      canvas.style.height = `${H}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // clientWidth/Height = the padding box — the exact area an inset-0
+      // absolute child occupies. getBoundingClientRect() is the border box
+      // (1px bigger each side for a bordered Card), which made the canvas
+      // overhang the bottom/right and left the bottom edge half-clipped.
+      const cw = parent.clientWidth;
+      const ch = parent.clientHeight;
+      W = Math.max(0, cw - 2 * INSET);
+      H = Math.max(0, ch - 2 * INSET);
+      R = Math.max(2, Math.min(radius - INSET, W / 2, H / 2));
+      canvas.width = cw * dpr;
+      canvas.height = ch * dpr;
+      canvas.style.width = `${cw}px`;
+      canvas.style.height = `${ch}px`;
+      // Translate by the inset so path coords (0..W, 0..H) land inside the edge.
+      ctx.setTransform(dpr, 0, 0, dpr, INSET * dpr, INSET * dpr);
     };
 
     // Rounded-rectangle perimeter: 4 straight edges + 4 quarter-arcs. We walk
@@ -114,14 +124,16 @@ export default function AnimatedGlowBorder({
     };
 
     const LINE_W = 1.5;           // crisp, thin trail
-    const ARROW_W = LINE_W * 3;   // arrowhead is 3× the line width (1:3)
+    const ARROW_W = LINE_W * 4;   // arrowhead is 4× the line width — clearly broader
     const ARROW_LEN = ARROW_W * 2;
 
     let t = 0;
     let last = 0;
 
     const draw = () => {
-      ctx.clearRect(0, 0, W, H);
+      // Clear the full canvas including the inset margin (the arrowhead can
+      // poke slightly outside the path rectangle).
+      ctx.clearRect(-INSET, -INSET, W + 2 * INSET, H + 2 * INSET);
 
       // Trail — short stroked segments with alpha fading toward the tail.
       // Crisp on purpose: no shadowBlur, no radial gradients.
