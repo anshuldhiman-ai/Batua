@@ -509,3 +509,171 @@ def test_excel_upload_endpoints(client):
     txns = client.get("/api/transactions").json()
     assert txns["total"] == 1
     assert txns["items"][0]["description"] == "Zomato Lunch"
+
+
+# --------------------------------------------------------------------------- #
+# People Ledger
+# --------------------------------------------------------------------------- #
+
+def test_people_list_empty(client):
+    response = client.get("/api/people/")
+    assert response.status_code == 200
+    assert response.json() == {"entries": []}
+
+
+def test_people_create_and_list(client):
+    response = client.post(
+        "/api/people/",
+        json={
+            "person_name": "Rahul",
+            "direction": "gave",
+            "amount": 500,
+            "reason": "lunch",
+            "date": "2026-07-10",
+        },
+    )
+    assert response.status_code == 200
+    created = response.json()
+    assert created["person_name"] == "Rahul"
+    assert created["direction"] == "gave"
+    assert created["amount"] == 500.0
+    assert created["settled"] is False
+    assert created["id"].startswith("pe_")
+    assert created["created_at"]
+
+    response = client.get("/api/people/")
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["person_name"] == "Rahul"
+
+
+def test_people_rejects_bad_inputs(client):
+    # Empty name
+    r = client.post("/api/people/", json={"person_name": "  ", "direction": "gave", "amount": 10, "date": "2026-07-10"})
+    assert r.status_code == 400
+    # Bad direction
+    r = client.post("/api/people/", json={"person_name": "X", "direction": "sideways", "amount": 10, "date": "2026-07-10"})
+    assert r.status_code == 400
+    # Non-positive amount
+    r = client.post("/api/people/", json={"person_name": "X", "direction": "gave", "amount": 0, "date": "2026-07-10"})
+    assert r.status_code == 400
+    r = client.post("/api/people/", json={"person_name": "X", "direction": "gave", "amount": -50, "date": "2026-07-10"})
+    assert r.status_code == 400
+    # Bad date
+    r = client.post("/api/people/", json={"person_name": "X", "direction": "gave", "amount": 10, "date": "yesterday"})
+    assert r.status_code == 400
+
+
+def test_people_update_partial(client):
+    create = client.post(
+        "/api/people/",
+        json={"person_name": "Mom", "direction": "took", "amount": 1000, "date": "2026-07-10", "reason": "rent share"},
+    ).json()
+    eid = create["id"]
+
+    # Mark settled (single-field patch)
+    r = client.put(f"/api/people/{eid}", json={"settled": True})
+    assert r.status_code == 200
+    assert r.json()["settled"] is True
+    # Other fields unchanged
+    assert r.json()["person_name"] == "Mom"
+    assert r.json()["amount"] == 1000.0
+
+    # Edit amount + reason
+    r = client.put(f"/api/people/{eid}", json={"amount": 1500, "reason": "rent + groceries"})
+    assert r.status_code == 200
+    assert r.json()["amount"] == 1500.0
+    assert r.json()["reason"] == "rent + groceries"
+    assert r.json()["settled"] is True  # still settled from earlier patch
+
+    # Unknown id -> 404
+    r = client.put("/api/people/pe_doesnotexist", json={"settled": True})
+    assert r.status_code == 404
+
+
+def test_people_delete(client):
+    create = client.post(
+        "/api/people/",
+        json={"person_name": "A", "direction": "gave", "amount": 100, "date": "2026-07-10"},
+    ).json()
+    r = client.delete(f"/api/people/{create['id']}")
+    assert r.status_code == 200
+    assert r.json() == {"deleted": 1}
+    # Second delete -> 404
+    r = client.delete(f"/api/people/{create['id']}")
+    assert r.status_code == 404
+
+
+def test_people_summary_aggregation(client):
+    # Rahul: gave 500, then took 200 back (still owes you 300)
+    client.post("/api/people/", json={"person_name": "Rahul", "direction": "gave", "amount": 500, "date": "2026-07-01", "reason": "lunch"})
+    client.post("/api/people/", json={"person_name": "Rahul", "direction": "took", "amount": 200, "date": "2026-07-05", "reason": "settle partial"})
+
+    # Mom: took 1000 (you owe her 1000)
+    client.post("/api/people/", json={"person_name": "Mom", "direction": "took", "amount": 1000, "date": "2026-07-02", "reason": "rent share"})
+
+    # SettledFriend: gave 999 and already marked settled — should be dropped from `people`
+    # (no open entries) but kept in `names` for autocomplete.
+    client.post(
+        "/api/people/",
+        json={"person_name": "SettledFriend", "direction": "gave", "amount": 999, "date": "2026-06-01", "settled": True},
+    )
+
+    response = client.get("/api/people/summary")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Global totals derive from per-person net (gave - took), so a person on
+    # both sides of the ledger only contributes the net to one side.
+    # Rahul net = 500 - 200 = +300 (they owe 300)
+    # Mom net   = 0  - 1000 = -1000 (you owe 1000)
+    # to_receive = 300, to_give = 1000, net = -700
+    assert data["totals"]["to_receive"] == 300.0
+    assert data["totals"]["to_give"] == 1000.0
+    assert data["totals"]["net"] == -700.0
+
+    # Per-person list: only Rahul and Mom (SettledFriend dropped — all entries settled).
+    people = data["people"]
+    assert {p["person_name"] for p in people} == {"Rahul", "Mom"}
+    # Sort order: largest creditor first → Rahul (+300) before Mom (-1000).
+    assert [p["person_name"] for p in people] == ["Rahul", "Mom"]
+
+    rahul = next(p for p in people if p["person_name"] == "Rahul")
+    assert rahul["net"] == 300.0
+    assert rahul["open_count"] == 2
+    assert rahul["gave"] == 500.0
+    assert rahul["took"] == 200.0
+
+    mom = next(p for p in people if p["person_name"] == "Mom")
+    assert mom["net"] == -1000.0
+    assert mom["open_count"] == 1
+
+    # Names list includes SettledFriend for autocomplete, even though they're not in `people`.
+    assert "Rahul" in data["names"]
+    assert "Mom" in data["names"]
+    assert "SettledFriend" in data["names"]
+
+    # Settling the "gave 500" entry is purely visual — it doesn't change net
+    # math (settled entries still contribute). open_count drops to 1.
+    gave_entry = next(e for e in rahul["entries"] if e["direction"] == "gave")
+    client.put(f"/api/people/{gave_entry['id']}", json={"settled": True})
+
+    data = client.get("/api/people/summary").json()
+    rahul = next(p for p in data["people"] if p["person_name"] == "Rahul")
+    assert rahul["net"] == 300.0  # unchanged — settled is a presentation state
+    assert rahul["open_count"] == 1  # only the "took 200" remains open
+
+
+def test_people_summary_drops_fully_settled(client):
+    client.post(
+        "/api/people/",
+        json={"person_name": "Ghost", "direction": "gave", "amount": 50, "date": "2026-07-10", "settled": True},
+    )
+    data = client.get("/api/people/summary").json()
+    # All entries settled → dropped from `people`, but kept in `names`.
+    assert all(p["person_name"] != "Ghost" for p in data["people"])
+    assert "Ghost" in data["names"]
+    assert data["totals"]["to_receive"] == 0.0
+    assert data["totals"]["to_give"] == 0.0
+    assert data["totals"]["net"] == 0.0

@@ -89,8 +89,6 @@ def analyze_receipt(file_bytes: bytes, mime_type: str) -> dict | None:
     if model is None:
         return None
     try:
-        import google.generativeai as genai
-
         prompt = (
             "Analyze the attached receipt image and extract the transaction details. "
             "Return ONLY a JSON object with these exact keys:\n"

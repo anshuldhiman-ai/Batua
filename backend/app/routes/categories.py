@@ -42,7 +42,7 @@ async def categories():
     try:
         custom = await storage.all("custom_categories")
         custom_cats = [c.get("name") for c in custom if c.get("name")]
-    except:
+    except Exception:
         pass
     
     allc = list(dict.fromkeys(DEFAULT_CATEGORIES + sorted(custom_cats) + sorted(used)))
@@ -66,7 +66,7 @@ async def add_category(payload: CategoryCreate):
         existing = await storage.all("custom_categories")
         if any(c.get("name") == name for c in existing):
             raise HTTPException(400, f"Category '{name}' already exists")
-    except:
+    except Exception:
         pass
     
     # Add custom category
@@ -107,7 +107,7 @@ async def rename_category(payload: CategoryRename):
         await storage.update("custom_categories", cat_to_update["id"], {"name": new_name})
     except HTTPException:
         raise
-    except:
+    except Exception:
         raise HTTPException(404, f"Custom category '{old_name}' not found")
     
     # Update all transactions with this category
@@ -149,7 +149,7 @@ async def delete_category(payload: CategoryDelete):
         await storage.delete("custom_categories", cat_to_delete["id"])
     except HTTPException:
         raise
-    except:
+    except Exception:
         raise HTTPException(404, f"Custom category '{name}' not found")
     
     # Reassign all transactions with this category

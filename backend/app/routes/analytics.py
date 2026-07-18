@@ -1,5 +1,5 @@
 """Analytics routes."""
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from collections import defaultdict
 from datetime import datetime, timedelta
 from app.helpers import month_key, _valid_date, split_payment

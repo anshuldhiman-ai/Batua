@@ -76,6 +76,26 @@ class GoalDB(SQLModel, table=True):
     created_at: Optional[str] = Field(default=None, nullable=True)
 
 
+class PersonEntryDB(SQLModel, table=True):
+    """People Ledger entry — a single "gave" or "took" record.
+
+    ``amount`` is always stored positive; the sign of the eventual per-person
+    net balance comes from ``direction`` ("gave" = they owe you, "took" =
+    you owe them). ``settled`` is per-entry so partial settlements can be
+    tracked next to the original open balance.
+    """
+    __tablename__ = "people"
+
+    id: str = Field(primary_key=True, index=True)
+    person_name: Optional[str] = Field(default="", index=True, nullable=True)
+    direction: Optional[str] = Field(default="", index=True, nullable=True)  # "gave" | "took"
+    amount: Optional[float] = Field(default=0.0, nullable=True)
+    reason: Optional[str] = Field(default="", nullable=True)
+    date: Optional[str] = Field(default="", index=True, nullable=True)  # YYYY-MM-DD
+    settled: Optional[bool] = Field(default=False, nullable=True)
+    created_at: Optional[str] = Field(default=None, nullable=True)
+
+
 _MODEL_MAP = {
     "transactions": TransactionDB,
     "budgets": BudgetDB,
@@ -83,6 +103,7 @@ _MODEL_MAP = {
     "chat_sessions": SessionDB,
     "custom_categories": CustomCategoryDB,
     "goals": GoalDB,
+    "people": PersonEntryDB,
 }
 
 

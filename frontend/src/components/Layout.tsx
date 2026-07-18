@@ -7,6 +7,7 @@ import {
   ChartColumnBig,
   Wallet,
   Target,
+  Users,
   Settings as SettingsIcon,
   Moon,
   Sun,
@@ -32,6 +33,7 @@ const NAV = [
   { to: "/analytics", label: "Analytics", icon: ChartColumnBig },
   { to: "/budgets", label: "Budgets", icon: Wallet },
   { to: "/goals", label: "Goals", icon: Target },
+  { to: "/people", label: "People", icon: Users },
   { to: "/ml-insights", label: "AI Insights", icon: Brain },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];

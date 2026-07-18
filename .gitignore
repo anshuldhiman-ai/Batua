@@ -15,6 +15,7 @@ backend/data/classifier.joblib
 # Node
 node_modules/
 frontend/build/
+frontend/dist/        # Vite output (was previously committed by mistake)
 npm-debug.log*
 yarn-error.log*
 package-lock.json
@@ -31,6 +32,10 @@ frontend/public/manifest.json
 ChatGPT Image*.png
 a505b0cb-*-cover.png
 logo*.png
+
+# Local-machine / agent session artefacts (not for the repo)
+.claude/
+scratch/
 
 # Env — single project-root .env (keep .env.example, never commit real keys)
 /.env

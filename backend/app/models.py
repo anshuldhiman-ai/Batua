@@ -115,3 +115,41 @@ class Goal(BaseModel):
     current_amount: float = 0.0
     target_date: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class PersonEntry(BaseModel):
+    """A single "I gave X to Rahul" or "I took Y from Mom" record.
+
+    Direction is one of:
+        "gave"  — you gave money, the other person owes you
+        "took"  — you took/borrowed money, you owe the other person
+
+    These entries are deliberately independent from the regular transaction
+    list: the People Ledger is a self-contained credit/IOU tracker, not a
+    double-entry accounting system. ``settled`` is per-entry so a partial
+    repayment (a smaller follow-up entry marked settled) can be tracked
+    alongside the original open balance.
+    """
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(default_factory=lambda: f"pe_{uuid.uuid4().hex[:12]}")
+    person_name: str
+    direction: str  # "gave" | "took"
+    amount: float  # always positive; direction carries the sign
+    reason: str = ""
+    date: str  # YYYY-MM-DD
+    settled: bool = False
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class PersonEntryUpdate(BaseModel):
+    """Patch payload — every field optional so a single endpoint can edit
+    amount, settle/un-settle, rename, or change the reason/date."""
+    model_config = ConfigDict(extra="ignore")
+
+    person_name: str | None = None
+    direction: str | None = None
+    amount: float | None = None
+    reason: str | None = None
+    date: str | None = None
+    settled: bool | None = None
