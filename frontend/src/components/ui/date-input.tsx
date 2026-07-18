@@ -18,7 +18,7 @@ export function isValidDateString(value) {
 /**
  * Date field capped at YYYY-MM-DD — rejects invalid years/days/months on change.
  */
-export const DateInput = React.forwardRef(function DateInput(
+export const DateInput = React.forwardRef<any, any>(function DateInput(
   { className, value, onChange, ...props },
   ref
 ) {
@@ -48,7 +48,7 @@ export const DateInput = React.forwardRef(function DateInput(
 });
 
 /** Day-of-month 1–31 only. */
-export const DayInput = React.forwardRef(function DayInput(
+export const DayInput = React.forwardRef<any, any>(function DayInput(
   { className, value, onChange, ...props },
   ref
 ) {

@@ -82,7 +82,7 @@ export default function MLInsights() {
   // Loading & Error States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [endpointErrors, setEndpointErrors] = useState({});
+  const [endpointErrors, setEndpointErrors] = useState<any>({});
 
   // Fetch all ML analytics data on mount
   const loadData = useCallback(async () => {
@@ -96,7 +96,7 @@ export default function MLInsights() {
         api.get("/ml/recommendations"),
       ]);
 
-      const nextErrors = {};
+      const nextErrors: any = {};
       if (patternsRes.status === "fulfilled") {
         setPatterns(patternsRes.value.data);
       } else {

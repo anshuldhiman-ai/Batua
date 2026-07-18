@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -76,6 +77,42 @@ export default function Transactions() {
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [form, setForm] = React.useState(EMPTY);
+  const [receiptModalOpen, setReceiptModalOpen] = React.useState(false);
+  const [scanningReceipt, setScanningReceipt] = React.useState(false);
+  const receiptInputRef = React.useRef(null);
+
+  const handleReceiptUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanningReceipt(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { data } = await api.post("/transactions/scan-receipt", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setEditing(null);
+      setForm({
+        ...EMPTY,
+        date: data.date || new Date().toISOString().slice(0, 10),
+        description: data.description || "",
+        amount: data.amount || 0,
+        category: data.category || "Other",
+        payment_method: data.payment_method || "",
+        quantity: data.quantity || 1,
+        price: data.price || Math.abs(data.amount || 0),
+        notes: data.notes ? (Array.isArray(data.notes) ? data.notes.join(", ") : String(data.notes)) : "",
+      });
+      setReceiptModalOpen(false);
+      setModalOpen(true);
+      toast.success("Receipt scanned successfully! Verify and save the entry.");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to scan receipt. Ensure Gemini is active.");
+    } finally {
+      setScanningReceipt(false);
+      if (receiptInputRef.current) receiptInputRef.current.value = "";
+    }
+  };
 
   // Invalidate helper to clear React Query caches when transactions list changes
   const invalidateAll = React.useCallback(() => {
@@ -405,12 +442,40 @@ export default function Transactions() {
                   We detected these columns. Confirm the mapping before importing.
                 </p>
                 <div className="space-y-2">
-                  {Object.entries(columnPreview.mapping || {}).map(([field, column]) => (
-                    <div key={field} className="flex items-center justify-between text-sm">
-                      <span className="font-medium capitalize">{field.replace('_', ' ')}:</span>
-                      <span className="text-muted-foreground">{column}</span>
+                  {columnPreview.format === "stacked" ? (
+                    <div className="space-y-2">
+                      {Object.entries(columnMapping).map(([field, column]) => (
+                        <div key={field} className="flex items-center justify-between text-sm">
+                          <span className="font-medium capitalize">{field.replace('_', ' ')}:</span>
+                          <span className="text-muted-foreground">{String(column)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                      {["date", "description", "amount", "debit", "credit", "category", "payment_method", "quantity", "unit_price"].map((field) => (
+                        <div key={field} className="flex items-center justify-between text-sm gap-2">
+                          <span className="font-medium capitalize text-muted-foreground text-xs">{field.replace('_', ' ')}:</span>
+                          <select
+                            value={columnMapping[field] || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setColumnMapping((prev) => ({
+                                ...prev,
+                                [field]: val || undefined,
+                              }));
+                            }}
+                            className="h-8 rounded-lg border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring w-40 truncate"
+                          >
+                            <option value="">(None)</option>
+                            {(columnPreview.columns || []).map((col) => (
+                              <option key={col} value={col}>{col}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button 
@@ -547,6 +612,9 @@ export default function Transactions() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/excel"))} data-testid="export-excel-btn">
             <FileSpreadsheet className="h-4 w-4" /> Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setReceiptModalOpen(true)} data-testid="scan-receipt-btn">
+            <Camera className="mr-1.5 h-4 w-4" /> Scan Receipt
           </Button>
           <Button size="sm" onClick={openAdd} data-testid="add-txn-btn">
             <Plus className="h-4 w-4" /> Add
@@ -747,11 +815,53 @@ export default function Transactions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Receipt Scan Dialog */}
+      <Dialog open={receiptModalOpen} onOpenChange={setReceiptModalOpen}>
+        <DialogContent onClose={() => setReceiptModalOpen(false)} data-testid="receipt-modal">
+          <DialogHeader>
+            <DialogTitle>Scan Receipt</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl p-8 bg-card/50">
+            {scanningReceipt ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm font-medium">Gemini is scanning your receipt...</p>
+                <p className="text-xs text-muted-foreground text-center">Reading text, amounts, categories & dates</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <Camera className="h-10 w-10 text-muted-foreground" />
+                <div className="text-center">
+                  <p className="text-sm font-medium">Upload a receipt photo</p>
+                  <p className="text-xs text-muted-foreground mt-1">Supports PNG, JPG, JPEG up to 5MB</p>
+                </div>
+                <Button onClick={() => receiptInputRef.current?.click()} data-testid="select-receipt-btn">
+                  Select Image
+                </Button>
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg"
+                  className="hidden"
+                  onChange={handleReceiptUpload}
+                  data-testid="receipt-file-input"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReceiptModalOpen(false)} disabled={scanningReceipt}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function Field({ label, children, full }) {
+function Field({ label, children, full }: any) {
   return (
     <label className={cn("flex flex-col gap-1.5", full && "col-span-2")}>
       <span className="text-xs font-medium text-muted-foreground">{label}</span>

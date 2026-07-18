@@ -167,6 +167,37 @@ async def optimize_budgets(total_budget: float):
     return recommendations
 
 
+class GoalUpdate(BaseModel):
+    name: str | None = None
+    target_amount: float | None = None
+    target_date: str | None = None
+    current_amount: float | None = None
+
+
+@router.get("/goals")
+async def list_goals():
+    """List all stored savings goals."""
+    storage = get_storage()
+    goals = await storage.all("goals")
+    tracker = ml_goals.get_goal_tracker()
+    enriched = []
+    for g in goals:
+        try:
+            goal_data = tracker.create_goal(
+                g.get("name", ""),
+                g.get("target_amount", 0.0),
+                g.get("target_date", ""),
+                g.get("current_amount", 0.0)
+            )
+            goal_data["id"] = g["id"]
+            if "created_at" in g:
+                goal_data["created_at"] = g["created_at"]
+            enriched.append(goal_data)
+        except Exception:
+            enriched.append(g)
+    return enriched
+
+
 @router.post("/goals")
 async def create_goal(goal: GoalCreate):
     """Create a new savings goal."""
@@ -177,30 +208,71 @@ async def create_goal(goal: GoalCreate):
         goal.target_date,
         goal.current_amount
     )
+    storage = get_storage()
+    await storage.insert("goals", goal_data)
     return goal_data
+
+
+@router.put("/goals/{goal_id}")
+async def update_goal(goal_id: str, payload: GoalUpdate):
+    """Update an existing goal."""
+    storage = get_storage()
+    existing = await storage.get("goals", goal_id)
+    if not existing:
+        raise HTTPException(404, "Goal not found")
+    
+    patch = {k: v for k, v in payload.model_dump().items() if v is not None}
+    updated = await storage.update("goals", goal_id, patch)
+    
+    tracker = ml_goals.get_goal_tracker()
+    try:
+        goal_data = tracker.create_goal(
+            updated.get("name", ""),
+            updated.get("target_amount", 0.0),
+            updated.get("target_date", ""),
+            updated.get("current_amount", 0.0)
+        )
+        goal_data["id"] = goal_id
+        if "created_at" in updated:
+            goal_data["created_at"] = updated["created_at"]
+        return goal_data
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.delete("/goals/{goal_id}")
+async def delete_goal(goal_id: str):
+    """Delete a savings goal."""
+    storage = get_storage()
+    ok = await storage.delete("goals", goal_id)
+    if not ok:
+        raise HTTPException(404, "Goal not found")
+    return {"deleted": 1}
 
 
 @router.get("/goals/{goal_id}/predict")
 async def predict_goal_completion(goal_id: str):
     """Predict if a goal will be met based on spending patterns."""
     storage = get_storage()
-    transactions = await storage.all("transactions")
+    goal = await storage.get("goals", goal_id)
+    if not goal:
+        raise HTTPException(404, "Goal not found")
     
-    # For now, return a mock prediction (in real app, goals would be stored)
+    transactions = await storage.all("transactions")
     tracker = ml_goals.get_goal_tracker()
     
-    # Create a mock goal for demonstration
-    mock_goal = {
-        "id": goal_id,
-        "name": "Sample Goal",
-        "target_amount": 50000,
-        "current_amount": 15000,
-        "target_date": "2024-12-31",
-        "months_remaining": 6,
-        "required_monthly_savings": 5833.33,
-    }
-    
-    prediction = tracker.predict_goal_completion(mock_goal, transactions)
+    try:
+        enriched_goal = tracker.create_goal(
+            goal.get("name", ""),
+            goal.get("target_amount", 0.0),
+            goal.get("target_date", ""),
+            goal.get("current_amount", 0.0)
+        )
+        enriched_goal["id"] = goal_id
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid goal metrics: {exc}")
+        
+    prediction = tracker.predict_goal_completion(enriched_goal, transactions)
     return prediction
 
 
@@ -208,19 +280,25 @@ async def predict_goal_completion(goal_id: str):
 async def analyze_spending_impact(goal_id: str):
     """Analyze how current spending impacts goal progress."""
     storage = get_storage()
+    goal = await storage.get("goals", goal_id)
+    if not goal:
+        raise HTTPException(404, "Goal not found")
+        
     transactions = await storage.all("transactions")
-    
     tracker = ml_goals.get_goal_tracker()
     
-    # Create a mock goal for demonstration
-    mock_goal = {
-        "id": goal_id,
-        "target_amount": 50000,
-        "current_amount": 15000,
-        "required_monthly_savings": 5833.33,
-    }
-    
-    impact = tracker.analyze_spending_impact(transactions, mock_goal)
+    try:
+        enriched_goal = tracker.create_goal(
+            goal.get("name", ""),
+            goal.get("target_amount", 0.0),
+            goal.get("target_date", ""),
+            goal.get("current_amount", 0.0)
+        )
+        enriched_goal["id"] = goal_id
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid goal metrics: {exc}")
+        
+    impact = tracker.analyze_spending_impact(transactions, enriched_goal)
     return impact
 
 

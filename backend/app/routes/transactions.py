@@ -1,10 +1,11 @@
 """Transaction CRUD routes."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from app.models import Transaction, TransactionCreate, TransactionUpdate, BulkCreate, BulkDelete, RecurringCreate
 from app.helpers import _require_valid_date, _kind, _with_kind, _txn_key
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
 import calendar
+import ai
 
 router = APIRouter()
 
@@ -199,3 +200,19 @@ async def wipe_transactions():
     n = await storage.clear("transactions")
     invalidate_analytics_cache()  # Invalidate cache on wipe
     return {"deleted": n}
+
+
+@router.post("/scan-receipt")
+async def scan_receipt(file: UploadFile = File(...)):
+    """Analyze a receipt photo using Gemini and return parsed transaction values."""
+    if not ai.is_enabled():
+        raise HTTPException(400, "Gemini is not configured. Set GOOGLE_API_KEY to enable receipt scanning.")
+    
+    file_bytes = await file.read()
+    content_type = file.content_type or "image/jpeg"
+    
+    parsed = ai.analyze_receipt(file_bytes, content_type)
+    if not parsed:
+        raise HTTPException(500, "Failed to analyze receipt image.")
+        
+    return parsed

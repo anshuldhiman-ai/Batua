@@ -223,7 +223,7 @@ export default function QAChatWidget() {
 
   const startAudioAnalysis = (stream) => {
     try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioContext = new AudioContextClass();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -281,7 +281,7 @@ export default function QAChatWidget() {
   const [atBottom, setAtBottom] = React.useState(true);
 
   React.useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) setSupported(false);
 
     api.get("/ml/qa/suggestions")
@@ -498,7 +498,7 @@ export default function QAChatWidget() {
       console.warn("Could not start visual feedback stream", e);
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     recognition.continuous = false;

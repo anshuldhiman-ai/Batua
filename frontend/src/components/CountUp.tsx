@@ -26,7 +26,7 @@ export default function CountUp({
   format = (n) => String(Math.round(n)),
   duration = 0.9,
   className,
-}) {
+}: any) {
   const reduce = useReducedMotion();
   const motionValue = useMotionValue(0);
   const spring = useSpring(motionValue, {

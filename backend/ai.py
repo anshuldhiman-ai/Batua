@@ -81,3 +81,46 @@ def chat_json(system_message: str, user_text: str) -> dict | None:
         return json.loads(text)
     except Exception:
         return None
+
+
+def analyze_receipt(file_bytes: bytes, mime_type: str) -> dict | None:
+    """Analyze a receipt image and return parsed transaction fields as a dictionary."""
+    model = _get_model()
+    if model is None:
+        return None
+    try:
+        import google.generativeai as genai
+
+        prompt = (
+            "Analyze the attached receipt image and extract the transaction details. "
+            "Return ONLY a JSON object with these exact keys:\n"
+            "- 'date': in YYYY-MM-DD format (if not present or not readable, use null)\n"
+            "- 'description': name of the merchant/shop/vendor\n"
+            "- 'amount': total amount of the transaction as a negative number (e.g. -450.50 if the total spent was 450.50)\n"
+            "- 'category': guess one of: Groceries, Food Delivery, Shopping, Entertainment, Subscriptions, Utilities, Travel, Investments, Other\n"
+            "- 'payment_method': guess one of: UPI, Cash, Card, Bank Transfer, Other\n"
+            "- 'quantity': number of items purchased (default 1)\n"
+            "- 'price': price per item (total amount divided by quantity; default absolute amount)\n"
+            "- 'notes': brief bullet points of major items bought\n\n"
+            "Respond with ONLY valid minified JSON, no markdown code blocks, no ```json wrapper, and no surrounding text."
+        )
+
+        response = model.generate_content([
+            {"mime_type": mime_type, "data": file_bytes},
+            prompt
+        ])
+        raw_text = (response.text or "").strip()
+
+        if raw_text.startswith("```"):
+            raw_text = raw_text.strip("`")
+            if raw_text.lower().startswith("json"):
+                raw_text = raw_text[4:]
+        
+        start, end = raw_text.find("{"), raw_text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            raw_text = raw_text[start : end + 1]
+
+        return json.loads(raw_text)
+    except Exception as exc:
+        logger.warning("Receipt analysis failed: %s", exc)
+        return None

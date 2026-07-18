@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * trigger's rect and flips upward when there's no room below.
  */
 
-const SelectContext = React.createContext({
+const SelectContext = React.createContext<any>({
   value: undefined,
   onValueChange: () => {},
   setOpen: () => {},
@@ -21,7 +21,7 @@ const SelectContext = React.createContext({
   registerItem: () => {},
 });
 
-function Select({ value, onValueChange, defaultValue, children, ...props }) {
+function Select({ value, onValueChange, defaultValue, children, ...props }: any) {
   const [open, setOpen] = React.useState(false);
   const [internal, setInternal] = React.useState(defaultValue);
   const triggerRef = React.useRef(null);
@@ -101,7 +101,7 @@ function Select({ value, onValueChange, defaultValue, children, ...props }) {
   );
 }
 
-const SelectTrigger = React.forwardRef(function SelectTrigger(
+const SelectTrigger = React.forwardRef<any, any>(function SelectTrigger(
   { className, children, ...props },
   ref
 ) {
@@ -129,7 +129,7 @@ const SelectTrigger = React.forwardRef(function SelectTrigger(
   );
 });
 
-function SelectValue({ placeholder }) {
+function SelectValue({ placeholder }: any) {
   const ctx = React.useContext(SelectContext);
   const current = ctx.value;
   // The currently-selected item exposes its label via a label registry — but
@@ -146,7 +146,7 @@ function SelectValue({ placeholder }) {
   );
 }
 
-const SelectContent = React.forwardRef(function SelectContent(
+const SelectContent = React.forwardRef<any, any>(function SelectContent(
   { className, children, ...props },
   ref
 ) {
@@ -208,7 +208,7 @@ const SelectContent = React.forwardRef(function SelectContent(
   );
 });
 
-const SelectItem = React.forwardRef(function SelectItem(
+const SelectItem = React.forwardRef<any, any>(function SelectItem(
   { className, value, children, ...props },
   ref
 ) {

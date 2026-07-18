@@ -37,7 +37,7 @@ export default function AnalyticsStatCard({
   loading = false,
   onClick,
   className,
-}) {
+}: any) {
   const content = (
     <Card
       className={cn(

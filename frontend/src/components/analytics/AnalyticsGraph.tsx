@@ -28,7 +28,7 @@ function formatAxisLabel(key, view) {
   return key;
 }
 
-function RichTooltip({ active, payload, label, view }) {
+function RichTooltip({ active, payload, label, view }: any) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload || {};
   return (
@@ -78,7 +78,7 @@ export default function AnalyticsGraph({
   height = 360,
   periodLabel,
   className,
-}) {
+}: any) {
   const chartData = useMemo(
     () =>
       (data || []).map((d) => ({

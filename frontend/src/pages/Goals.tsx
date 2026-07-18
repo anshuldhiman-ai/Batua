@@ -36,21 +36,14 @@ export default function Goals() {
 
   const loadGoals = async () => {
     try {
-      // For now, goals are stored in localStorage since backend endpoint is mock
-      const stored = localStorage.getItem("batua-goals");
-      if (stored) {
-        setGoals(JSON.parse(stored));
-      }
+      const { data } = await api.get("/ml/goals");
+      setGoals(data || []);
     } catch (e) {
       console.error("Failed to load goals", e);
+      toast.error("Failed to load goals");
     } finally {
       setLoading(false);
     }
-  };
-
-  const saveGoals = (updatedGoals) => {
-    setGoals(updatedGoals);
-    localStorage.setItem("batua-goals", JSON.stringify(updatedGoals));
   };
 
   const handleSubmit = async (e) => {
@@ -61,27 +54,37 @@ export default function Goals() {
     }
 
     const goalData = {
-      id: editingGoal?.id || `goal-${Date.now()}`,
       name: form.name,
       target_amount: parseFloat(form.target_amount),
       target_date: form.target_date,
       current_amount: parseFloat(form.current_amount) || 0,
-      created_at: editingGoal?.created_at || new Date().toISOString(),
     };
 
-    let updatedGoals;
-    if (editingGoal) {
-      updatedGoals = goals.map((g) => (g.id === editingGoal.id ? goalData : g));
-      toast.success("Goal updated");
-    } else {
-      updatedGoals = [...goals, goalData];
-      toast.success("Goal created");
+    try {
+      if (editingGoal) {
+        await api.put(`/ml/goals/${editingGoal.id}`, goalData);
+        toast.success("Goal updated");
+      } else {
+        await api.post("/ml/goals", goalData);
+        toast.success("Goal created");
+      }
+      loadGoals();
+      setDialogOpen(false);
+      setEditingGoal(null);
+      setForm({ name: "", target_amount: "", target_date: "", current_amount: "" });
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to save goal");
     }
+  };
 
-    saveGoals(updatedGoals);
-    setDialogOpen(false);
-    setEditingGoal(null);
-    setForm({ name: "", target_amount: "", target_date: "", current_amount: "" });
+  const deleteGoal = async (id) => {
+    try {
+      await api.delete(`/ml/goals/${id}`);
+      toast.success("Goal deleted");
+      loadGoals();
+    } catch (e) {
+      toast.error("Failed to delete goal");
+    }
   };
 
   const startEdit = (goal) => {
@@ -95,11 +98,7 @@ export default function Goals() {
     setDialogOpen(true);
   };
 
-  const deleteGoal = (id) => {
-    const updatedGoals = goals.filter((g) => g.id !== id);
-    saveGoals(updatedGoals);
-    toast.success("Goal deleted");
-  };
+
 
   const calculateProgress = (goal) => {
     const progress = (goal.current_amount / goal.target_amount) * 100;
@@ -109,7 +108,7 @@ export default function Goals() {
   const calculateDaysRemaining = (targetDate) => {
     const target = new Date(targetDate);
     const today = new Date();
-    const diff = target - today;
+    const diff = target.getTime() - today.getTime();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     return Math.max(0, days);
   };

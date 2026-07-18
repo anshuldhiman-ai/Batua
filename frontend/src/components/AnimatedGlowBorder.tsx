@@ -24,7 +24,7 @@ export default function AnimatedGlowBorder({
   speed = 5,
   color,
   className,
-}) {
+}: any) {
   const canvasRef = React.useRef(null);
   const rafRef = React.useRef(0);
 

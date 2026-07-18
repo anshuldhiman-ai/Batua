@@ -2,7 +2,7 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, UploadFile
 
 import excel_loader
 from app.dependencies import get_storage
@@ -104,6 +104,7 @@ async def upload_excel_start(
     file: UploadFile = File(...),
     replace: bool = Query(True),
     use_ai: bool = Query(False),
+    mapping: str | None = Form(None),
 ):
     """Start an upload + parse job in the background; return a task_id.
 
@@ -115,6 +116,14 @@ async def upload_excel_start(
         raise HTTPException(400, f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB")
     if not content:
         raise HTTPException(400, "Empty file")
+
+    import json
+    parsed_mapping = None
+    if mapping:
+        try:
+            parsed_mapping = json.loads(mapping)
+        except Exception:
+            logger.warning("Could not parse column mapping form field as JSON")
 
     store = get_store()
     task_id = store.create()
@@ -129,6 +138,7 @@ async def upload_excel_start(
         file.filename or "",
         bool(replace),
         bool(use_ai),
+        parsed_mapping,
     )
 
     return {"task_id": task_id, "filename": file.filename, "size": len(content)}
@@ -146,7 +156,7 @@ async def upload_progress(task_id: str):
 
 
 async def _run_upload_task(task_id: str, content: bytes, filename: str,
-                            replace: bool, use_ai: bool) -> None:
+                            replace: bool, use_ai: bool, mapping: dict | None = None) -> None:
     """Background task that runs the heavy lifting and reports progress."""
     store = get_store()
     try:
@@ -173,7 +183,7 @@ async def _run_upload_task(task_id: str, content: bytes, filename: str,
         rows = await loop.run_in_executor(
             None,
             lambda: excel_loader.try_load_excel(
-                content, filename, use_ai, progress_cb=_on_progress
+                content, filename, use_ai, progress_cb=_on_progress, mapping=mapping
             ),
         )
         if not rows:

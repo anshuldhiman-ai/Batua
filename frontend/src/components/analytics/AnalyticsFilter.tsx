@@ -49,7 +49,7 @@ export default function AnalyticsFilter({
   onMonthRangeChange,
   periodLabel,
   className,
-}) {
+}: any) {
   const defaultMonth = currentYearMonth();
 
   return (

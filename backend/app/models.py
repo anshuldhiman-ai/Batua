@@ -104,3 +104,14 @@ class BudgetCreate(BaseModel):
     model_config = ConfigDict(extra="ignore")
     category: str
     limit: float
+
+
+class Goal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(default_factory=lambda: f"goal_{uuid.uuid4().hex[:12]}")
+    name: str
+    target_amount: float
+    current_amount: float = 0.0
+    target_date: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

@@ -1,9 +1,11 @@
 import asyncio
 import sqlite3
 import sys
+import pytest
 sys.path.insert(0, 'backend')
 from storage import SQLiteStorage
 
+@pytest.mark.asyncio
 async def test_migration():
     # Test with the real database copy
     print("Testing migration with real database copy...")

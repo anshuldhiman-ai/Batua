@@ -16,7 +16,7 @@ const Goals = React.lazy(() => import("./pages/Goals"));
 const MLInsights = React.lazy(() => import("./pages/MLInsights"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 
-export const ThemeContext = React.createContext({
+export const ThemeContext = React.createContext<any>({
   theme: "light",
   toggle: () => {},
   accent: DEFAULT_ACCENT,

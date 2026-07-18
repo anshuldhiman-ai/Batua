@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
-from app.models import Budget, Transaction
+from app.models import Budget, Transaction, Goal
 
 router = APIRouter()
 
@@ -22,6 +22,7 @@ class BackupPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     transactions: list[dict] = []
     budgets: list[dict] = []
+    goals: list[dict] = []
 
 
 @router.get("/backup")
@@ -34,6 +35,7 @@ async def download_backup():
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "transactions": await storage.all("transactions"),
         "budgets": await storage.all("budgets"),
+        "goals": await storage.all("goals"),
     }
 
 
@@ -44,7 +46,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
     Rows are re-validated through the Pydantic models so a hand-edited or
     partially-corrupt file restores what it can instead of failing whole.
     """
-    if not payload.transactions and not payload.budgets:
+    if not payload.transactions and not payload.budgets and not payload.goals:
         raise HTTPException(400, "Backup contains no data")
 
     txns, bad_txns = [], 0
@@ -53,6 +55,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
             txns.append(Transaction(**t).model_dump())
         except Exception:
             bad_txns += 1
+            
     budgets, bad_budgets = [], 0
     for b in payload.budgets:
         try:
@@ -60,22 +63,35 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         except Exception:
             bad_budgets += 1
 
-    if not txns and not budgets:
+    goals, bad_goals = [], 0
+    for g in payload.goals:
+        try:
+            goals.append(Goal(**g).model_dump())
+        except Exception:
+            bad_goals += 1
+
+    if not txns and not budgets and not goals:
         raise HTTPException(400, "No valid rows found in this backup file")
 
     storage = get_storage()
     if replace:
         await storage.clear("transactions")
         await storage.clear("budgets")
+        await storage.clear("goals")
+        
     if txns:
         await storage.insert_many("transactions", txns)
     if budgets:
         await storage.insert_many("budgets", budgets)
+    if goals:
+        await storage.insert_many("goals", goals)
+        
     invalidate_analytics_cache()
 
     return {
         "transactions": len(txns),
         "budgets": len(budgets),
-        "skipped": bad_txns + bad_budgets,
+        "goals": len(goals),
+        "skipped": bad_txns + bad_budgets + bad_goals,
         "replaced": replace,
     }

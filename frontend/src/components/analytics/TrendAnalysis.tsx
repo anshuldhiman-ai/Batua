@@ -23,7 +23,7 @@ const TONE_BG_CLASS = {
  * Category- and transaction-level extremes for the selected period.
  * Period averages live in AnalyticsSummaryCards — not repeated here.
  */
-export default function TrendAnalysis({ data, loading = false, className }) {
+export default function TrendAnalysis({ data, loading = false, className }: any) {
   const insights = [
     {
       label: "Highest Spending Category",

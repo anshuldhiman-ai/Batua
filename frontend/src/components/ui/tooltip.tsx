@@ -8,20 +8,20 @@ import { cn } from "@/lib/utils";
  * `position: fixed` from `getBoundingClientRect()`.
  */
 
-const TooltipContext = React.createContext({
+const TooltipContext = React.createContext<any>({
   open: false,
   setOpen: () => {},
   triggerRef: { current: null },
   contentRef: { current: null },
 });
 
-function TooltipProvider({ children }) {
+function TooltipProvider({ children }: any) {
   // The provider only forwards the context. Each Tooltip below it manages
   // its own open state, so multiple tooltips on the same page can coexist.
   return <>{children}</>;
 }
 
-function Tooltip({ children }) {
+function Tooltip({ children }: any) {
   const [open, setOpen] = React.useState(false);
   const triggerRef = React.useRef(null);
   const contentRef = React.useRef(null);
@@ -39,14 +39,14 @@ function setRef(ref, node) {
   else if (ref) ref.current = node;
 }
 
-const TooltipTrigger = React.forwardRef(function TooltipTrigger(
+const TooltipTrigger = React.forwardRef<any, any>(function TooltipTrigger(
   { asChild = false, children, ...props },
   ref
 ) {
   const ctx = React.useContext(TooltipContext);
 
   const show = () => ctx.setOpen(true);
-  const hide = (e) => {
+  const hide = (e?: any) => {
     // Don't close when the pointer is moving into the tooltip body.
     const next = e?.relatedTarget;
     if (next && ctx.contentRef.current && ctx.contentRef.current.contains(next))
@@ -55,8 +55,8 @@ const TooltipTrigger = React.forwardRef(function TooltipTrigger(
   };
 
   if (asChild && React.isValidElement(children)) {
-    const childProps = children.props || {};
-    return React.cloneElement(children, {
+    const childProps = (children.props as any) || {};
+    return React.cloneElement(children as any, {
       ref: (node) => {
         ctx.triggerRef.current = node;
         setRef(ref, node);
@@ -101,7 +101,7 @@ const TooltipTrigger = React.forwardRef(function TooltipTrigger(
   );
 });
 
-const TooltipContent = React.forwardRef(function TooltipContent(
+const TooltipContent = React.forwardRef<any, any>(function TooltipContent(
   { className, sideOffset = 6, side = "top", children, ...props },
   ref
 ) {

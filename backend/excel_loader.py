@@ -664,12 +664,12 @@ def _resolve_mapping(cols: list[str], sample: list[dict], use_ai: bool) -> dict:
     return mp
 
 
-def _parse_tabular(df: pd.DataFrame, use_ai: bool) -> list[dict]:
+def _parse_tabular(df: pd.DataFrame, use_ai: bool, custom_mapping: dict = None) -> list[dict]:
     body, cols = _prepare_table(df)
     if body.empty:
         return []
     sample = body.head(6).fillna("").astype(str).to_dict(orient="records")
-    mp = _resolve_mapping(cols, sample, use_ai)
+    mp = custom_mapping if custom_mapping else _resolve_mapping(cols, sample, use_ai)
 
     date_col = mp.get("date")
     dayfirst = True
@@ -850,7 +850,7 @@ def _categorize_chunk_ai(rows: list[dict]) -> None:
 
 
 def try_load_excel(content: bytes, filename: str = "", use_ai: bool = False,
-                   progress_cb=None) -> list[dict]:
+                   progress_cb=None, mapping: dict = None) -> list[dict]:
     """Parse any supported file into Transaction-shaped dicts.
 
     ``progress_cb(stage, fraction)`` — if given — is invoked as the parse
@@ -862,29 +862,25 @@ def try_load_excel(content: bytes, filename: str = "", use_ai: bool = False,
     """
     rows: list[dict] = []
     sheet_count = 0
-    # Read the workbook ONCE (parsing it twice just to count sheets doubled the
-    # slowest part of the import for multi-sheet .xlsx files).
     sheets = _read_sheets(content, filename)
-    max_sheets = min(len(sheets), 5)  # Limit to first 5 sheets
+    max_sheets = min(len(sheets), 5)
 
     for sheet_name, df in sheets:
         if df is None or df.empty:
             continue
         sheet_count += 1
-        # Limit to first 5 sheets to avoid processing too many
         if sheet_count > 5:
             break
         if _df_is_stacked(df):
             rows.extend(_parse_stacked(df))
         else:
-            rows.extend(_parse_tabular(df, use_ai))
+            rows.extend(_parse_tabular(df, use_ai, mapping))
         if progress_cb:
             progress_cb("reading", min(1.0, sheet_count / max_sheets))
 
     if progress_cb:
         progress_cb("categorizing", 0.0)
 
-    # Use local ML by default (much faster). Only use AI if explicitly requested.
     _ai_categorize(
         rows,
         progress_cb=(lambda f: progress_cb("categorizing", f)) if progress_cb else None,

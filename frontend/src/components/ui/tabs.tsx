@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const TabsContext = React.createContext(null);
 
-function Tabs({ value, defaultValue, onValueChange, className, children }) {
+function Tabs({ value, defaultValue, onValueChange, className, children }: any) {
   const [internal, setInternal] = React.useState(defaultValue);
   const current = value !== undefined ? value : internal;
   const setValue = (v) => {
@@ -17,7 +17,7 @@ function Tabs({ value, defaultValue, onValueChange, className, children }) {
   );
 }
 
-const TabsList = ({ className, ...props }) => (
+const TabsList = ({ className, ...props }: any) => (
   <div
     role="tablist"
     className={cn(
@@ -28,7 +28,7 @@ const TabsList = ({ className, ...props }) => (
   />
 );
 
-function TabsTrigger({ value, className, children, ...props }) {
+function TabsTrigger({ value, className, children, ...props }: any) {
   const ctx = React.useContext(TabsContext);
   const active = ctx.value === value;
   return (
@@ -53,7 +53,7 @@ function TabsTrigger({ value, className, children, ...props }) {
   );
 }
 
-function TabsContent({ value, className, children, ...props }) {
+function TabsContent({ value, className, children, ...props }: any) {
   const ctx = React.useContext(TabsContext);
   if (ctx.value !== value) return null;
   return (

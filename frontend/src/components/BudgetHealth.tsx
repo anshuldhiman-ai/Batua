@@ -20,7 +20,7 @@ const STATUS = {
  * `/budgets/status?month=` endpoint (no backend changes) and answers the core
  * finance question at a glance: "am I within budget this month?".
  */
-export default function BudgetHealth({ month }) {
+export default function BudgetHealth({ month }: any) {
   const [rows, setRows] = React.useState(null);
 
   React.useEffect(() => {

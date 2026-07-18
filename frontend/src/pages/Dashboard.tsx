@@ -40,7 +40,7 @@ const fmtCompact = (n) => formatINR(n, { compact: true });
 const fmtPct = (n) => `${Math.round(n)}%`;
 
 /* ─── Section header ──────────────────────────────────────────────── */
-function SectionHeader({ icon: Icon, title, subtitle, action }) {
+function SectionHeader({ icon: Icon, title, subtitle, action }: any) {
   return (
     <div className="flex items-end justify-between gap-4">
       <div className="flex items-center gap-2.5">
@@ -70,7 +70,7 @@ const TONE_CLASS = {
   violet: "text-violet-500",
 };
 
-function StatPill({ label, value, sub, tone = "primary", icon: Icon }) {
+function StatPill({ label, value, sub, tone = "primary", icon: Icon }: any) {
   return (
     <motion.div
       whileHover={{ y: -2 }}

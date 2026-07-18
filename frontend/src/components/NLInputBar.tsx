@@ -375,7 +375,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
 
   const startAudioAnalysis = (stream) => {
     try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioContext = new AudioContextClass();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -430,7 +430,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   const [whisperAvailable, setWhisperAvailable] = React.useState(false);
 
   React.useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const hasRecorder =
       typeof window.MediaRecorder !== "undefined" &&
       !!navigator.mediaDevices?.getUserMedia;
@@ -534,7 +534,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   };
 
   const beginRecognition = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     // Continuous mode lets users speak a full voice note with multiple

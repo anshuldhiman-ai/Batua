@@ -588,7 +588,7 @@ export default function Settings() {
   );
 }
 
-function Row({ icon: Icon, label, value, badge }) {
+function Row({ icon: Icon, label, value, badge }: any) {
   return (
     <div className="flex items-center justify-between border-b border-border/60 pb-3 last:border-0 last:pb-0">
       <span className="flex items-center gap-2.5 text-sm font-medium">

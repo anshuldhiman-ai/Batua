@@ -24,7 +24,7 @@ const INCOME_COLOR = "hsl(var(--chart-income))";
 const EXPENSE_COLOR = "hsl(var(--chart-expense))";
 
 /** Themed tooltip used by every Recharts chart in the app. */
-export function ChartTooltip({ active, payload, label, labelFormatter }) {
+export function ChartTooltip({ active, payload, label, labelFormatter }: any) {
   if (!active || !payload || !payload.length) return null;
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-lg">

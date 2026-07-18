@@ -3,8 +3,8 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-export class ErrorBoundary extends React.Component {
-  constructor(props) {
+export class ErrorBoundary extends React.Component<any, any> {
+  constructor(props: any) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
@@ -37,7 +37,7 @@ export class ErrorBoundary extends React.Component {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 An unexpected error occurred. Please try refreshing the page.
               </p>
-              {import.meta.env.DEV && this.state.error && (
+              {(import.meta as any).env.DEV && this.state.error && (
                 <details className="mt-4">
                   <summary className="cursor-pointer text-sm font-mono text-gray-500 hover:text-gray-700">
                     Error details

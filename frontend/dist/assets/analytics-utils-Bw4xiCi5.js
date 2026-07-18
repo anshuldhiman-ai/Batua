@@ -1,0 +1,16 @@
+import{c as D}from"./index-BX4unM35.js";import"./utils-finance-CaS6pnjq.js";/**
+ * @license lucide-react v0.469.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const Y=D("Check",[["path",{d:"M20 6 9 17l-5-5",key:"1gmf2c"}]]);/**
+ * @license lucide-react v0.469.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const v=D("FileSpreadsheet",[["path",{d:"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",key:"1rqfz7"}],["path",{d:"M14 2v4a2 2 0 0 0 2 2h4",key:"tnqrlb"}],["path",{d:"M8 13h2",key:"yr2amv"}],["path",{d:"M14 13h2",key:"un5t4a"}],["path",{d:"M8 17h2",key:"2yhykz"}],["path",{d:"M14 17h2",key:"10kma7"}]]);/**
+ * @license lucide-react v0.469.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const F=D("Repeat",[["path",{d:"m17 2 4 4-4 4",key:"nntrym"}],["path",{d:"M3 11v-1a4 4 0 0 1 4-4h14",key:"84bu3i"}],["path",{d:"m7 22-4-4 4-4",key:"1wqhfi"}],["path",{d:"M21 13v1a4 4 0 0 1-4 4H3",key:"1rx37r"}]]);function a(s){const n=s.getFullYear(),r=String(s.getMonth()+1).padStart(2,"0"),o=String(s.getDate()).padStart(2,"0");return`${n}-${r}-${o}`}function d(s,n){const r=new Date(s);return r.setDate(r.getDate()+n),r}function p(s){const n=s.getFullYear(),r=String(s.getMonth()+1).padStart(2,"0");return`${n}-${r}`}function f(s,{customStartDate:n="",customEndDate:r="",singleMonth:o="",rangeStartMonth:l="",rangeEndMonth:m=""}={}){const c=new Date;c.setHours(0,0,0,0);const t=new Date(c),i=e=>{const[u,h]=e.split("-").map(Number);return new Date(u,h-1,1)},y=e=>{const[u,h]=e.split("-").map(Number);return new Date(u,h,0)};switch(s){case"current_month":{const e=new Date(t.getFullYear(),t.getMonth(),1);return{startDate:a(e),endDate:a(t),label:"This month"}}case"last_30_days":{const e=d(t,-29);return{startDate:a(e),endDate:a(t),label:"Last 30 days"}}case"last_90_days":{const e=d(t,-89);return{startDate:a(e),endDate:a(t),label:"Last 90 days"}}case"last_3_months":{const e=new Date(t.getFullYear(),t.getMonth()-2,1);return{startDate:a(e),endDate:a(t),label:"Last 3 months"}}case"current_year":{const e=new Date(t.getFullYear(),0,1);return{startDate:a(e),endDate:a(t),label:"This year"}}case"previous_year":{const e=t.getFullYear()-1;return{startDate:`${e}-01-01`,endDate:`${e}-12-31`,label:`Year ${e}`}}case"single_month":{if(!o){const e=p(t);return{startDate:a(i(e)),endDate:a(y(e)),label:o||e}}return{startDate:a(i(o)),endDate:a(y(o)),label:o}}case"month_range":{const e=l||p(d(t,-60)),u=m||p(t),[h,_]=e.split("-").map(Number),[g,k]=u.split("-").map(Number),w=new Date(h,_-1,1),b=new Date(g,k,0);return{startDate:a(w),endDate:a(b>t?t:b),label:`${e} → ${u}`}}case"custom":return n&&r?{startDate:n,endDate:r,label:`${n} → ${r}`}:f("last_3_months");default:return f("last_3_months")}}function N(s,n,r){const o=r==="asc"?1:-1;return[...s].sort((l,m)=>{let c,t;return n==="amount"?(c=Number(l.amount)||0,t=Number(m.amount)||0):n==="txn_type"||n==="transaction_type"?(c=Number(l.amount)>=0?1:0,t=Number(m.amount)>=0?1:0):(c=l[n]??"",t=m[n]??""),c<t?-1*o:c>t?1*o:0})}export{Y as C,v as F,F as R,f as r,N as s};

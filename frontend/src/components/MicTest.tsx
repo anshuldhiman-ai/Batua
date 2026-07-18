@@ -79,7 +79,7 @@ export default function MicTest() {
   // Live volume meter — the "is my mic actually hearing me" check.
   const startMeter = (stream) => {
     try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new Ctx();
       audioCtxRef.current = ctx;
       const src = ctx.createMediaStreamSource(stream);

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function Dialog({ open, onOpenChange, children }) {
+function Dialog({ open, onOpenChange, children }: any) {
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === "Escape" && onOpenChange?.(false);
@@ -32,7 +32,7 @@ function Dialog({ open, onOpenChange, children }) {
   );
 }
 
-const DialogContent = React.forwardRef(
+const DialogContent = React.forwardRef<any, any>(
   ({ className, children, onClose, ...props }, ref) => (
     <div
       ref={ref}
@@ -59,22 +59,22 @@ const DialogContent = React.forwardRef(
 );
 DialogContent.displayName = "DialogContent";
 
-const DialogHeader = ({ className, ...props }) => (
+const DialogHeader = ({ className, ...props }: any) => (
   <div className={cn("mb-4 flex flex-col space-y-1.5", className)} {...props} />
 );
 
-const DialogTitle = ({ className, ...props }) => (
+const DialogTitle = ({ className, ...props }: any) => (
   <h2
     className={cn("font-display text-base font-semibold tracking-tight", className)}
     {...props}
   />
 );
 
-const DialogDescription = ({ className, ...props }) => (
+const DialogDescription = ({ className, ...props }: any) => (
   <p className={cn("text-sm text-muted-foreground", className)} {...props} />
 );
 
-const DialogFooter = ({ className, ...props }) => (
+const DialogFooter = ({ className, ...props }: any) => (
   <div
     className={cn("mt-6 flex justify-end gap-2", className)}
     {...props}

@@ -21,7 +21,7 @@ const CONFIG = {
   },
 };
 
-export default function CardDetailDialog({ kind, metrics, onClose }) {
+export default function CardDetailDialog({ kind, metrics, onClose }: any) {
   const open = !!kind;
   const month = metrics?.current_month || "";
   const isList = kind === "income" || kind === "expense" || kind === "investments";
@@ -114,7 +114,7 @@ export default function CardDetailDialog({ kind, metrics, onClose }) {
   );
 }
 
-function SummaryGrid({ metrics }) {
+function SummaryGrid({ metrics }: any) {
   if (!metrics) return null;
   const rows = [
     { label: "Income", value: formatINR(metrics.income), tone: "text-emerald-600 dark:text-emerald-400" },

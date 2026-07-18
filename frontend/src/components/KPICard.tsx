@@ -43,7 +43,7 @@ export default function KPICard({
   valueClassName,
   count,
   countFormat,
-}) {
+}: any) {
   const reduce = useReducedMotion();
   const hasChange = change !== undefined && change !== null;
   const up = (change || 0) >= 0;

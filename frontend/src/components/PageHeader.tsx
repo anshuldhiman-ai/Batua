@@ -4,7 +4,7 @@ import React from "react";
  * Uniform page header — every page shares the same title/subtitle rhythm,
  * with an optional right-aligned actions slot (buttons, badges, …).
  */
-export default function PageHeader({ title, subtitle, actions }) {
+export default function PageHeader({ title, subtitle, actions }: any) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>

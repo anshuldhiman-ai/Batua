@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-const Progress = React.forwardRef(
+const Progress = React.forwardRef<any, any>(
   ({ className, value = 0, indicatorClassName, indicatorStyle, ...props }, ref) => (
     <div
       ref={ref}

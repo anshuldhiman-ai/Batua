@@ -65,12 +65,24 @@ class CustomCategoryDB(SQLModel, table=True):
     name: Optional[str] = Field(default="", nullable=True)
 
 
+class GoalDB(SQLModel, table=True):
+    __tablename__ = "goals"
+    
+    id: str = Field(primary_key=True, index=True)
+    name: Optional[str] = Field(default="", nullable=True)
+    target_amount: Optional[float] = Field(default=0.0, nullable=True)
+    current_amount: Optional[float] = Field(default=0.0, nullable=True)
+    target_date: Optional[str] = Field(default="", nullable=True)
+    created_at: Optional[str] = Field(default=None, nullable=True)
+
+
 _MODEL_MAP = {
     "transactions": TransactionDB,
     "budgets": BudgetDB,
     "sessions": SessionDB,
     "chat_sessions": SessionDB,
     "custom_categories": CustomCategoryDB,
+    "goals": GoalDB,
 }
 
 
