@@ -12,6 +12,7 @@ const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const Transactions = React.lazy(() => import("./pages/Transactions"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
 const Budgets = React.lazy(() => import("./pages/Budgets"));
+const Goals = React.lazy(() => import("./pages/Goals"));
 const MLInsights = React.lazy(() => import("./pages/MLInsights"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 
@@ -66,6 +67,7 @@ export default function App() {
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/budgets" element={<Budgets />} />
+                <Route path="/goals" element={<Goals />} />
                 {/* Reports merged into Analytics — keep old links working */}
                 <Route path="/reports" element={<Navigate to="/analytics" replace />} />
                 <Route path="/ml-insights" element={<MLInsights />} />

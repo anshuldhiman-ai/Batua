@@ -65,6 +65,8 @@ export default function Transactions() {
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [uploadMessage, setUploadMessage] = React.useState("");
   const [aiCategorize, setAiCategorize] = useLocalStorage("batua-import-ai", false);
+  const [columnPreview, setColumnPreview] = React.useState(null);
+  const [columnMapping, setColumnMapping] = React.useState({});
   const [sortBy, setSortBy] = React.useState("date");
   const [sortOrder, setSortOrder] = React.useState("desc");
   const [paymentMethodFilter, setPaymentMethodFilter] = React.useState("All");
@@ -148,9 +150,38 @@ export default function Transactions() {
     setUploading(true);
     setUploadStage("uploading");
     setUploadProgress(0);
-    setUploadMessage("Uploading your file…");
+    setUploadMessage("Analyzing file structure…");
+    
     const fd = new FormData();
     fd.append("file", files[0]);
+    let pollHandle = null;
+    try {
+      // First, preview the file to show column mapping
+      const { data: preview } = await api.post("/upload-excel/preview", fd);
+      setColumnPreview(preview);
+      setColumnMapping(preview.mapping || {});
+      setUploadStage("preview");
+      setUploadProgress(100);
+      setUploadMessage("Review column mapping before import");
+      return; // Wait for user to confirm
+    } catch (e) {
+      toast.error("Failed to preview file");
+      setUploading(false);
+      return;
+    }
+  }, []);
+
+  const confirmUpload = React.useCallback(async (file) => {
+    if (!file) return;
+    
+    setUploadStage("uploading");
+    setUploadProgress(0);
+    setUploadMessage("Uploading your file…");
+    
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("mapping", JSON.stringify(columnMapping));
+    
     let pollHandle = null;
     try {
       // Kick off the staged background job.
@@ -158,12 +189,8 @@ export default function Transactions() {
         `/upload-excel/start?replace=true&use_ai=${aiCategorize ? "true" : "false"}`,
         fd,
         {
-          // NB: do NOT set Content-Type manually. The browser must generate
-          // the multipart boundary itself; hard-coding "multipart/form-data"
-          // omits it and the server can't parse the body.
-          timeout: 300000, // 5 min hard cap
+          timeout: 300000,
           onUploadProgress: (progressEvent) => {
-            // Map real bytes-uploaded progress to the first 25% of the bar.
             if (!progressEvent.total) return;
             const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
             const mapped = Math.round((pct / 100) * 25);
@@ -359,7 +386,7 @@ export default function Transactions() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={(e) => { e.stopPropagation(); setUploading(false); setUploadStage("uploading"); setUploadProgress(0); setUploadMessage(""); toast.info("Upload cancelled"); }}
+                onClick={(e) => { e.stopPropagation(); setUploading(false); setUploadStage("uploading"); setUploadProgress(0); setUploadMessage(""); setColumnPreview(null); toast.info("Upload cancelled"); }}
                 className="h-7 w-7"
                 title="Hide panel (upload will keep running)"
                 data-testid="upload-hide-btn"
@@ -367,10 +394,56 @@ export default function Transactions() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <UploadProgress stage={uploadStage} progress={uploadProgress} message={uploadMessage} />
-            <p className="text-center text-[11px] text-muted-foreground">
-              You can keep using Batua — we'll refresh transactions when import finishes.
-            </p>
+            
+            {uploadStage === "preview" && columnPreview && (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Column Mapping</h3>
+                  <Badge variant="outline">{columnPreview.format}</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  We detected these columns. Confirm the mapping before importing.
+                </p>
+                <div className="space-y-2">
+                  {Object.entries(columnPreview.mapping || {}).map(([field, column]) => (
+                    <div key={field} className="flex items-center justify-between text-sm">
+                      <span className="font-medium capitalize">{field.replace('_', ' ')}:</span>
+                      <span className="text-muted-foreground">{column}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => {
+                      setColumnPreview(null);
+                      setUploading(false);
+                      setUploadStage("uploading");
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={() => confirmUpload(columnPreview.file)}
+                    data-testid="confirm-mapping-btn"
+                  >
+                    Confirm & Import
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            {uploadStage !== "preview" && (
+              <UploadProgress stage={uploadStage} progress={uploadProgress} message={uploadMessage} />
+            )}
+            
+            {uploadStage !== "preview" && (
+              <p className="text-center text-[11px] text-muted-foreground">
+                You can keep using Batua — we'll refresh transactions when import finishes.
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex cursor-pointer flex-col items-center justify-center text-center">

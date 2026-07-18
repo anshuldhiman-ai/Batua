@@ -58,11 +58,19 @@ class SessionDB(SQLModel, table=True):
     data: Optional[str] = Field(default="{}", nullable=True)  # JSON-serialized session dictionary
 
 
+class CustomCategoryDB(SQLModel, table=True):
+    __tablename__ = "custom_categories"
+    
+    id: str = Field(primary_key=True, index=True)
+    name: Optional[str] = Field(default="", nullable=True)
+
+
 _MODEL_MAP = {
     "transactions": TransactionDB,
     "budgets": BudgetDB,
     "sessions": SessionDB,
     "chat_sessions": SessionDB,
+    "custom_categories": CustomCategoryDB,
 }
 
 
@@ -137,8 +145,16 @@ class SQLiteStorage:
         existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transactions)"))}
         if existing and "price" not in existing:
             conn.execute(text("ALTER TABLE transactions ADD COLUMN price FLOAT DEFAULT 0.0"))
-        if existing and "price_text" not in existing:
-            conn.execute(text("ALTER TABLE transactions ADD COLUMN price_text VARCHAR DEFAULT ''"))
+        
+        # Check if custom_categories table exists, create if not
+        tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+        if "custom_categories" not in tables:
+            conn.execute(text("""
+                CREATE TABLE custom_categories (
+                    id VARCHAR PRIMARY KEY,
+                    name VARCHAR
+                )
+            """))
 
     async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
         await self._ensure_db()

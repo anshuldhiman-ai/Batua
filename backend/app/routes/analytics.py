@@ -1,6 +1,7 @@
 """Analytics routes."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from collections import defaultdict
+from datetime import datetime, timedelta
 from app.helpers import month_key, _valid_date, split_payment
 from app.dependencies import get_storage
 from app.cache import get_cache, pre_bucket_transactions
@@ -156,3 +157,102 @@ async def treemap():
         })
     data.sort(key=lambda d: d["total"], reverse=True)
     return {"data": data}
+
+
+@router.get("/summary")
+async def analytics_summary(
+    start: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end: str = Query(..., description="End date (YYYY-MM-DD)"),
+    granularity: str = Query("monthly", description="Time granularity: daily, weekly, monthly")
+):
+    """Server-side analytics aggregation with configurable granularity.
+    
+    Returns pre-aggregated data for the specified date range to avoid
+    client-side pagination through all transactions. Uses cache for performance.
+    """
+    cache = get_cache()
+    cache_key = f"analytics_summary_{start}_{end}_{granularity}"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+    
+    storage = get_storage()
+    txns = await storage.all("transactions")
+    
+    # Filter by date range
+    filtered = []
+    for t in txns:
+        date_str = t.get("date", "")
+        if not date_str or not _valid_date(date_str[:10]):
+            continue
+        if start and date_str < start:
+            continue
+        if end and date_str > end:
+            continue
+        filtered.append(t)
+    
+    # Aggregate based on granularity
+    if granularity == "daily":
+        buckets = defaultdict(lambda: {"income": 0.0, "expense": 0.0})
+        for t in filtered:
+            date_str = t.get("date", "")[:10]
+            amount = t.get("amount", 0)
+            if amount > 0:
+                buckets[date_str]["income"] += amount
+            else:
+                buckets[date_str]["expense"] += -amount
+        
+        series = [
+            {"date": d, "income": round(v["income"], 2), "expense": round(v["expense"], 2)}
+            for d, v in sorted(buckets.items())
+        ]
+        
+    elif granularity == "weekly":
+        buckets = defaultdict(lambda: {"income": 0.0, "expense": 0.0})
+        for t in filtered:
+            date_str = t.get("date", "")
+            if not date_str:
+                continue
+            try:
+                dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
+                week_key = dt.strftime("%Y-W%W")  # ISO week
+                amount = t.get("amount", 0)
+                if amount > 0:
+                    buckets[week_key]["income"] += amount
+                else:
+                    buckets[week_key]["expense"] += -amount
+            except ValueError:
+                continue
+        
+        series = [
+            {"week": w, "income": round(v["income"], 2), "expense": round(v["expense"], 2)}
+            for w, v in sorted(buckets.items())
+        ]
+        
+    else:  # monthly (default)
+        buckets = defaultdict(lambda: {"income": 0.0, "expense": 0.0})
+        for t in filtered:
+            date_str = t.get("date", "")
+            if not date_str or len(date_str) < 7:
+                continue
+            month = date_str[:7]
+            amount = t.get("amount", 0)
+            if amount > 0:
+                buckets[month]["income"] += amount
+            else:
+                buckets[month]["expense"] += -amount
+        
+        series = [
+            {"month": m, "income": round(v["income"], 2), "expense": round(v["expense"], 2)}
+            for m, v in sorted(buckets.items())
+        ]
+    
+    result = {
+        "granularity": granularity,
+        "start": start,
+        "end": end,
+        "series": series,
+        "total_transactions": len(filtered)
+    }
+    cache.set(cache_key, result, ttl=120)  # 2 minute cache
+    return result

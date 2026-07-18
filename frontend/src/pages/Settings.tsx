@@ -11,6 +11,9 @@ import {
   Sparkles,
   Bot,
   Palette,
+  Plus,
+  Edit,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -63,10 +66,83 @@ export default function Settings() {
   const [health, setHealth] = React.useState(null);
   const [qaMode, setQaMode] = useLocalStorage("batua-qa-mode", "hybrid");
   const [chatSessionId] = useLocalStorage("batua-chat-session-id", null);
+  
+  // Custom categories state
+  const [categories, setCategories] = React.useState([]);
+  const [customCategories, setCustomCategories] = React.useState([]);
+  const [newCategoryName, setNewCategoryName] = React.useState("");
+  const [editingCategory, setEditingCategory] = React.useState(null);
+  const [deleteCategoryOpen, setDeleteCategoryOpen] = React.useState(false);
+  const [categoryToDelete, setCategoryToDelete] = React.useState(null);
+  const [reassignTo, setReassignTo] = React.useState("");
 
   React.useEffect(() => {
     api.get("/").then((r) => setHealth(r.data)).catch(() => {});
+    loadCategories();
   }, []);
+
+  const loadCategories = async () => {
+    try {
+      const { data } = await api.get("/categories/");
+      setCategories(data.categories || []);
+      setCustomCategories(data.custom || []);
+    } catch (e) {
+      console.error("Failed to load categories", e);
+    }
+  };
+
+  const addCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      await api.post("/categories/add", { name: newCategoryName.trim() });
+      toast.success(`Category "${newCategoryName}" added`);
+      setNewCategoryName("");
+      loadCategories();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to add category");
+    }
+  };
+
+  const startEditCategory = (cat) => {
+    setEditingCategory({ ...cat });
+  };
+
+  const saveCategoryRename = async () => {
+    if (!editingCategory || !editingCategory.newName?.trim()) return;
+    try {
+      await api.post("/categories/rename", {
+        old_name: editingCategory.name,
+        new_name: editingCategory.newName.trim()
+      });
+      toast.success(`Category renamed to "${editingCategory.newName}"`);
+      setEditingCategory(null);
+      loadCategories();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to rename category");
+    }
+  };
+
+  const startDeleteCategory = (cat) => {
+    setCategoryToDelete(cat);
+    setReassignTo("Other");
+    setDeleteCategoryOpen(true);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete || !reassignTo) return;
+    try {
+      await api.post("/categories/delete", {
+        name: categoryToDelete.name,
+        reassign_to: reassignTo
+      });
+      toast.success(`Category "${categoryToDelete.name}" deleted and reassigned`);
+      setDeleteCategoryOpen(false);
+      setCategoryToDelete(null);
+      loadCategories();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed to delete category");
+    }
+  };
 
   const clearAll = async () => {
     await api.delete("/transactions/");
@@ -364,6 +440,60 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader><CardTitle>Custom Categories</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="New category name"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && addCategory()}
+                  data-testid="new-category-input"
+                />
+                <Button onClick={addCategory} data-testid="add-category-btn">
+                  <Plus className="h-4 w-4" /> Add
+                </Button>
+              </div>
+              
+              <div className="space-y-2">
+                {customCategories.map((cat) => (
+                  <div key={cat} className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+                    {editingCategory?.name === cat ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
+                          defaultValue={cat}
+                          onChange={(e) => setEditingCategory({ ...editingCategory, newName: e.target.value })}
+                          onKeyPress={(e) => e.key === "Enter" && saveCategoryRename()}
+                          data-testid={`edit-category-input-${cat}`}
+                        />
+                        <Button size="sm" onClick={saveCategoryRename}>Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingCategory(null)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-medium">{cat}</span>
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => startEditCategory(cat)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => startDeleteCategory(cat)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+                {customCategories.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No custom categories yet. Add one above.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="border-rose-500/40">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-rose-500">
@@ -420,6 +550,36 @@ export default function Settings() {
               data-testid="confirm-clear-btn"
             >
               Yes, delete everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteCategoryOpen} onOpenChange={setDeleteCategoryOpen}>
+        <DialogContent onClose={() => { setDeleteCategoryOpen(false); setCategoryToDelete(null); }}>
+          <DialogHeader>
+            <DialogTitle>Delete category "{categoryToDelete?.name}"?</DialogTitle>
+            <DialogDescription>
+              Choose a category to reassign existing transactions to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Reassign to:</label>
+            <select
+              value={reassignTo}
+              onChange={(e) => setReassignTo(e.target.value)}
+              className="w-full h-10 rounded-lg border border-input bg-background px-3"
+              data-testid="reassign-category-select"
+            >
+              {categories.filter(c => c !== categoryToDelete?.name).map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDeleteCategoryOpen(false); setCategoryToDelete(null); }}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteCategory} data-testid="confirm-delete-category-btn">
+              Delete & Reassign
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -72,6 +72,7 @@ const VIEW_TITLES = {
  */
 export default function AnalyticsGraph({
   data,
+  comparisonData = null,
   view = "monthly",
   loading = false,
   height = 360,
@@ -85,6 +86,15 @@ export default function AnalyticsGraph({
         label: d.key || d.date,
       })),
     [data]
+  );
+
+  const comparisonChartData = useMemo(
+    () =>
+      (comparisonData || []).map((d) => ({
+        ...d,
+        label: d.key || d.date,
+      })),
+    [comparisonData]
   );
 
   if (loading) {
@@ -169,6 +179,34 @@ export default function AnalyticsGraph({
             />
             <Tooltip content={<RichTooltip view={view} />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
+            {comparisonChartData && comparisonChartData.length > 0 && (
+              <>
+                <Area
+                  type="monotone"
+                  dataKey="income"
+                  name="Previous Income"
+                  stroke={INCOME_COLOR}
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  opacity={0.5}
+                  data={comparisonChartData}
+                  animationDuration={500}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="expense"
+                  name="Previous Expense"
+                  stroke={EXPENSE_COLOR}
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  opacity={0.5}
+                  data={comparisonChartData}
+                  animationDuration={500}
+                />
+              </>
+            )}
             <Area
               type="monotone"
               dataKey="income"

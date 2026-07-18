@@ -134,16 +134,52 @@ export function useAnalyticsData({
   );
 
   const comparisonSeries = useMemo(() => {
-    if (view !== "monthly" || series.length < 2) return null;
-    const last = series[series.length - 1];
-    const prev = series[series.length - 2];
+    if (!series.length) return null;
+    
+    // Calculate previous period based on current date range
+    const start = new Date(range.startDate);
+    const end = new Date(range.endDate);
+    const daysDiff = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Previous period dates
+    const prevEnd = new Date(start);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - daysDiff + 1);
+    
+    // Filter transactions from previous period
+    const prevTransactions = transactions.filter(t => {
+      const tDate = new Date(t.date);
+      return tDate >= prevStart && tDate <= prevEnd;
+    });
+    
+    // Aggregate previous period data based on current view
+    const prevSeries = aggregateSeries(prevTransactions, view, 
+      prevStart.toISOString().slice(0, 10), 
+      prevEnd.toISOString().slice(0, 10)
+    );
+    
+    // Align previous period data with current period for comparison
+    // Map previous period indices to current period indices
+    const aligned = prevSeries.map((p, i) => ({
+      ...p,
+      key: series[i]?.key || p.key,
+      date: series[i]?.date || p.date,
+      label: series[i]?.label || p.label,
+      isComparison: true
+    }));
+    
     return {
-      incomeChange: prev.income > 0 ? ((last.income - prev.income) / prev.income) * 100 : 0,
-      expenseChange: prev.expense > 0 ? ((last.expense - prev.expense) / prev.expense) * 100 : 0,
-      savingsChange:
-        prev.savings !== 0 ? ((last.savings - prev.savings) / Math.abs(prev.savings)) * 100 : 0,
+      data: aligned,
+      periodLabel: `Previous ${daysDiff} days`,
+      incomeChange: series.reduce((sum, s) => sum + (s.income || 0), 0) > 0 
+        ? ((series.reduce((sum, s) => sum + (s.income || 0), 0) - aligned.reduce((sum, s) => sum + (s.income || 0), 0)) / series.reduce((sum, s) => sum + (s.income || 0), 0)) * 100 
+        : 0,
+      expenseChange: series.reduce((sum, s) => sum + (s.expense || 0), 0) > 0 
+        ? ((series.reduce((sum, s) => sum + (s.expense || 0), 0) - aligned.reduce((sum, s) => sum + (s.expense || 0), 0)) / series.reduce((sum, s) => sum + (s.expense || 0), 0)) * 100 
+        : 0,
     };
-  }, [series, view]);
+  }, [series, transactions, view, range.startDate, range.endDate]);
 
   return {
     loading,

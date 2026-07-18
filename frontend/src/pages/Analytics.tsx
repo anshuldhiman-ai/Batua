@@ -41,6 +41,7 @@ export default function Analytics() {
     start: currentYearMonth(),
     end: currentYearMonth(),
   });
+  const [showComparison, setShowComparison] = useLocalStorage("batua-analytics-comparison", false);
 
   const {
     loading,
@@ -87,6 +88,15 @@ export default function Analytics() {
         subtitle={`Deep insights into your financial patterns · ${range.label}`}
         actions={
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowComparison(!showComparison)}
+              data-testid="comparison-toggle-btn"
+            >
+              {showComparison ? "Hide" : "Show"} Comparison
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -163,6 +173,7 @@ export default function Analytics() {
       {/* Main chart */}
       <AnalyticsGraph
         data={series}
+        comparisonData={showComparison ? comparisonSeries?.data : null}
         view={view}
         loading={loading}
         height={view === "daily" ? 400 : 360}

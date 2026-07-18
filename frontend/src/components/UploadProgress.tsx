@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 export default function UploadProgress({ stage, progress = 0, message }) {
   const stages = [
     { id: "uploading", icon: UploadCloud, label: "Uploading your file" },
+    { id: "preview", icon: FileSearch, label: "Reviewing columns" },
     { id: "reading", icon: FileSearch, label: "Reading the file" },
     { id: "categorizing", icon: Tags, label: "Smart-categorizing" },
     { id: "saving", icon: Database, label: "Saving transactions" },

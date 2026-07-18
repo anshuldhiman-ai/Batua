@@ -401,6 +401,18 @@ export function computeWeekdayPattern(transactions) {
   return days.map((day) => ({ day, amount: totals[day] }));
 }
 
+/** Fetch server-side aggregated analytics summary (more efficient for large datasets). */
+export async function fetchAnalyticsSummary({ startDate, endDate, granularity = "monthly", signal } = {}) {
+  const params = new URLSearchParams({
+    start: startDate,
+    end: endDate,
+    granularity
+  });
+  const res = await fetch(`${apiUrl("/analytics/summary")}?${params}`, { signal });
+  if (!res.ok) throw new Error("Failed to fetch analytics summary");
+  return res.json();
+}
+
 /** Paginate through all transactions in a date range. */
 export async function fetchAllTransactions({ startDate, endDate, signal } = {}) {
   const pageSize = 500;
