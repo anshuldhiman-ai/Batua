@@ -6,6 +6,8 @@ import {
   AlertTriangle,
   Trash2,
   Database,
+  Download,
+  UploadCloud,
   Sparkles,
   Bot,
   Palette,
@@ -71,6 +73,57 @@ export default function Settings() {
     setConfirmOpen(false);
     setConfirmText("");
     toast.success("All transactions cleared");
+  };
+
+  const [restoring, setRestoring] = React.useState(false);
+  const restoreInputRef = React.useRef(null);
+
+  const downloadBackup = async () => {
+    try {
+      const { data } = await api.get("/backup");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `batua-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(
+        `Backup downloaded — ${data.transactions?.length ?? 0} transactions, ${data.budgets?.length ?? 0} budgets`
+      );
+    } catch {
+      toast.error("Could not create backup");
+    }
+  };
+
+  const restoreBackup = async (file) => {
+    if (!file) return;
+    setRestoring(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (parsed?.app !== "batua" || (!parsed.transactions && !parsed.budgets)) {
+        throw new Error("Not a Batua backup file");
+      }
+      const ok = window.confirm(
+        `Restore ${parsed.transactions?.length ?? 0} transactions and ${parsed.budgets?.length ?? 0} budgets? ` +
+          "This REPLACES all current data."
+      );
+      if (!ok) return;
+      const { data } = await api.post("/restore", parsed);
+      toast.success(
+        `Restored ${data.transactions} transactions and ${data.budgets} budgets` +
+          (data.skipped ? ` · skipped ${data.skipped} invalid rows` : "")
+      );
+      // Every page caches derived data — a clean reload is the honest way
+      // to make the whole app reflect the restored dataset.
+      setTimeout(() => window.location.reload(), 900);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e.message || "Restore failed");
+    } finally {
+      setRestoring(false);
+      if (restoreInputRef.current) restoreInputRef.current.value = "";
+    }
   };
 
   const clearChatMemory = async () => {
@@ -266,6 +319,48 @@ export default function Settings() {
                 value={health ? (health.ai ? "Connected" : "Rule-based fallback") : "…"}
                 badge={health ? (health.ai ? "success" : "secondary") : undefined}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Backup &amp; Restore</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Download full backup</div>
+                  <div className="text-sm text-muted-foreground">
+                    One JSON file with every transaction and budget — keep it anywhere, restore it on any machine.
+                  </div>
+                </div>
+                <Button variant="outline" onClick={downloadBackup} data-testid="backup-download-btn">
+                  <Download className="h-4 w-4" /> Backup
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border/60 pt-4">
+                <div>
+                  <div className="font-medium">Restore from backup</div>
+                  <div className="text-sm text-muted-foreground">
+                    Load a previously downloaded backup file. Replaces all current data.
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={restoring}
+                  onClick={() => restoreInputRef.current?.click()}
+                  data-testid="backup-restore-btn"
+                >
+                  <UploadCloud className="h-4 w-4" /> {restoring ? "Restoring…" : "Restore"}
+                </Button>
+                <input
+                  ref={restoreInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={(e) => restoreBackup(e.target.files?.[0])}
+                  data-testid="backup-restore-input"
+                />
+              </div>
             </CardContent>
           </Card>
 

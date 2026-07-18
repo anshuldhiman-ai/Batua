@@ -29,6 +29,7 @@ from app.routes import (  # noqa: E402
     nl_parse,
     ml_features,
     transcribe,
+    backup,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -89,6 +90,7 @@ api.include_router(recurring.router, prefix="/recurring", tags=["recurring"])
 api.include_router(nl_parse.router, tags=["nl-parse"])
 api.include_router(ml_features.router, prefix="/ml", tags=["ml-features"])
 api.include_router(transcribe.router, tags=["transcribe"])
+api.include_router(backup.router, tags=["backup"])
 
 # Mount API router
 app.include_router(api, prefix="/api")

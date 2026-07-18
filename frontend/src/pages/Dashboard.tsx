@@ -149,6 +149,16 @@ export default function Dashboard() {
     }
   });
 
+  // Unusual-spending detection — computed on demand by the backend's anomaly
+  // detector; surfaced here so it isn't buried inside ML Insights.
+  const anomaliesQuery = useQuery({
+    queryKey: ["anomalies"],
+    queryFn: async () => (await api.get("/ml/anomalies")).data,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const anomalies = anomaliesQuery.data?.anomalies || [];
+
   const currentMonth = metricsQuery.data?.current_month;
   const breakdownQuery = useQuery({
     queryKey: ["category_breakdown", currentMonth],
@@ -402,6 +412,46 @@ export default function Dashboard() {
                 <span className="font-semibold text-primary">Key insight · </span>
                 {insights.insights[0]}
               </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Unusual spending — anomaly detector callout, only when it fires */}
+      {!loading && anomalies.length > 0 && (
+        <motion.div variants={fadeUp}>
+          <Card className="border-amber-500/30" data-testid="anomaly-callout">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Unusual spending
+                <Badge variant="outline" className="ml-1">{anomalies.length}</Badge>
+                <span className="ml-auto text-xs font-normal text-muted-foreground">
+                  <button
+                    type="button"
+                    className="hover:text-foreground hover:underline"
+                    onClick={() => navigate("/ml-insights")}
+                  >
+                    See all →
+                  </button>
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {anomalies.slice(0, 3).map((a, i) => (
+                <div
+                  key={i}
+                  className="flex gap-2.5 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2.5 text-sm"
+                >
+                  <AlertTriangle
+                    className={cn(
+                      "mt-0.5 h-4 w-4 shrink-0",
+                      a.severity === "high" ? "text-rose-500" : "text-amber-500"
+                    )}
+                  />
+                  <span className="leading-relaxed">{a.description}</span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </motion.div>

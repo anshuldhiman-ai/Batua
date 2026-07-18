@@ -286,22 +286,42 @@ export default function Transactions() {
     }
   };
 
+  // Re-insert deleted rows (new ids — content is what matters). Powers the
+  // "Undo" action on delete toasts.
+  const restoreTxns = async (txns) => {
+    try {
+      await api.post("/transactions/bulk", { items: txns });
+      toast.success(txns.length === 1 ? "Transaction restored" : `Restored ${txns.length} transactions`);
+      invalidateAll();
+    } catch (e) {
+      toast.error("Restore failed");
+    }
+  };
+
   const deleteOne = async (id) => {
+    const txn = data.items.find((t) => t.id === id);
     try {
       await api.delete(`/transactions/${id}`);
-      toast.success("Deleted");
       invalidateAll();
+      toast.success("Deleted", txn ? { action: { label: "Undo", onClick: () => restoreTxns([txn]) } } : undefined);
     } catch (e) {
       toast.error("Delete failed");
     }
   };
 
   const bulkDelete = async () => {
+    // Only rows visible on this page can be captured for undo; if the
+    // selection spans pages we skip the offer rather than half-restore.
+    const captured = data.items.filter((t) => selected.has(t.id));
+    const canUndo = captured.length === selected.size;
     try {
       await api.post("/transactions/bulk-delete", { ids: Array.from(selected) });
-      toast.success(`Deleted ${selected.size} transactions`);
       setSelected(new Set());
       invalidateAll();
+      toast.success(
+        `Deleted ${captured.length || selected.size} transactions`,
+        canUndo ? { action: { label: "Undo", onClick: () => restoreTxns(captured) } } : undefined
+      );
     } catch (e) {
       toast.error("Bulk delete failed");
     }
@@ -638,6 +658,11 @@ export default function Transactions() {
                 }}
                 data-testid="form-price"
               />
+              {form.price_text ? (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  From file: <span className="font-medium tabular-nums">{form.price_text}</span> — editing clears this
+                </p>
+              ) : null}
             </Field>
             <Field label="Notes">
               <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} data-testid="form-notes" />
