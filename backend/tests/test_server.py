@@ -654,14 +654,15 @@ def test_people_summary_aggregation(client):
     assert "Mom" in data["names"]
     assert "SettledFriend" in data["names"]
 
-    # Settling the "gave 500" entry is purely visual — it doesn't change net
-    # math (settled entries still contribute). open_count drops to 1.
+    # Settling the "gave 500" entry means that debt is paid off — it must stop
+    # weighing on the net. Only the open "took 200" remains, so Rahul now
+    # owes 200 (net flips from +300 to -200). open_count drops to 1.
     gave_entry = next(e for e in rahul["entries"] if e["direction"] == "gave")
     client.put(f"/api/people/{gave_entry['id']}", json={"settled": True})
 
     data = client.get("/api/people/summary").json()
     rahul = next(p for p in data["people"] if p["person_name"] == "Rahul")
-    assert rahul["net"] == 300.0  # unchanged — settled is a presentation state
+    assert rahul["net"] == -200.0
     assert rahul["open_count"] == 1  # only the "took 200" remains open
 
 

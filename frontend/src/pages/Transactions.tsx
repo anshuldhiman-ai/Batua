@@ -47,9 +47,13 @@ const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment
 const unitPrice = (t) =>
   t.price && t.price > 0 ? t.price : Math.abs(t.amount || 0) / (t.quantity > 0 ? t.quantity : 1);
 
-// Verbatim price cell from the imported file (e.g. "120+240"); shown exactly
-// as written when present, otherwise the formatted per-item price.
-const priceDisplay = (t) => (t.price_text ? t.price_text : null);
+// Verbatim price breakdown (e.g. "10+20+25"), prefixed with ₹ unless it
+// already carries a currency marker; otherwise the formatted per-item price.
+const priceDisplay = (t) => {
+  if (!t.price_text) return null;
+  const raw = String(t.price_text).trim();
+  return /^(₹|rs\.?|inr)/i.test(raw) ? raw : `₹${raw}`;
+};
 
 const round2 = (n) => Math.round(n * 100) / 100;
 

@@ -96,56 +96,16 @@ async def create_entry(payload: PersonEntry):
     return entry.model_dump()
 
 
-@router.put("/{entry_id}")
-async def update_entry(entry_id: str, payload: PersonEntryUpdate):
-    """Patch an entry. Any subset of fields can be updated; omitted ones
-    are left alone (so "mark settled" is a single PUT with {settled: true})."""
-    storage = get_storage()
-    existing = await storage.get("people", entry_id)
-    if not existing:
-        raise HTTPException(404, "Entry not found")
-
-    patch: dict = {}
-    if payload.person_name is not None:
-        patch["person_name"] = _validate_name(payload.person_name)
-    if payload.direction is not None:
-        patch["direction"] = _validate_direction(payload.direction)
-    if payload.amount is not None:
-        patch["amount"] = _validate_amount(payload.amount)
-    if payload.reason is not None:
-        patch["reason"] = (payload.reason or "").strip()[:200]
-    if payload.date is not None:
-        patch["date"] = _validate_date(payload.date)
-    if payload.settled is not None:
-        patch["settled"] = bool(payload.settled)
-
-    if not patch:
-        return existing
-
-    updated = await storage.update("people", entry_id, patch)
-    return updated
-
-
-@router.delete("/{entry_id}")
-async def delete_entry(entry_id: str):
-    storage = get_storage()
-    ok = await storage.delete("people", entry_id)
-    if not ok:
-        raise HTTPException(404, "Entry not found")
-    return {"deleted": 1}
-
-
 @router.get("/summary")
 async def summary():
     """Aggregate per-person net balance.
 
-    Per-person net = sum(gave) - sum(took) over ALL their entries (open AND
-    settled). Settled is a visual marker — the user toggles it on an entry
-    to say "I've handled this outside the system, stop surfacing it" — but
-    the underlying math doesn't change: a "gave 500" plus a "took 200" still
-    nets to +300 (they owe 300), even after settling the 500. If we excluded
-    settled entries from the net, settling the "gave" would leave the "took"
-    200 as an orphan debt in the wrong direction.
+    Per-person net = sum(gave) - sum(took) over OPEN entries only. Settling
+    an entry means "this specific debt is paid off" — it must stop
+    contributing to the outstanding balance, or a fully-paid-back "gave 500"
+    would keep showing as 500 owed forever. A separate open "took 200" on
+    the same person still counts: settling the 500 leaves a net of -200
+    (you owe them 200), not +300.
 
     The global `totals.to_receive` / `totals.to_give` are derived from
     per-person nets — NOT a naive sum-by-direction. That way a person who
@@ -185,12 +145,12 @@ async def summary():
         bucket["entries"].append(e)
         if not settled:
             bucket["open"] += 1
-        # Both open and settled entries contribute to the net — settled is
-        # a presentation state, not a math operation.
-        if direction == "gave":
-            bucket["gave"] += amount
-        elif direction == "took":
-            bucket["took"] += amount
+            # Only open entries count toward the balance — a settled entry
+            # is a paid-off debt and must not keep weighing on the net.
+            if direction == "gave":
+                bucket["gave"] += amount
+            elif direction == "took":
+                bucket["took"] += amount
 
     people: list[dict] = []
     for name, b in by_person.items():
@@ -231,3 +191,42 @@ async def summary():
         "people": people,
         "names": sorted(all_names, key=str.lower),
     }
+
+
+@router.put("/{entry_id}")
+async def update_entry(entry_id: str, payload: PersonEntryUpdate):
+    """Patch an entry. Any subset of fields can be updated; omitted ones
+    are left alone (so "mark settled" is a single PUT with {settled: true})."""
+    storage = get_storage()
+    existing = await storage.get("people", entry_id)
+    if not existing:
+        raise HTTPException(404, "Entry not found")
+
+    patch: dict = {}
+    if payload.person_name is not None:
+        patch["person_name"] = _validate_name(payload.person_name)
+    if payload.direction is not None:
+        patch["direction"] = _validate_direction(payload.direction)
+    if payload.amount is not None:
+        patch["amount"] = _validate_amount(payload.amount)
+    if payload.reason is not None:
+        patch["reason"] = (payload.reason or "").strip()[:200]
+    if payload.date is not None:
+        patch["date"] = _validate_date(payload.date)
+    if payload.settled is not None:
+        patch["settled"] = bool(payload.settled)
+
+    if not patch:
+        return existing
+
+    updated = await storage.update("people", entry_id, patch)
+    return updated
+
+
+@router.delete("/{entry_id}")
+async def delete_entry(entry_id: str):
+    storage = get_storage()
+    ok = await storage.delete("people", entry_id)
+    if not ok:
+        raise HTTPException(404, "Entry not found")
+    return {"deleted": 1}
