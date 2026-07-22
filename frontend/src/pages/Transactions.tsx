@@ -53,6 +53,26 @@ const priceDisplay = (t) => (t.price_text ? t.price_text : null);
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
+const selectClass =
+  "h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+// Only digits/operators — never handed to Function() unless it matches this.
+const PRICE_EXPR_CHARS = /^[0-9+\-*/(). ]*$/;
+
+// Lets the Price field accept a breakdown like "10+20+25", not just a bare
+// number — mirrors the backend's arithmetic price-cell parsing.
+function evalPriceExpr(raw) {
+  const s = (raw || "").trim();
+  if (!s || !PRICE_EXPR_CHARS.test(s)) return null;
+  try {
+    // eslint-disable-next-line no-new-func
+    const val = Function(`"use strict"; return (${s});`)();
+    return Number.isFinite(val) && val > 0 ? val : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Transactions() {
   const queryClient = useQueryClient();
   const [search, setSearch] = React.useState("");
@@ -540,87 +560,103 @@ export default function Transactions() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              data-testid="txn-search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search description…"
-              className="pl-9"
-            />
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4">
+          {/* Filters */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-56">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  data-testid="txn-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search description…"
+                  className="pl-9"
+                />
+              </div>
+              <select
+                data-testid="txn-category-filter"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className={selectClass}
+              >
+                <option value="All">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <select
+                value={transactionTypeFilter}
+                onChange={(e) => setTransactionTypeFilter(e.target.value)}
+                className={selectClass}
+              >
+                <option value="All">All types</option>
+                <option value="credit">Credit</option>
+                <option value="debit">Debit</option>
+              </select>
+              <select
+                value={paymentMethodFilter}
+                onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                className={selectClass}
+              >
+                <option value="All">All payment methods</option>
+                <option value="UPI">UPI</option>
+                <option value="Cash">Cash</option>
+                <option value="Card">Card</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="txn-date-from" className="text-xs font-medium text-muted-foreground">From</label>
+                <DateInput
+                  id="txn-date-from"
+                  value={dateRange.start}
+                  onChange={(v) => setDateRange({ ...dateRange, start: v })}
+                  className="w-36"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label htmlFor="txn-date-to" className="text-xs font-medium text-muted-foreground">To</label>
+                <DateInput
+                  id="txn-date-to"
+                  value={dateRange.end}
+                  onChange={(v) => setDateRange({ ...dateRange, end: v })}
+                  className="w-36"
+                />
+              </div>
+            </div>
           </div>
-          <select
-            data-testid="txn-category-filter"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="All">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select
-            value={transactionTypeFilter}
-            onChange={(e) => setTransactionTypeFilter(e.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="All">All types</option>
-            <option value="credit">Credit</option>
-            <option value="debit">Debit</option>
-          </select>
-          <select
-            value={paymentMethodFilter}
-            onChange={(e) => setPaymentMethodFilter(e.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="All">All payment methods</option>
-            <option value="UPI">UPI</option>
-            <option value="Cash">Cash</option>
-            <option value="Card">Card</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-2">
-            <span className="text-xs text-muted-foreground">From:</span>
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-              className="h-8 w-32 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <span className="text-xs text-muted-foreground">To:</span>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-              className="h-8 w-32 rounded border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
+
+          {/* Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+            <div>
+              {selected.size > 0 && (
+                <Button variant="destructive" size="sm" onClick={bulkDelete} data-testid="bulk-delete-btn">
+                  <Trash2 className="h-4 w-4" /> Delete ({selected.size})
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/csv"))} data-testid="export-csv-btn">
+                <Download className="h-4 w-4" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/excel"))} data-testid="export-excel-btn">
+                <FileSpreadsheet className="h-4 w-4" /> Excel
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setReceiptModalOpen(true)} data-testid="scan-receipt-btn">
+                <Camera className="h-4 w-4" /> Scan Receipt
+              </Button>
+              <Button size="sm" onClick={openAdd} data-testid="add-txn-btn">
+                <Plus className="h-4 w-4" /> Add
+              </Button>
+            </div>
           </div>
-          {selected.size > 0 && (
-            <Button variant="destructive" size="sm" onClick={bulkDelete} data-testid="bulk-delete-btn">
-              <Trash2 className="h-4 w-4" /> Delete ({selected.size})
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/csv"))} data-testid="export-csv-btn">
-            <Download className="h-4 w-4" /> CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/excel"))} data-testid="export-excel-btn">
-            <FileSpreadsheet className="h-4 w-4" /> Excel
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setReceiptModalOpen(true)} data-testid="scan-receipt-btn">
-            <Camera className="mr-1.5 h-4 w-4" /> Scan Receipt
-          </Button>
-          <Button size="sm" onClick={openAdd} data-testid="add-txn-btn">
-            <Plus className="h-4 w-4" /> Add
-          </Button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Table */}
       <Card>
@@ -788,20 +824,39 @@ export default function Transactions() {
             </Field>
             <Field label="Price / item (₹)">
               <Input
-                type="number"
-                min="0"
-                value={form.price ?? 0}
+                type="text"
+                inputMode="decimal"
+                placeholder="e.g. 10+20+25"
+                value={form.price_text || String(form.price ?? 0)}
                 onChange={(e) => {
-                  const price = Math.abs(parseFloat(e.target.value) || 0);
+                  const raw = e.target.value;
                   const qty = form.quantity > 0 ? form.quantity : 1;
+
+                  // A bare number is stored as a plain price — no breakdown to show.
+                  if (/^\d*\.?\d*$/.test(raw)) {
+                    const price = Math.abs(parseFloat(raw) || 0);
+                    const mag = round2(price * qty);
+                    setForm({ ...form, price, amount: form.amount < 0 ? -mag : mag, price_text: "" });
+                    return;
+                  }
+
+                  // Mid-typing an expression (e.g. "10+") won't evaluate yet —
+                  // keep showing exactly what was typed without touching the amount.
+                  const evaluated = evalPriceExpr(raw);
+                  if (evaluated === null) {
+                    setForm({ ...form, price_text: raw });
+                    return;
+                  }
+
+                  const price = round2(evaluated);
                   const mag = round2(price * qty);
-                  setForm({ ...form, price, amount: form.amount < 0 ? -mag : mag, price_text: "" });
+                  setForm({ ...form, price, price_text: raw, amount: form.amount < 0 ? -mag : mag });
                 }}
                 data-testid="form-price"
               />
               {form.price_text ? (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  From file: <span className="font-medium tabular-nums">{form.price_text}</span> — editing clears this
+                  = <span className="font-medium tabular-nums">{formatINR(form.price)}</span> per item
                 </p>
               ) : null}
             </Field>
