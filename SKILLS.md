@@ -15,7 +15,8 @@ A map of the engineering skills this project demonstrates, with concrete pointer
 | Frontend (React 19, TypeScript, Vite) | ●●●●○ |
 | Data visualisation | ●●●●○ |
 | Security & production hardening | ●●●●○ |
-| Testing & CI/CD | ●●●○○ |
+| Testing & CI/CD | ●●●●○ |
+| Mobile / Cross-platform | ●●●○○ |
 | DevEx & documentation | ●●●●○ |
 
 ---
@@ -30,6 +31,8 @@ A map of the engineering skills this project demonstrates, with concrete pointer
   → `backend/server.py`, `backend/app/dependencies.py`
 - **Strict typed contracts** — Pydantic v2 models with `extra="ignore"` guard every request/response boundary; derived fields (e.g. `txn_type` from amount sign) are computed, not trusted from the client.
   → `backend/app/models.py`
+- **People & Goals features** — separate route modules for managing tracked individuals (borrow/lend tracking) and savings goals with recommendation engine.
+  → `backend/app/routes/people.py`, `backend/ml_goals.py`
 - **Background tasks & progress streaming** — Excel imports run off the event loop with a polled progress endpoint driving a staged UI bar.
   → `backend/app/routes/excel.py`, `backend/app/upload_progress.py`
 
@@ -42,6 +45,8 @@ A map of the engineering skills this project demonstrates, with concrete pointer
 - **Transparent failover** — a 1.5 s Mongo ping decides the backend at startup; unreachable Mongo silently falls back to embedded SQLite (WAL journaling), so the app runs anywhere with zero setup.
 - **Idempotent writes** — content-fingerprint de-duplication makes re-importing the same file or re-creating recurring entries safe.
   → `backend/app/helpers.py` (`_txn_key`), `backend/app/routes/transactions.py`
+- **Formula-aware Excel import** — price cells containing arithmetic expressions (`120+240`, `₹15*2+₹20`) are evaluated for storage while preserving the original verbatim text for display.
+  → `backend/excel_loader.py`, `backend/app/helpers.py`
 - **Performance** — single-pass month bucketing plus a TTL cache with mutation-bound invalidation keeps analytics fast as data grows.
   → `backend/app/cache.py`
 
@@ -71,13 +76,13 @@ A map of the engineering skills this project demonstrates, with concrete pointer
 
 **React 19, TypeScript, Vite, Tailwind**
 
-- **Typed component architecture** — pages, feature components, and a hand-rolled `ui/` primitive layer (button, dialog, tabs, select, …) built on `class-variance-authority` — no heavyweight component library.
+- **Typed component architecture** — pages (Dashboard, Analytics, Budgets, Transactions, MLInsights, Settings, People, Goals), feature components, and a hand-rolled `ui/` primitive layer (button, dialog, tabs, select, badge, input, card, skeleton, …) built on `class-variance-authority` — no heavyweight component library.
   → `frontend/src/components/`, `frontend/src/pages/`
 - **Server-state management** — TanStack Query for caching and revalidation; Axios client centralised against `VITE_BACKEND_URL`.
   → `frontend/src/lib/`, `frontend/src/hooks/`
 - **Custom hooks** — `useLocalStorage`, `useDebounce`, `useAnalyticsData` encapsulate cross-cutting behaviour.
   → `frontend/src/hooks/`
-- **UX polish** — Framer Motion transitions, Sonner toasts, drag-and-drop uploads (`react-dropzone`), voice input, and an error boundary.
+- **UX polish** — Framer Motion transitions, Sonner toasts, drag-and-drop uploads (`react-dropzone`), voice input, error boundary, cursor-tracking card glows, and animated comet-border input bar.
   → `frontend/src/components/`
 
 ## 📊 Data Visualisation
@@ -96,13 +101,26 @@ A map of the engineering skills this project demonstrates, with concrete pointer
 - **Secrets hygiene** — all credentials in git-ignored `.env`, a committed `.env.example`, and documented key-rotation guidance.
 - **CORS discipline** — wildcard only for local use; credentials enabled solely for explicitly listed origins.
 
+## 📱 Mobile & Cross-platform Engineering
+
+**Chaquopy, Capacitor, Android NDK, Gradle**
+
+- **Embedded Python on Android** — designed an architecture where the full FastAPI backend runs inside an Android process via Chaquopy, serving the existing React SPA through a Capacitor WebView. No backend rewrite, no hosted server.
+  → `backend/mobile_bootstrap.py`, `backend/requirements-mobile.txt`
+- **dependency resolution for constrained platforms** — audited the entire dependency tree for prebuilt-wheel availability on `arm64-v8a`; identified that `pydantic-core` (Rust) blocks the path and explored options (downgrade, cross-compilation, tool-swap) before pausing.
+  → `scratch/chaquopy-spike/`, `frontend/android/wheels/` (custom-built wheels)
+- **Graceful mobile degradation plan** — every mobile-incompatible dependency (Ollama, spaCy, faster-whisper, MongoDB) already degrades gracefully in the backend; the mobile path disables them at startup via env vars.
+- **Build toolchain** — Android SDK, Gradle 8.7 (version-locked for Chaquopy compatibility), JDK 17, and the full `assembleDebug` flow exercised end-to-end in a throwaway spike.
+
 ## ✅ Testing & CI/CD
 
-**Pytest, Ruff, GitHub Actions**
+**Pytest, Vitest, Ruff, GitHub Actions**
 
-- Unit tests across the parser, storage (both backends), chat engine, ML features, Excel loader, and route handlers.
+- **Backend test suite** — 13 test modules covering the NL parser, storage abstraction (both backends), chat engine, ML features & NLP, Excel loader, upload progress, route helpers, server integration, and an insights regression suite.
   → `backend/tests/`
-- CI lints (Ruff), rebuilds training data, runs the backend suite, and builds the frontend on every push/PR.
+- **Frontend component tests** — Vitest-based tests for KPICard, BudgetHealth, NLInputBar, ErrorBoundary, utility helpers, analytics utils, and theme functions — validating UI behaviour and data transformations.
+  → `frontend/src/components/*.test.tsx`, `frontend/src/lib/*.test.js`
+- **CI pipeline** — Ruff linting, training data rebuild, full backend pytest suite, and frontend build verification on every push/PR.
   → `.github/workflows/ci.yml`
 
 ## 🛠 Developer Experience & Docs

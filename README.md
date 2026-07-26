@@ -58,6 +58,8 @@
   **locally** on the backend, so voice works even when the browser's cloud mic (Google) is
   blocked or offline. Falls back to the browser Web Speech API automatically.
 - **Bulk input** — paste multiple lines; each line is parsed independently.
+- **People management** — track borrowed/lent money with named individuals, including settlement tracking.
+  → `backend/app/routes/people.py`
 - **Recurring entries** — replicate a transaction across selected months in one action, with idempotent de-duplication.
 - **Excel / CSV import** — column auto-detection (including quantity and per-item price columns), staged progress reporting, 25 MB guard, and fingerprint-based dedupe on re-upload.
 - **Exact prices from your sheet** — a price cell written as an arithmetic breakdown (e.g. `120+240` or `₹15*2+₹20`) is evaluated for the total *and* shown verbatim in the Transactions table, so the app displays exactly what your file says.
@@ -213,6 +215,7 @@ All routes are mounted under `/api`. Highlights:
 | **Analytics** | `/analytics/timeline` · `category-breakdown` · `top-merchants` · `heatmap` · `payment-method` · `treemap` |
 | **Dashboard** | `GET /dashboard/metrics` |
 | **Budgets** | `GET/POST /budgets` · `DELETE /budgets/{id}` · `GET /budgets/status` |
+| **People** | `GET/POST /people` · `PUT/DELETE /people/{id}` · `POST /people/{id}/settle` |
 | **Insights** | `GET /insights` · `POST /insights/refresh` |
 | **NL parsing** | `POST /parse-nl` · `parse-nl/bulk` · `parse-nl/voice` |
 | **Voice / transcription** | `GET /transcribe/status` · `POST /transcribe` (offline audio → text → parsed) |
@@ -239,24 +242,28 @@ batua/
 │   ├── ml_goals.py          # Savings goals & recommendation engine
 │   ├── ml_rag.py            # Grounded Q&A over transactions
 │   ├── excel_loader.py      # Column auto-detection & import
+│   ├── mobile_bootstrap.py  # Programmatic uvicorn entry for Android (Chaquopy)
+│   ├── requirements-mobile.txt  # Slimmed deps for Android build
 │   ├── app/
 │   │   ├── models.py        # Pydantic API/DB models
 │   │   ├── cache.py         # In-memory TTL metrics cache
 │   │   ├── helpers.py       # Shared backend helpers
 │   │   ├── dependencies.py  # Storage dependency injection
 │   │   └── routes/          # Decoupled FastAPI routers (one module per domain)
-│   └── tests/               # Pytest suite (parser, storage, chat, ML, server)
+│   └── tests/               # 13-module pytest suite
 ├── frontend/
 │   ├── index.html           # Vite entry
 │   ├── vite.config.js       # Path aliases + /api proxy
 │   ├── vercel.json          # SPA rewrites + security headers
+│   ├── capacitor.config.json  # Capacitor mobile shell config (gitignored)
 │   └── src/
 │       ├── main.tsx         # React root
 │       ├── App.tsx          # Router + providers
-│       ├── components/      # Layout, NL input bar, charts, chat widget, ui/ primitives
-│       ├── pages/           # Dashboard, Analytics, Budgets, Transactions, MLInsights, Settings
+│       ├── components/      # Layout, NL input bar, charts, chat widget, ui/ primitives, analytics panels
+│       ├── pages/           # Dashboard · Analytics · Budgets · Transactions · MLInsights · Settings · People · Goals
 │       ├── hooks/           # useLocalStorage, useDebounce, useAnalyticsData
-│       └── lib/             # Finance utils, analytics helpers, themes
+│       └── lib/             # Finance utils, analytics helpers, themes, utility functions
+├── scratch/                 # Android spike artifacts (gitignored)
 ├── render.yaml              # Render blueprint (backend)
 ├── DEPLOYMENT.md            # Full deploy walkthrough
 └── SKILLS.md                # Engineering competencies demonstrated
@@ -268,6 +275,10 @@ batua/
 
 Every push is linted and tested via GitHub Actions (`.github/workflows/ci.yml`).
 
+**Backend** — 13 test modules covering the NL parser, storage abstraction (both MongoDB and SQLite backends), chat engine, ML features & NLP, Excel loader, upload progress, route helpers, server integration, and an insights regression suite.
+
+**Frontend** — Vitest + Testing Library component tests for KPICard, BudgetHealth, NLInputBar, ErrorBoundary, plus unit tests for utility helpers, analytics utils, and theme functions.
+
 ```bash
 # Backend
 cd backend
@@ -277,6 +288,7 @@ pytest tests/ -v
 # Frontend
 cd frontend
 yarn build
+npx vitest run
 ```
 
 The suite covers the NL parser, storage abstraction (both backends), chat engine, ML features, Excel loader, and route handlers.
