@@ -1,5 +1,4 @@
 """Unit tests for app/upload_progress.py — ProgressStore."""
-import time
 from app.upload_progress import ProgressStore, STAGE_BOUNDS, STAGE_LABELS, get_store
 
 
