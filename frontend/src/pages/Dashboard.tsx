@@ -14,6 +14,8 @@ import {
   RefreshCw,
   Plus,
   Calendar,
+  Briefcase,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -400,6 +402,58 @@ export default function Dashboard() {
         </div>
       </motion.section>
 
+      {/* ════════════════════════════════════════════════════════════
+          ALL-TIME OVERVIEW — income, spend, and investments at a glance
+          One row of big-number pills so the lifetime picture is always
+          visible without scrolling to the bottom of the page.
+          ════════════════════════════════════════════════════════════ */}
+      {!loading && metrics && (
+        <motion.div variants={fadeUp}>
+          <Card data-testid="alltime-overview">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                All-Time Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatPill
+                  label="Total Income"
+                  value={formatINR(metrics.total_income, { compact: true })}
+                  tone="emerald"
+                  icon={TrendingUp}
+                />
+                <StatPill
+                  label="Total Spent"
+                  value={formatINR(metrics.total_expense, { compact: true })}
+                  tone="rose"
+                  icon={TrendingDown}
+                />
+                <StatPill
+                  label="Investments"
+                  value={formatINR(metrics.investments_total, { compact: true })}
+                  tone="violet"
+                  icon={Briefcase}
+                />
+                <StatPill
+                  label="Net Savings"
+                  value={formatINR(metrics.total_savings, { compact: true })}
+                  tone={metrics.total_savings >= 0 ? "primary" : "rose"}
+                  icon={PiggyBank}
+                  sub={`${metrics.total_savings_rate}% of income`}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>Across <strong className="text-foreground">{metrics.month_count}</strong> {metrics.month_count === 1 ? "month" : "months"}</span>
+                <span>·</span>
+                <span>Avg <strong className="text-foreground">{formatINR(metrics.avg_monthly_expense, { compact: true })}</strong> / month</span>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Headline Insight — high-signal takeaway right under the hero */}
       {!loading && insights && insights.insights && insights.insights.length > 0 && (
         <motion.div variants={fadeUp}>
@@ -614,48 +668,48 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Lifetime
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Stats &amp; Habits
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading || !metrics ? (
               <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
                 <StatPill
-                  label="Total Income"
-                  value={formatINR(metrics.total_income, { compact: true })}
-                  tone="emerald"
-                  icon={TrendingUp}
-                />
-                <StatPill
-                  label="Total Spent"
-                  value={formatINR(metrics.total_expense, { compact: true })}
-                  tone="rose"
-                  icon={TrendingDown}
-                />
-                <StatPill
-                  label="Total Saved"
-                  value={formatINR(metrics.total_savings, { compact: true })}
-                  sub={`${metrics.total_savings_rate}% of income`}
-                  tone={metrics.total_savings >= 0 ? "primary" : "rose"}
-                  icon={PiggyBank}
-                />
-                <StatPill
-                  label="Avg Savings"
+                  label="Avg Savings Rate"
                   value={`${metrics.avg_savings_rate}%`}
                   tone="sky"
+                  icon={PiggyBank}
+                  sub={`over ${metrics.month_count} ${metrics.month_count === 1 ? "month" : "months"}`}
+                />
+                <StatPill
+                  label="Income : Expense Ratio"
+                  value={(() => {
+                    const r = metrics.total_expense > 0
+                      ? (metrics.total_income / metrics.total_expense).toFixed(2)
+                      : "—";
+                    return r;
+                  })()}
+                  tone={metrics.total_savings >= 0 ? "primary" : "rose"}
+                  icon={LineChart}
+                  sub={metrics.net >= 0 ? "earning more than spending" : "spending exceeds income"}
+                />
+                <StatPill
+                  label="Total Transactions"
+                  value={String(metrics.txn_count ?? 0)}
+                  tone="violet"
                   icon={Wallet}
                 />
                 <StatPill
-                  label="Avg Spend"
-                  value={formatINR(metrics.avg_monthly_expense, { compact: true })}
+                  label="Avg Monthly Savings"
+                  value={formatINR(metrics.total_savings / Math.max(1, metrics.month_count), { compact: true })}
+                  tone={metrics.total_savings >= 0 ? "emerald" : "rose"}
+                  icon={TrendingUp}
                   sub="per month"
-                  tone="violet"
-                  icon={LineChart}
                 />
               </div>
             )}

@@ -14,17 +14,17 @@ async def test_sqlite_storage_operations(tmp_path):
     doc1 = {"id": "txn-1", "date": "2026-06-01", "description": "Zomato", "amount": -450.0, "category": "Food & Dining", "quantity": 1, "price": 450.0}
     inserted = await storage.insert("transactions", doc1)
     assert inserted == doc1
-    
+
     # 3. Test get and all
     retrieved = await storage.get("transactions", "txn-1")
-    assert retrieved == doc1
-    
+    assert doc1.items() <= retrieved.items()  # SQLite adds default empty-string fields
+
     non_existent = await storage.get("transactions", "txn-none")
     assert non_existent is None
-    
+
     all_docs = await storage.all("transactions")
     assert len(all_docs) == 1
-    assert all_docs[0] == doc1
+    assert doc1.items() <= all_docs[0].items()
     
     # 4. Test insert_many
     doc2 = {"id": "txn-2", "date": "2026-06-02", "description": "Salary", "amount": 50000.0, "category": "Income", "quantity": 1, "price": 50000.0}

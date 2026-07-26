@@ -1,0 +1,19 @@
+# Mobile-optimised requirements — drops MongoDB, spaCy, whisper, and other
+# native-only packages that don't have Android wheels or aren't needed on-device.
+# FastAPI / uvicorn without [standard] extras to drop uvloop/httptools C deps.
+
+fastapi==0.115.6
+uvicorn==0.33.0
+pydantic==2.13.4
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+python-multipart==0.0.20
+sqlmodel==0.0.29
+aiosqlite==0.22.1
+greenlet==3.5.3
+pandas==2.2.3
+numpy==2.2.4
+scikit-learn==1.6.1
+requests==2.32.4
+openpyxl==3.1.5
+xlsxwriter==3.2.0

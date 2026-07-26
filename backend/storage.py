@@ -123,8 +123,9 @@ def _to_dict(obj: Any, collection: str) -> Dict[str, Any]:
     
     # Convert model to dict
     d = obj.model_dump()
-    # Prune None and empty strings so it behaves exactly like dynamic document storage
-    return {k: v for k, v in d.items() if v is not None and v != ""}
+    # Prune only None values so the response matches MongoDB's dynamic-document
+    # behaviour (MongoDB keeps empty-string fields; SQLite must too).
+    return {k: v for k, v in d.items() if v is not None}
 
 
 def _to_model(doc: Dict[str, Any], collection: str) -> Any:
@@ -425,7 +426,17 @@ class MongoStorage:
 # --------------------------------------------------------------------------- #
 
 async def create_storage() -> tuple[object, str]:
-    """Return (storage, backend_name). Tries MongoDB, falls back to SQLite."""
+    """Return (storage, backend_name). Tries MongoDB, falls back to SQLite.
+
+    Set ``STORAGE_BACKEND=sqlite`` to skip the MongoDB probe entirely — used
+    on Android where Mongo is never available and the 1.5s timeout is wasted.
+    """
+    # Short-circuit to SQLite when configured (mobile / offline use)
+    if os.environ.get("STORAGE_BACKEND", "").strip().lower() == "sqlite":
+        sqlite_path = Path(__file__).parent / "data" / "store.db"
+        logger.info("STORAGE_BACKEND=sqlite, using SQLite directly at %s", sqlite_path)
+        return SQLiteStorage(str(sqlite_path)), "sqlite"
+
     mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
     db_name = os.environ.get("DB_NAME", "batua")
     try:

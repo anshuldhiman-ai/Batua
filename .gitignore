@@ -37,9 +37,18 @@ logo*.png
 .claude/
 scratch/
 
+# AI / project docs (not for the repo)
+CLAUDE.md
+TASK.md
+
+# Android / Capacitor (mobile APK build)
+frontend/android/
+frontend/capacitor.config.json
+
 # Env — single project-root .env (keep .env.example, never commit real keys)
 /.env
 .env.local
+atlas-credentials.env
 # (legacy per-folder env files, in case any linger)
 backend/.env
 frontend/.env
