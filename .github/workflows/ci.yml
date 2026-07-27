@@ -30,7 +30,7 @@ jobs:
       run: |
         cd backend
         python -m pip install --upgrade pip
-        pip install ruff pytest pytest-asyncio
+        pip install ruff
         pip install -r requirements.txt
     
     - name: Run ruff check
