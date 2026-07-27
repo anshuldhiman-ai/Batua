@@ -70,3 +70,8 @@ jobs:
       run: |
         cd frontend
         yarn build
+
+    - name: Run tests
+      run: |
+        cd frontend
+        yarn test
