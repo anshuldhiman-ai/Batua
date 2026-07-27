@@ -297,3 +297,31 @@ def test_parse_transaction_price_derivation():
     assert items[0]["quantity"] == 2
     assert items[0]["amount"] == -30.0
     assert items[0]["price"] == 15.0  # 30/2 = 15
+
+
+# ── C3 regression: "credit" keyword must not misclassify card purchases ──
+
+def test_credit_card_purchase_is_not_income():
+    """'amazon 1500 credit card' must classify as expense, not Income."""
+    today = datetime(2026, 6, 19)
+    result = parse_transaction("amazon 1500 credit card", today)
+    assert result["category"] != "Income", (
+        f"Expected category != Income, got {result['category']}"
+    )
+    assert result["txn_type"] == "debit"
+    assert result["amount"] < 0
+
+
+def test_salary_with_credit_word_is_still_income():
+    """'salary 85000 credit' must still classify as Income (via 'salary')."""
+    today = datetime(2026, 6, 19)
+    result = parse_transaction("salary 85000 credit", today)
+    assert result["category"] == "Income"
+    assert result["txn_type"] == "credit"
+    assert result["amount"] > 0
+
+
+def test_credit_card_payment_method_detected():
+    """Payment method 'Credit Card' should still be detected."""
+    result = parse_transaction("amazon 1500 credit card", datetime(2026, 6, 19))
+    assert result["payment_method"] == "Credit Card"

@@ -31,7 +31,7 @@ PAYMENT_METHODS = {
 }
 
 INCOME_WORDS = [
-    "salary", "income", "refund", "cashback", "credited", "credit",
+    "salary", "income", "refund", "cashback", "credited",
     "bonus", "interest", "dividend", "received", "stipend", "freelance",
     "reimbursement", "payout", "deposit",
     "pocketmoney", "pocket money", "allowance", "gift", "gifted",

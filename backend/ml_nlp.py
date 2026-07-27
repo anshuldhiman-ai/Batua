@@ -40,7 +40,7 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
     # ---- Order matters: first match wins. Specific categories go BEFORE
     # broad/greedy ones so they catch their own hits first. -----------------
     "Income": [
-        "salary", "income", "refund", "cashback", "credited", "credit",
+        "salary", "income", "refund", "cashback", "credited",
         "bonus", "interest", "dividend", "received", "stipend", "freelance",
         "reimbursement", "payout", "deposit", "pocket money", "allowance",
         "gift", "gifted", "prize", "won", "sold", "returns", "rebate",
