@@ -19,7 +19,7 @@ class Cache:
 
         timestamp, ttl, value = self._store[key]
         if time.time() - timestamp > ttl:
-            del self._store[key]
+            self._store.pop(key, None)
             return None
 
         return value
@@ -32,7 +32,7 @@ class Cache:
     def invalidate(self, key: str) -> None:
         """Invalidate a specific cache key."""
         if key in self._store:
-            del self._store[key]
+            self._store.pop(key, None)
     
     def clear(self) -> None:
         """Clear all cache entries."""

@@ -8,7 +8,8 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: 5,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     },
   },
 });
@@ -32,6 +33,9 @@ if ((import.meta as any).env.DEV) {
       }
     });
   }
+} else if ((import.meta as any).env.VITE_MOBILE_BUILD) {
+  // Skip service worker on mobile (Capacitor WebView) — it causes stale-asset bugs
+  console.log("[Service Worker] Skipped for mobile build");
 } else if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker

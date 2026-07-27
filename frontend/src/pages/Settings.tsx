@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import { CheckCircle2, XCircle, Loader2, Wifi, WifiOff } from "lucide-react";
 
 // How the AI Insights chat answers questions. Read by QAChatWidget.
 const QA_MODES = [
@@ -77,7 +78,7 @@ export default function Settings() {
   const [reassignTo, setReassignTo] = React.useState("");
 
   React.useEffect(() => {
-    api.get("/").then((r) => setHealth(r.data)).catch(() => {});
+    api.get("/").then((r) => setHealth(r.data)).catch(() => setHealth({ error: true }));
     loadCategories();
   }, []);
 
@@ -231,6 +232,9 @@ export default function Settings() {
           <TabsTrigger value="ai" data-testid="settings-tab-ai">
             <Bot className="mr-1.5 h-3.5 w-3.5" /> AI & Voice
           </TabsTrigger>
+          <TabsTrigger value="system" data-testid="settings-tab-system">
+            <Wifi className="mr-1.5 h-3.5 w-3.5" /> System
+          </TabsTrigger>
           <TabsTrigger value="data" data-testid="settings-tab-data">
             <Database className="mr-1.5 h-3.5 w-3.5" /> Data
           </TabsTrigger>
@@ -374,7 +378,55 @@ export default function Settings() {
           <MicTest />
         </TabsContent>
 
-        {/* ---------- Data ---------- */}
+        {/* ---------- System ---------- */}
+        <TabsContent value="system" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wifi className="h-4 w-4" /> Backend Connection
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Loader2 className={`h-4 w-4 ${health === null ? "animate-spin" : "hidden"}`} />
+                  <CheckCircle2 className={`h-4 w-4 text-emerald-500 ${health && !health.error ? "" : "hidden"}`} />
+                  <XCircle className={`h-4 w-4 text-rose-500 ${health?.error ? "" : "hidden"}`} />
+                  Server status
+                </span>
+                <Badge variant={health === null ? "secondary" : health?.error ? "destructive" : "default"}>
+                  {health === null ? "Checking..." : health?.error ? "Disconnected" : "Connected"}
+                </Badge>
+              </div>
+
+              {health && !health.error && (
+                <>
+                  <Row icon={Database} label="Storage" value={health.storage || "—"} />
+                  <Row icon={Sparkles} label="Gemini AI" value={health.ai ? "Enabled" : "Disabled (rule-based)"} />
+                  <div className="pt-2 text-xs text-muted-foreground border-t border-border/40">
+                    Server: 127.0.0.1:8001 &middot; {health.app || "Batua"} v1.0.0
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-4 w-4" /> API Endpoints
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <EndpointCheck label="Transaction API" path="/api/transactions/" />
+              <EndpointCheck label="Analytics API" path="/api/analytics/category-breakdown" />
+              <EndpointCheck label="Dashboard API" path="/api/dashboard/metrics" />
+              <EndpointCheck label="Categories API" path="/api/categories/" />
+              <EndpointCheck label="NL Parsing / Parse" path="/api/parse-nl" method="POST" />
+              <EndpointCheck label="ML Features" path="/api/ml/spending-patterns" />
+            </CardContent>
+          </Card>
+        </TabsContent>
         <TabsContent value="data" className="space-y-6">
           <Card>
             <CardHeader><CardTitle>System</CardTitle></CardHeader>
@@ -595,6 +647,39 @@ function Row({ icon: Icon, label, value, badge }: any) {
         <Icon className="h-4 w-4 text-muted-foreground" /> {label}
       </span>
       {badge ? <Badge variant={badge}>{value}</Badge> : <span className="text-sm text-muted-foreground">{value}</span>}
+    </div>
+  );
+}
+
+function EndpointCheck({ label, path, method = "GET" }: { label: string; path: string; method?: string }) {
+  const [status, setStatus] = React.useState<"loading" | "ok" | "error">("loading");
+  const [errorMsg, setErrorMsg] = React.useState("");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const opts: any = { timeout: 5000 };
+    if (method === "POST") {
+      opts.method = "POST";
+      opts.headers = { "Content-Type": "application/json" };
+      opts.data = {};
+    }
+    api({ url: path, ...opts })
+      .then(() => { if (!cancelled) setStatus("ok"); })
+      .catch((e) => { if (!cancelled) { setStatus("error"); setErrorMsg(e?.response?.status ? `HTTP ${e.response.status}` : e.message); }});
+    return () => { cancelled = true; };
+  }, [path, method]);
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="flex items-center gap-2 text-sm">
+        {status === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        {status === "ok" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+        {status === "error" && <XCircle className="h-3.5 w-3.5 text-rose-500" />}
+        {label}
+      </span>
+      <Badge variant={status === "loading" ? "secondary" : status === "ok" ? "default" : "destructive"} className="text-[10px]">
+        {status === "loading" ? "..." : status === "ok" ? method : errorMsg || "Error"}
+      </Badge>
     </div>
   );
 }

@@ -20,6 +20,8 @@ if str(_backend_dir) not in sys.path:
 _Host = "127.0.0.1"
 _Port = 8001
 _started = False
+_ready = False
+_error = None
 
 
 def start_server(config: Optional[dict] = None) -> None:
@@ -29,7 +31,7 @@ def start_server(config: Optional[dict] = None) -> None:
         config: Optional dict of env var overrides passed from Kotlin
                 (since setting env vars from Java on Android ART is unreliable).
     """
-    global _started, _Port
+    global _started, _Port, _error
     if _started:
         logging.getLogger("batua.mobile").warning("Server already started, skipping")
         return
@@ -43,24 +45,42 @@ def start_server(config: Optional[dict] = None) -> None:
     _Port = int(os.environ.get("MOBILE_PORT", "8001"))
 
     logger = logging.getLogger("batua.mobile")
-    logger.info("Starting Batua server on %s:%s", _Host, _Port)
 
-    # Now safe to import server — env vars are set
-    import uvicorn
-    from server import app
+    try:
+        # Now safe to import server — env vars are set
+        import uvicorn
+        from server import app
 
-    uvicorn.run(
-        app,
-        host=_Host,
-        port=_Port,
-        log_level="info",
-        reload=False,
-    )
+        logger.info("Starting Batua server on %s:%s", _Host, _Port)
+        global _ready
+        _ready = True
+        uvicorn.run(
+            app,
+            host=_Host,
+            port=_Port,
+            log_level="info",
+            reload=False,
+        )
+    except Exception as e:
+        _error = str(e)
+        logger.error("Failed to start Batua server: %s", _error)
+        raise
+
+
+def is_ready() -> bool:
+    """Health check called from Kotlin — returns True when server is accepting requests."""
+    return _ready
+
+
+def get_error() -> str:
+    """Return any startup error message (empty string if none)."""
+    return _error or ""
 
 
 def stop_server() -> None:
     """Graceful shutdown hook (called from Kotlin on app destroy)."""
-    global _started
+    global _started, _ready
     _started = False
+    _ready = False
     logger = logging.getLogger("batua.mobile")
     logger.info("Batua server stopped")
