@@ -436,7 +436,7 @@ def _clean_description(text: str) -> str:
         for keyword in keywords:
             cleaned = _keyword_pattern(keyword).sub(" ", cleaned)
     cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" -")
-    return cleaned.title() if cleaned else "Transaction"
+    return cleaned.title().replace("'T", "'t").replace("'S", "'s") if cleaned else "Transaction"
 
 
 # --------------------------------------------------------------------------- #

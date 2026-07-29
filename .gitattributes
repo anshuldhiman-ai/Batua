@@ -1,0 +1,30 @@
+# Auto-detect text files and normalize to LF
+* text=auto
+
+# Explicit text types — all normalized to LF
+*.py text
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.json text
+*.yml text
+*.yaml text
+*.md text
+*.css text
+*.html text
+*.sh text
+*.bat text
+*.env.example text
+
+# Binary files — never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.db binary
+*.sqlite binary

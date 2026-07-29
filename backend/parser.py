@@ -580,7 +580,7 @@ def _clean_description(text: str, fallback: str) -> str:
     desc = re.sub(r"\s{2,}", " ", desc)
     if not desc:
         return fallback if fallback != "Other" else "Transaction"
-    return desc.title()
+    return desc.title().replace("'T", "'t").replace("'S", "'s")
 
 
 def parse_transaction(text: str, today: datetime | None = None) -> dict:
