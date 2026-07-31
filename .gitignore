@@ -26,7 +26,7 @@ frontend/public/app-icon-*.png
 frontend/public/apple-touch-icon.png
 frontend/public/favicon.ico
 frontend/public/logo.png
-frontend/public/manifest.json
+# frontend/public/manifest.json  # Uncomment if you want to keep manifest local
 
 # Local images and scratch files
 ChatGPT Image*.png

@@ -35,9 +35,10 @@ export default function Goals() {
   }, []);
 
   const loadGoals = async () => {
+    setLoading(true);
     try {
-      const { data } = await api.get("/ml/goals");
-      setGoals(data || []);
+      const { data } = await api.get("/goals/");
+      setGoals(data.goals || []);
     } catch (e) {
       console.error("Failed to load goals", e);
       toast.error("Failed to load goals");
@@ -62,28 +63,18 @@ export default function Goals() {
 
     try {
       if (editingGoal) {
-        await api.put(`/ml/goals/${editingGoal.id}`, goalData);
+        await api.put(`/goals/${editingGoal.id}`, goalData);
         toast.success("Goal updated");
       } else {
-        await api.post("/ml/goals", goalData);
+        await api.post("/goals/", goalData);
         toast.success("Goal created");
       }
-      loadGoals();
+      await loadGoals();
       setDialogOpen(false);
       setEditingGoal(null);
       setForm({ name: "", target_amount: "", target_date: "", current_amount: "" });
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Failed to save goal");
-    }
-  };
-
-  const deleteGoal = async (id) => {
-    try {
-      await api.delete(`/ml/goals/${id}`);
-      toast.success("Goal deleted");
-      loadGoals();
-    } catch (e) {
-      toast.error("Failed to delete goal");
+      toast.error(editingGoal ? "Failed to update goal" : "Failed to create goal");
     }
   };
 
@@ -98,14 +89,22 @@ export default function Goals() {
     setDialogOpen(true);
   };
 
+  const deleteGoal = async (id) => {
+    try {
+      await api.delete(`/goals/${id}`);
+      toast.success("Goal deleted");
+      await loadGoals();
+    } catch (e) {
+      toast.error("Failed to delete goal");
+    }
+  };
 
-
-  const calculateProgress = (goal) => {
+  const calculateProgress = (goal: any) => {
     const progress = (goal.current_amount / goal.target_amount) * 100;
     return Math.min(100, Math.max(0, progress));
   };
 
-  const calculateDaysRemaining = (targetDate) => {
+  const calculateDaysRemaining = (targetDate: string) => {
     const target = new Date(targetDate);
     const today = new Date();
     const diff = target.getTime() - today.getTime();
@@ -113,7 +112,7 @@ export default function Goals() {
     return Math.max(0, days);
   };
 
-  const calculateRequiredMonthly = (goal) => {
+  const calculateRequiredMonthly = (goal: any) => {
     const days = calculateDaysRemaining(goal.target_date);
     const remaining = goal.target_amount - goal.current_amount;
     if (days <= 0) return 0;
@@ -137,11 +136,11 @@ export default function Goals() {
       <PageHeader
         title="Savings Goals"
         subtitle="Track your financial targets and stay motivated"
-        actions={
-          <Button onClick={() => setDialogOpen(true)} data-testid="add-goal-btn">
+        actions={[
+          <Button key="add" onClick={() => setDialogOpen(true)} data-testid="add-goal-btn">
             <Plus className="h-4 w-4 mr-2" /> Add Goal
           </Button>
-        }
+        ]}
       />
 
       {goals.length === 0 ? (
@@ -233,8 +232,14 @@ export default function Goals() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent onClose={() => { setDialogOpen(false); setEditingGoal(null); setForm({ name: "", target_amount: "", target_date: "", current_amount: "" }); }}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setDialogOpen(false);
+          setEditingGoal(null);
+          setForm({ name: "", target_amount: "", target_date: "", current_amount: "" });
+        }
+      }}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingGoal ? "Edit Goal" : "Create Savings Goal"}</DialogTitle>
             <DialogDescription>

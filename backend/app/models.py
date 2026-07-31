@@ -117,6 +117,14 @@ class Goal(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
+class GoalCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str
+    target_amount: float
+    current_amount: float = 0.0
+    target_date: str
+
+
 class PersonEntry(BaseModel):
     """A single "I gave X to Rahul" or "I took Y from Mom" record.
 
