@@ -38,6 +38,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import NLInputBar from "@/components/NLInputBar";
 import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
+import ReceiptScanner from "@/components/ReceiptScanner";
 
 const PAGE_SIZE = 15;
 const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1, price: 0, price_text: "" };
@@ -104,6 +105,41 @@ export default function Transactions() {
   const [receiptModalOpen, setReceiptModalOpen] = React.useState(false);
   const [scanningReceipt, setScanningReceipt] = React.useState(false);
   const receiptInputRef = React.useRef(null);
+
+  const handleReceiptTextExtracted = (text: string) => {
+    // Parse the extracted text and populate the form
+    // This is a simple parser - you could enhance it with regex patterns
+    const lines = text.split('\n').filter(line => line.trim());
+    let description = '';
+    let amount = 0;
+    
+    // Try to find amount in the text
+    const amountMatch = text.match(/₹?\s*(\d+(?:,\d+)*(?:\.\d{2})?)/g);
+    if (amountMatch && amountMatch.length > 0) {
+      // Get the largest amount (likely the total)
+      const amounts = amountMatch.map(a => parseFloat(a.replace(/[₹,\s]/g, ''))).filter(n => !isNaN(n));
+      if (amounts.length > 0) {
+        amount = Math.max(...amounts);
+      }
+    }
+    
+    // Use first non-empty line as description
+    description = lines[0] || '';
+    
+    setEditing(null);
+    setForm({
+      ...EMPTY,
+      date: new Date().toISOString().slice(0, 10),
+      description: description || 'Receipt purchase',
+      amount: -Math.abs(amount), // Default to expense
+      category: 'Other',
+      payment_method: '',
+      quantity: 1,
+      price: Math.abs(amount),
+      notes: text.substring(0, 500), // Store first 500 chars as notes
+    });
+    setModalOpen(true);
+  };
 
   const handleReceiptUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -878,42 +914,10 @@ export default function Transactions() {
       {/* Receipt Scan Dialog */}
       <Dialog open={receiptModalOpen} onOpenChange={setReceiptModalOpen}>
         <DialogContent onClose={() => setReceiptModalOpen(false)} data-testid="receipt-modal">
-          <DialogHeader>
-            <DialogTitle>Scan Receipt</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl p-8 bg-card/50">
-            {scanningReceipt ? (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm font-medium">Gemini is scanning your receipt...</p>
-                <p className="text-xs text-muted-foreground text-center">Reading text, amounts, categories & dates</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-4">
-                <Camera className="h-10 w-10 text-muted-foreground" />
-                <div className="text-center">
-                  <p className="text-sm font-medium">Upload a receipt photo</p>
-                  <p className="text-xs text-muted-foreground mt-1">Supports PNG, JPG, JPEG up to 5MB</p>
-                </div>
-                <Button onClick={() => receiptInputRef.current?.click()} data-testid="select-receipt-btn">
-                  Select Image
-                </Button>
-                <input
-                  ref={receiptInputRef}
-                  type="file"
-                  accept="image/png, image/jpeg, image/jpg"
-                  className="hidden"
-                  onChange={handleReceiptUpload}
-                  data-testid="receipt-file-input"
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReceiptModalOpen(false)} disabled={scanningReceipt}>
-              Cancel
-            </Button>
-          </DialogFooter>
+          <ReceiptScanner 
+            onTextExtracted={handleReceiptTextExtracted}
+            onClose={() => setReceiptModalOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
