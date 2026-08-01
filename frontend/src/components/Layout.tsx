@@ -82,23 +82,20 @@ function DesktopSidebar({ collapsed, onToggle }) {
     <aside
       className={cn(
         "fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl lg:flex",
-        collapsed ? "w-[72px]" : "w-[72px] xl:w-56"
+        collapsed ? "w-[72px]" : "w-56"
       )}
       aria-label="Sidebar navigation"
     >
       <NavLink
         to="/dashboard"
-        className={cn(
-          "flex items-center gap-3 py-5",
-          collapsed ? "justify-center px-0" : "pl-9 pr-1 xl:px-9"
-        )}
+        className={cn("flex items-center gap-3 py-5", collapsed ? "justify-center px-0" : "px-4")}
       >
         <img
           src={brandLogoSrc(theme)}
           alt="Batua"
           className="h-7 w-7 shrink-0 rounded object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
         />
-        <span className={cn("hidden font-brand text-xl tracking-wide", !collapsed && "xl:inline")}>
+        <span className={cn("hidden font-brand text-xl tracking-wide", !collapsed && "lg:inline")}>
           Batua
         </span>
       </NavLink>
@@ -135,26 +132,28 @@ function DesktopSidebar({ collapsed, onToggle }) {
                 strokeWidth={isActive ? 2.2 : 1.75}
                 className="relative shrink-0"
               />
-              <span className={cn("relative hidden truncate", !collapsed && "xl:inline")}>{tab.label}</span>
+              <span className={cn("relative hidden truncate", !collapsed && "lg:inline")}>{tab.label}</span>
               {isActive && (
-                <span className={cn("relative ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary", !collapsed && "xl:inline-block")} />
+                <span className={cn("relative ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary", !collapsed && "lg:inline-block")} />
               )}
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="flex flex-col items-center gap-2 border-t border-border/50 p-3">
-        <ThemeToggle className="w-full xl:w-10" />
+      <div className="flex flex-col gap-2 border-t border-border/50 p-3">
+        <ThemeToggle className="w-full" />
         <button
           type="button"
           onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
           data-testid="sidebar-toggle"
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-accent/40 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {!collapsed && <span>Collapse</span>}
         </button>
       </div>
     </aside>
@@ -276,7 +275,7 @@ export default function Layout() {
           "[padding-left:max(1rem,env(safe-area-inset-left))]",
           collapsed
             ? "lg:pl-[88px] lg:[padding-left:calc(88px+max(0px,env(safe-area-inset-left)))]"
-            : "lg:pl-[88px] lg:[padding-left:calc(88px+max(0px,env(safe-area-inset-left)))] xl:pl-60 xl:[padding-left:calc(15rem+max(0px,env(safe-area-inset-left)))]"
+            : "lg:pl-60 lg:[padding-left:calc(15rem+max(0px,env(safe-area-inset-left)))]"
         )}
       >
         <Outlet />

@@ -95,6 +95,14 @@ def _require_valid_date(date_str: str):
         raise HTTPException(400, "Invalid date — use YYYY-MM-DD (year 1900–2100)")
 
 
+def _clamp_date(date_str: str) -> str:
+    """Clamp a transaction date to today — transactions can never be future-dated."""
+    if not date_str:
+        return date_str
+    today = datetime.now().strftime("%Y-%m-%d")
+    return date_str if date_str <= today else today
+
+
 def _kind(amount: float) -> str:
     """Credit = money in (>=0), Debit = money out (<0)."""
     return "credit" if (amount or 0) >= 0 else "debit"

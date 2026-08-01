@@ -655,6 +655,12 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
                 except (TypeError, ValueError):
                     pass
 
+    # No future-dated transactions — clamp anything past today (e.g. "tomorrow"
+    # or an explicit future date) down to today, from regex, ML or Gemini.
+    today_str = today.strftime("%Y-%m-%d")
+    if result.get("date") and result["date"] > today_str:
+        result["date"] = today_str
+
     result["txn_type"] = "credit" if result["amount"] >= 0 else "debit"
     _set_unit_price(result)
     return result

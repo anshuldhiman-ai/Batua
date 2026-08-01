@@ -1,7 +1,7 @@
 """Transaction CRUD routes."""
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from app.models import Transaction, TransactionCreate, TransactionUpdate, BulkCreate, BulkDelete, RecurringCreate
-from app.helpers import _require_valid_date, _kind, _with_kind, _txn_key
+from app.helpers import _require_valid_date, _clamp_date, _kind, _with_kind, _txn_key
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
 import calendar
@@ -79,7 +79,9 @@ async def list_transactions(
 @router.post("/")
 async def create_transaction(payload: TransactionCreate):
     _require_valid_date(payload.date)
-    txn = Transaction(**payload.model_dump())
+    data = payload.model_dump()
+    data["date"] = _clamp_date(data["date"])
+    txn = Transaction(**data)
     txn.txn_type = _kind(txn.amount)
     storage = get_storage()
     await storage.insert("transactions", txn.model_dump())
@@ -92,7 +94,9 @@ async def bulk_create(payload: BulkCreate):
     docs = []
     for item in payload.items:
         _require_valid_date(item.date)
-        txn = Transaction(**item.model_dump())
+        data = item.model_dump()
+        data["date"] = _clamp_date(data["date"])
+        txn = Transaction(**data)
         txn.txn_type = _kind(txn.amount)
         docs.append(txn.model_dump())
     storage = get_storage()
@@ -152,6 +156,7 @@ async def update_transaction(txn_id: str, payload: TransactionUpdate):
     patch = {k: v for k, v in payload.model_dump().items() if v is not None}
     if "date" in patch:
         _require_valid_date(patch["date"])
+        patch["date"] = _clamp_date(patch["date"])
     if not patch:
         storage = get_storage()
         existing = await storage.get("transactions", txn_id)

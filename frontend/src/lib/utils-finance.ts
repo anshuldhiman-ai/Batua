@@ -26,13 +26,12 @@ export function formatINR(value, { compact = false } = {}) {
 
 export function formatDate(dateStr) {
   if (!dateStr) return "";
+  // "YYYY-MM-DD" → "DD/MM/YYYY" — split manually to avoid timezone shifts.
+  const m = String(dateStr).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 export function formatMonth(ym) {

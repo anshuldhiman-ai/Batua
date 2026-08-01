@@ -737,9 +737,12 @@ def _parse_tabular(df: pd.DataFrame, use_ai: bool, custom_mapping: dict = None) 
 def _make_txn(date_str: str, desc: str, amount: float, category: str, pm: str, qty: int = 1, price: float | None = None, price_text: str = "") -> dict:
     q = qty if qty and qty > 0 else 1
     unit = round(price, 2) if price and price > 0 else round(abs(amount) / q, 2)
+    # Clamp future dates — bank files can carry scheduled/upcoming entries.
+    today = datetime.now().strftime("%Y-%m-%d")
+    safe_date = date_str if date_str <= today else today
     return {
         "id": str(uuid.uuid4()),
-        "date": date_str,
+        "date": safe_date,
         "description": desc,
         "amount": amount,
         "category": category or "Other",

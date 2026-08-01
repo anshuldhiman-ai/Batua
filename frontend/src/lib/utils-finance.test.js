@@ -39,11 +39,8 @@ describe("utils-finance", () => {
   });
 
   describe("formatDate", () => {
-    it("formats valid date strings in Indian standard English style", () => {
-      const formatted = formatDate("2026-06-19");
-      expect(formatted).toContain("19");
-      expect(formatted).toContain("Jun");
-      expect(formatted).toContain("2026");
+    it("formats valid date strings as DD/MM/YYYY", () => {
+      expect(formatDate("2026-06-19")).toBe("19/06/2026");
     });
 
     it("returns empty string for empty date inputs", () => {

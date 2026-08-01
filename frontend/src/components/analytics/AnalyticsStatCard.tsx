@@ -47,25 +47,25 @@ export default function AnalyticsStatCard({
       )}
       onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-2.5">
           {/* Icon */}
           {Icon && (
             <div className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
               TONE_BG_CLASS[tone]
             )}>
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4" />
             </div>
           )}
 
           {/* Value and title */}
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
               {title}
             </p>
             <p className={cn(
-              "kpi-number text-xl font-semibold leading-tight tracking-tight",
+              "kpi-number text-lg font-semibold leading-tight tracking-tight",
               TONE_CLASS[tone]
             )}>
               {value}
@@ -91,7 +91,7 @@ export default function AnalyticsStatCard({
 
         {/* Sparkline */}
         {sparkline && sparkline.length > 0 && (
-          <div className="mt-3 h-8 w-full">
+          <div className="mt-2 h-6 w-full">
             <svg
               viewBox={`0 0 ${sparkline.length} 20`}
               preserveAspectRatio="none"
@@ -125,15 +125,15 @@ export default function AnalyticsStatCard({
   if (loading) {
     return (
       <Card className={cn(className)}>
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <Skeleton className="h-10 w-10 rounded-lg" />
+        <CardContent className="p-3">
+          <div className="flex items-start justify-between gap-2.5">
+            <Skeleton className="h-8 w-8 rounded-lg" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-5 w-28" />
             </div>
           </div>
-          <Skeleton className="mt-3 h-8 w-full" />
+          <Skeleton className="mt-2 h-6 w-full" />
         </CardContent>
       </Card>
     );
