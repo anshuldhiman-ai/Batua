@@ -37,11 +37,12 @@ export default function UploadProgress({ stage, progress = 0, message }) {
   const isError = stage === "error";
 
   const pct = Math.max(0, Math.min(100, Math.round(progress)));
-  const eta = useEta(progress, stage);
+  const elapsed = useElapsed(stage);
 
   return (
     <div className="w-full space-y-3">
-      {/* Percentage + time-left readout */}
+      {/* Percentage + actual elapsed time. Shows real clock time taken — no
+          made-up ETA that over-promises and frustrates. */}
       <div className="flex items-baseline justify-between">
         <span
           className={cn(
@@ -52,11 +53,15 @@ export default function UploadProgress({ stage, progress = 0, message }) {
         >
           {isComplete ? 100 : pct}%
         </span>
-        {!isComplete && !isError && (
-          <span className="text-xs font-medium text-muted-foreground" data-testid="upload-eta">
-            {eta == null ? "estimating…" : eta <= 1 ? "almost done" : `~${formatEta(eta)} left`}
+        {isComplete ? (
+          <span className="text-xs font-medium text-emerald-600" data-testid="upload-total-time">
+            Done in {formatEta(elapsed)}
           </span>
-        )}
+        ) : !isError ? (
+          <span className="text-xs font-medium text-muted-foreground" data-testid="upload-eta">
+            {formatEta(elapsed)} elapsed
+          </span>
+        ) : null}
       </div>
 
       {/* Animated bar */}
@@ -131,50 +136,24 @@ function StageIcon({ state, Icon }) {
 }
 
 /**
- * Estimate seconds remaining from how fast progress has been moving.
- * Anchors on the first real movement, extrapolates linearly to 100%, and
- * ticks the number down once a second so it feels live between polls.
+ * How long the import has actually been running, in whole seconds. Real clock
+ * time from the moment the component mounts (which is when the confirm step
+ * kicks off), frozen at the value reached when the import finishes so the
+ * "Done in …" readout shows the true duration.
  */
-function useEta(progress, stage) {
-  const anchorRef = React.useRef(null);
-  const [eta, setEta] = React.useState(null);
-
-  // Reset when a fresh upload begins.
-  React.useEffect(() => {
-    if (stage === "uploading" && progress <= 1) {
-      anchorRef.current = null;
-      setEta(null);
-    }
-  }, [stage, progress]);
+function useElapsed(stage) {
+  const startRef = React.useRef(Date.now());
+  const [elapsed, setElapsed] = React.useState(0);
 
   React.useEffect(() => {
-    if (stage === "complete" || stage === "error") {
-      setEta(null);
-      return;
-    }
-    const now = Date.now();
-    if (anchorRef.current == null && progress > 0) {
-      anchorRef.current = { t: now, p: progress };
-      return;
-    }
-    const a = anchorRef.current;
-    if (a && progress > a.p) {
-      const elapsed = (now - a.t) / 1000;
-      const rate = (progress - a.p) / elapsed; // percent per second
-      if (rate > 0) setEta((100 - progress) / rate);
-    }
-  }, [progress, stage]);
-
-  // Smoothly count the estimate down between server polls.
-  React.useEffect(() => {
-    if (eta == null) return undefined;
+    if (stage === "complete" || stage === "error") return undefined;
     const id = setInterval(() => {
-      setEta((e) => (e != null && e > 1 ? e - 1 : e));
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 1000);
     return () => clearInterval(id);
-  }, [eta == null]);
+  }, [stage]);
 
-  return eta;
+  return elapsed;
 }
 
 function formatEta(seconds) {

@@ -14,11 +14,14 @@ import {
   Brain,
   Menu,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { ThemeContext } from "@/App";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 // Pick the right on-brand logo tile for the current theme.
 // In light UI we want the dark-tile logo to stand out; in dark UI we want the
@@ -71,22 +74,31 @@ function ThemeToggle({ className }) {
 }
 
 /* ─── Desktop sidebar ─────────────────────────────────────────────── */
-function DesktopSidebar() {
+function DesktopSidebar({ collapsed, onToggle }) {
   const location = useLocation();
   const { theme } = React.useContext(ThemeContext);
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl lg:flex xl:w-56"
+      className={cn(
+        "fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl lg:flex",
+        collapsed ? "w-[72px]" : "w-[72px] xl:w-56"
+      )}
       aria-label="Sidebar navigation"
     >
-      <NavLink to="/dashboard" className="flex items-center gap-3 pl-9 pr-1 py-5 xl:px-9">
+      <NavLink
+        to="/dashboard"
+        className={cn(
+          "flex items-center gap-3 py-5",
+          collapsed ? "justify-center px-0" : "pl-9 pr-1 xl:px-9"
+        )}
+      >
         <img
           src={brandLogoSrc(theme)}
           alt="Batua"
           className="h-7 w-7 shrink-0 rounded object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
         />
-        <span className="hidden font-brand text-xl tracking-wide xl:inline">
+        <span className={cn("hidden font-brand text-xl tracking-wide", !collapsed && "xl:inline")}>
           Batua
         </span>
       </NavLink>
@@ -123,17 +135,27 @@ function DesktopSidebar() {
                 strokeWidth={isActive ? 2.2 : 1.75}
                 className="relative shrink-0"
               />
-              <span className="relative hidden truncate xl:inline">{tab.label}</span>
+              <span className={cn("relative hidden truncate", !collapsed && "xl:inline")}>{tab.label}</span>
               {isActive && (
-                <span className="relative ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary xl:inline-block" />
+                <span className={cn("relative ml-auto hidden h-1.5 w-1.5 rounded-full bg-primary", !collapsed && "xl:inline-block")} />
               )}
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="border-t border-border/50 p-3">
+      <div className="flex flex-col items-center gap-2 border-t border-border/50 p-3">
         <ThemeToggle className="w-full xl:w-10" />
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          data-testid="sidebar-toggle"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
       </div>
     </aside>
   );
@@ -233,6 +255,7 @@ function MobileNav() {
 }
 
 export default function Layout() {
+  const [collapsed, setCollapsed] = useLocalStorage("batua-sidebar-collapsed", false);
   return (
     <div className="min-h-screen bg-background">
       <a
@@ -241,18 +264,19 @@ export default function Layout() {
       >
         Skip to main content
       </a>
-      <DesktopSidebar />
+      <DesktopSidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       <MobileNav />
 
       <main
         id="main-content"
         className={cn(
-          "mx-auto w-full max-w-[1600px] px-4 pb-10 pt-20 lg:pl-[88px] lg:pr-6 lg:pt-8 xl:pl-60",
-          "[padding-left:max(1rem,env(safe-area-inset-left))]",
+          "mx-auto w-full max-w-[1600px] px-4 pb-10 pt-20 lg:pr-6 lg:pt-8",
           "[padding-right:max(1rem,env(safe-area-inset-right))]",
           "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom))]",
-          "lg:[padding-left:calc(88px+max(0px,env(safe-area-inset-left)))]",
-          "xl:[padding-left:calc(15rem+max(0px,env(safe-area-inset-left)))]"
+          "[padding-left:max(1rem,env(safe-area-inset-left))]",
+          collapsed
+            ? "lg:pl-[88px] lg:[padding-left:calc(88px+max(0px,env(safe-area-inset-left)))]"
+            : "lg:pl-[88px] lg:[padding-left:calc(88px+max(0px,env(safe-area-inset-left)))] xl:pl-60 xl:[padding-left:calc(15rem+max(0px,env(safe-area-inset-left)))]"
         )}
       >
         <Outlet />

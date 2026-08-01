@@ -93,6 +93,7 @@ export default function Transactions() {
   const [aiCategorize, setAiCategorize] = useLocalStorage("batua-import-ai", false);
   const [columnPreview, setColumnPreview] = React.useState(null);
   const [columnMapping, setColumnMapping] = React.useState({});
+  const [uploadFile, setUploadFile] = React.useState(null);
   const [sortBy, setSortBy] = React.useState("date");
   const [sortOrder, setSortOrder] = React.useState("desc");
   const [paymentMethodFilter, setPaymentMethodFilter] = React.useState("All");
@@ -248,7 +249,10 @@ export default function Transactions() {
     setUploadStage("uploading");
     setUploadProgress(0);
     setUploadMessage("Analyzing file structure…");
-    
+    // Keep the actual File around — the preview response is just JSON metadata
+    // and doesn't carry the bytes back for the confirm step.
+    setUploadFile(files[0]);
+
     const fd = new FormData();
     fd.append("file", files[0]);
     let pollHandle = null;
@@ -269,7 +273,10 @@ export default function Transactions() {
   }, []);
 
   const confirmUpload = React.useCallback(async (file) => {
-    if (!file) return;
+    if (!file) {
+      toast.error("No file selected. Please drop your file again.");
+      return;
+    }
     
     setUploadStage("uploading");
     setUploadProgress(0);
@@ -280,6 +287,7 @@ export default function Transactions() {
     fd.append("mapping", JSON.stringify(columnMapping));
     
     let pollHandle = null;
+    const startedAt = Date.now();
     try {
       // Kick off the staged background job.
       const { data: start } = await api.post(
@@ -334,8 +342,9 @@ export default function Transactions() {
       }
       const finalState = (await api.get(`/upload-progress/${taskId}`)).data;
       const result = finalState.result || {};
+      const totalSecs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
       toast.success(
-        `Imported ${result.inserted ?? 0} transactions (replaced previous data)` +
+        `Imported ${result.inserted ?? 0} transactions in ${totalSecs}s (replaced previous data)` +
           (result.skipped ? ` · skipped ${result.skipped} duplicates` : "")
       );
       invalidateAll();
@@ -345,6 +354,7 @@ export default function Transactions() {
         setUploadProgress(0);
         setUploadStage("uploading");
         setUploadMessage("");
+        setUploadFile(null);
       }, 1200);
     } catch (e) {
       const msg = e.response?.data?.detail || e.message || "Upload failed";
@@ -352,14 +362,21 @@ export default function Transactions() {
       setUploadMessage(msg);
       toast.error(msg);
       // Keep error state visible for a bit so users can read it.
-      setTimeout(() => setUploading(false), 2500);
+      setTimeout(() => {
+        setUploading(false);
+        setUploadFile(null);
+      }, 2500);
     } finally {
       if (pollHandle) clearTimeout(pollHandle);
     }
-  }, [invalidateAll, aiCategorize]);
+  }, [invalidateAll, aiCategorize, columnMapping]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    // While an upload/preview panel is showing, don't let clicks on the root
+    // re-open the native file picker — "Confirm & Import" would otherwise
+    // bubble up and pop the dialog open again.
+    noClick: uploading,
     accept: {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
       "application/vnd.ms-excel": [".xls"],
@@ -483,7 +500,7 @@ export default function Transactions() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={(e) => { e.stopPropagation(); setUploading(false); setUploadStage("uploading"); setUploadProgress(0); setUploadMessage(""); setColumnPreview(null); toast.info("Upload cancelled"); }}
+                onClick={(e) => { e.stopPropagation(); setUploading(false); setUploadStage("uploading"); setUploadProgress(0); setUploadMessage(""); setColumnPreview(null); setUploadFile(null); toast.info("Upload cancelled"); }}
                 className="h-7 w-7"
                 title="Hide panel (upload will keep running)"
                 data-testid="upload-hide-btn"
@@ -538,10 +555,12 @@ export default function Transactions() {
                   )}
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button 
-                    size="sm" 
-                    onClick={() => {
+                  <Button
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setColumnPreview(null);
+                      setUploadFile(null);
                       setUploading(false);
                       setUploadStage("uploading");
                     }}
@@ -549,9 +568,9 @@ export default function Transactions() {
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    size="sm" 
-                    onClick={() => confirmUpload(columnPreview.file)}
+                  <Button
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); confirmUpload(uploadFile); }}
                     data-testid="confirm-mapping-btn"
                   >
                     Confirm & Import

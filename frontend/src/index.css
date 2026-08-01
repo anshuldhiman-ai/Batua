@@ -84,6 +84,19 @@
     --chart-neutral: var(--muted-foreground);
   }
 
+  /* Native date-picker glyph: the browser draws its calendar icon black, which
+     vanishes against dark cards. color-scheme: dark makes the whole control
+     (icon + popup calendar) follow the dark theme; the WebKit rule is a
+     belt-and-braces inversion for engines that ignore color-scheme here. */
+  .dark input[type="date"] {
+    color-scheme: dark;
+  }
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
   * {
     border-color: hsl(var(--border));
   }
