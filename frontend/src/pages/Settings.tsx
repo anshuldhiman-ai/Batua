@@ -242,7 +242,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="page-enter max-w-4xl space-y-6">
+    <div className="page-enter max-w-5xl space-y-4">
       <PageHeader
         title="Settings"
         subtitle="Appearance, preferences and data management"
@@ -266,10 +266,10 @@ export default function Settings() {
         </TabsList>
 
         {/* ---------- Appearance ---------- */}
-        <TabsContent value="appearance" className="space-y-6">
+        <TabsContent value="appearance" className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Theme</CardTitle></CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">Mode</div>
@@ -366,7 +366,7 @@ export default function Settings() {
         </TabsContent>
 
         {/* ---------- AI & Voice ---------- */}
-        <TabsContent value="ai" className="space-y-6">
+        <TabsContent value="ai" className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Insights mode</CardTitle></CardHeader>
             <CardContent>
@@ -404,14 +404,14 @@ export default function Settings() {
         </TabsContent>
 
         {/* ---------- System ---------- */}
-        <TabsContent value="system" className="space-y-6">
+        <TabsContent value="system" className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wifi className="h-4 w-4" /> Backend Connection
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-medium">
                   <Loader2 className={`h-4 w-4 ${health === null ? "animate-spin" : "hidden"}`} />
@@ -497,7 +497,7 @@ export default function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="data" className="space-y-6">
+        <TabsContent value="data" className="space-y-4">
           <Card>
             <CardHeader><CardTitle>System</CardTitle></CardHeader>
             <CardContent className="space-y-3">

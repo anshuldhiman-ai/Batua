@@ -52,7 +52,8 @@ export default function MonthPicker({ months = [], onChange, amount = 0, classNa
   };
 
   const presets = [
-    { id: "all", label: "Select all shown", months: options },
+    { id: "all", label: "All", months: options },
+    { id: "next-12", label: "Next 12 months", months: monthRange(addMonths(base, 1), addMonths(base, 12)) },
     { id: "this-month", label: "This month only", months: [base] },
     { id: "last-6", label: "Last 6 months", months: monthRange(addMonths(base, -5), base) },
     { id: "last-12", label: "Last 12 months", months: monthRange(addMonths(base, -11), base) },
