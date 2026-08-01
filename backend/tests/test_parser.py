@@ -96,6 +96,22 @@ def test_parse_transaction():
     assert result["category"] == "Income"
     assert result["txn_type"] == "credit"
 
+
+def test_parse_transaction_clamps_future_dates():
+    today = datetime(2026, 6, 19)
+
+    # Relative future ("tomorrow") is clamped down to today.
+    result = parse_transaction("zomato 200 tomorrow", today)
+    assert result["date"] == "2026-06-19"
+
+    # Explicit future dates are clamped to today too.
+    result = parse_transaction("zomato 200 on 25/12/2026", today)
+    assert result["date"] == "2026-06-19"
+
+    # Past dates pass through untouched.
+    result = parse_transaction("zomato 200 on 10/06/2026", today)
+    assert result["date"] == "2026-06-10"
+
 @patch("ai.is_enabled")
 @patch("ai.chat_json")
 def test_parse_transaction_gemini_fallback(mock_chat_json, mock_is_enabled):

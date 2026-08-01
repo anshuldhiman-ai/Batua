@@ -10,6 +10,7 @@ import os
 import json
 import base64
 import logging
+from pathlib import Path
 
 import requests
 
@@ -22,6 +23,35 @@ _API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 def is_enabled() -> bool:
     return bool(_API_KEY)
+
+
+def set_api_key(key: str) -> None:
+    """Update the Gemini API key at runtime.
+
+    Reflects immediately in this process (module var + ``os.environ``) and is
+    persisted to the project-root ``.env`` so it survives a restart.
+    """
+    global _API_KEY
+    key = (key or "").strip()
+    _API_KEY = key
+    os.environ["GOOGLE_API_KEY"] = key
+    try:
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+        out: list[str] = []
+        replaced = False
+        prefix = "GOOGLE_API_KEY="
+        for line in lines:
+            if line.strip().startswith(prefix):
+                out.append(f"{prefix}{key}")
+                replaced = True
+            else:
+                out.append(line)
+        if not replaced:
+            out.append(f"{prefix}{key}")
+        env_path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    except Exception:
+        logger.warning("Could not persist GOOGLE_API_KEY to .env", exc_info=True)
 
 
 def _post(path: str, payload: dict) -> dict | None:

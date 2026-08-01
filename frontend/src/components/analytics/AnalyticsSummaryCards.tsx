@@ -15,7 +15,7 @@ import AnalyticsStatCard from "./AnalyticsStatCard";
  * Six core KPIs for the selected period. Category- and transaction-level
  * extremes live in TrendAnalysis — kept out of here to avoid duplication.
  */
-export default function AnalyticsSummaryCards({ data, loading = false, sparklineExpense = [] }: any) {
+export default function AnalyticsSummaryCards({ data, loading = false }: any) {
   const cards = [
     {
       title: "Total Income",
@@ -30,7 +30,6 @@ export default function AnalyticsSummaryCards({ data, loading = false, sparkline
       subtitle: "Selected period",
       tone: "rose",
       icon: TrendingDown,
-      sparkline: sparklineExpense,
     },
     {
       title: "Net Savings",
@@ -71,7 +70,7 @@ export default function AnalyticsSummaryCards({ data, loading = false, sparkline
     return (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-[92px] rounded-xl" />
+          <Skeleton key={i} className="h-[72px] rounded-xl" />
         ))}
       </div>
     );

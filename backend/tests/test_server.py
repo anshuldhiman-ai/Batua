@@ -289,6 +289,52 @@ def test_transaction_crud(client):
     assert response.status_code == 404
 
 
+def test_transaction_create_clamps_future_date(client):
+    """A future-dated transaction is stored as today, never in the future."""
+    response = client.post(
+        "/api/transactions",
+        json={"date": "2099-01-01", "description": "Future thing", "amount": -100.0, "category": "Other"},
+    )
+    assert response.status_code == 200
+    txn = response.json()
+    from datetime import datetime
+    assert txn["date"] <= datetime.now().strftime("%Y-%m-%d")
+    assert txn["date"] != "2099-01-01"
+
+
+def test_transaction_update_clamps_future_date(client):
+    """Editing a transaction to a future date is clamped to today."""
+    created = client.post(
+        "/api/transactions",
+        json={"date": "2026-06-10", "description": "T", "amount": -50.0},
+    ).json()
+    r = client.put(f"/api/transactions/{created['id']}", json={"date": "2099-12-31"})
+    assert r.status_code == 200
+    from datetime import datetime
+    assert r.json()["date"] <= datetime.now().strftime("%Y-%m-%d")
+
+
+def test_gemini_key_setting_route(client):
+    import ai
+
+    # Status reflects whether a key is configured.
+    with patch("ai.is_enabled", return_value=False):
+        r = client.get("/api/settings/gemini-key")
+        assert r.status_code == 200
+        assert r.json() == {"configured": False}
+
+    # Setting a key calls ai.set_api_key with the trimmed value.
+    with patch("ai.set_api_key") as set_key:
+        r = client.put("/api/settings/gemini-key", json={"api_key": "  AIza-fake  "})
+        assert r.status_code == 200
+        assert r.json()["updated"] is True
+        set_key.assert_called_once_with("AIza-fake")
+
+    # Empty/whitespace keys are rejected.
+    r = client.put("/api/settings/gemini-key", json={"api_key": "   "})
+    assert r.status_code == 400
+
+
 def test_transaction_price_derivation(client):
     """Test that POST without price derives price and PUT changing quantity recomputes price."""
     # 1. POST without price - should derive price = |amount|/quantity

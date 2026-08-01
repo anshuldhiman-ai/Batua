@@ -77,10 +77,35 @@ export default function Settings() {
   const [categoryToDelete, setCategoryToDelete] = React.useState(null);
   const [reassignTo, setReassignTo] = React.useState("");
 
+  // Gemini API key management
+  const [geminiKey, setGeminiKey] = React.useState("");
+  const [savingKey, setSavingKey] = React.useState(false);
+  const [keyMsg, setKeyMsg] = React.useState(null);
+
   React.useEffect(() => {
     api.get("/").then((r) => setHealth(r.data)).catch(() => setHealth({ error: true }));
     loadCategories();
   }, []);
+
+  const saveGeminiKey = async () => {
+    const key = geminiKey.trim();
+    if (!key) {
+      setKeyMsg({ type: "error", text: "Enter a Gemini API key first." });
+      return;
+    }
+    setSavingKey(true);
+    setKeyMsg(null);
+    try {
+      await api.put("/settings/gemini-key", { api_key: key });
+      setGeminiKey("");
+      setKeyMsg({ type: "ok", text: "Saved — Gemini is now enabled." });
+      api.get("/").then((r) => setHealth(r.data)).catch(() => {});
+    } catch (e) {
+      setKeyMsg({ type: "error", text: e?.response?.data?.detail || e?.message || "Failed to save key" });
+    } finally {
+      setSavingKey(false);
+    }
+  };
 
   const loadCategories = async () => {
     try {
@@ -394,9 +419,19 @@ export default function Settings() {
                   <XCircle className={`h-4 w-4 text-rose-500 ${health?.error ? "" : "hidden"}`} />
                   Server status
                 </span>
-                <Badge variant={health === null ? "secondary" : health?.error ? "destructive" : "default"}>
-                  {health === null ? "Checking..." : health?.error ? "Disconnected" : "Connected"}
-                </Badge>
+                {health === null ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking...
+                  </Badge>
+                ) : health?.error ? (
+                  <Badge className="gap-1 border-0 bg-red-700 text-white">
+                    <AlertTriangle className="h-3.5 w-3.5" /> Disconnected
+                  </Badge>
+                ) : (
+                  <Badge className="gap-1 border-0 bg-green-600 text-white">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Connected
+                  </Badge>
+                )}
               </div>
 
               {health && !health.error && (
@@ -418,12 +453,47 @@ export default function Settings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <EndpointCheck label="Transaction API" path="/api/transactions/" />
-              <EndpointCheck label="Analytics API" path="/api/analytics/category-breakdown" />
-              <EndpointCheck label="Dashboard API" path="/api/dashboard/metrics" />
-              <EndpointCheck label="Categories API" path="/api/categories/" />
-              <EndpointCheck label="NL Parsing / Parse" path="/api/parse-nl" method="POST" />
-              <EndpointCheck label="ML Features" path="/api/ml/spending-patterns" />
+              <EndpointCheck label="Transaction API" path="/transactions/" />
+              <EndpointCheck label="Analytics API" path="/analytics/category-breakdown" />
+              <EndpointCheck label="Dashboard API" path="/dashboard/metrics" />
+              <EndpointCheck label="Categories API" path="/categories/" />
+              <EndpointCheck label="NL Parsing / Parse" path="/parse-nl" method="POST" />
+              <EndpointCheck label="ML Features" path="/ml/spending-patterns" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" /> Gemini AI
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Add or replace your Google Gemini API key to enable AI parsing, receipt
+                scanning and smarter categorisation. It is saved to the server&apos;s{" "}
+                <code className="rounded bg-muted px-1 py-0.5">.env</code> and takes effect
+                immediately — no restart needed.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  placeholder={health?.ai ? "••••••••••••  change key" : "AIza… paste your key"}
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                  data-testid="gemini-key-input"
+                  className="flex-1"
+                />
+                <Button onClick={saveGeminiKey} disabled={savingKey} data-testid="gemini-key-save">
+                  {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+              </div>
+              {keyMsg && (
+                <p className={cn("text-xs", keyMsg.type === "ok" ? "text-emerald-600" : "text-rose-600")}>
+                  {keyMsg.text}
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -665,7 +735,19 @@ function EndpointCheck({ label, path, method = "GET" }: { label: string; path: s
     }
     api({ url: path, ...opts })
       .then(() => { if (!cancelled) setStatus("ok"); })
-      .catch((e) => { if (!cancelled) { setStatus("error"); setErrorMsg(e?.response?.status ? `HTTP ${e.response.status}` : e.message); }});
+      .catch((e) => {
+        if (cancelled) return;
+        setStatus("error");
+        const status = e?.response?.status;
+        const detail = e?.response?.data?.detail;
+        if (status === 404) {
+          setErrorMsg(typeof detail === "string" ? `HTTP 404 · ${detail}` : "HTTP 404 · not found");
+        } else if (status) {
+          setErrorMsg(typeof detail === "string" ? `HTTP ${status} · ${detail}` : `HTTP ${status}`);
+        } else {
+          setErrorMsg("Backend not reachable");
+        }
+      });
     return () => { cancelled = true; };
   }, [path, method]);
 

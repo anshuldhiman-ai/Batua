@@ -33,7 +33,6 @@ export default function AnalyticsStatCard({
   trendUp,
   icon: Icon,
   tone = "primary",
-  sparkline,
   loading = false,
   onClick,
   className,
@@ -47,75 +46,41 @@ export default function AnalyticsStatCard({
       )}
       onClick={onClick}
     >
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between gap-2.5">
-          {/* Icon */}
-          {Icon && (
-            <div className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-              TONE_BG_CLASS[tone]
-            )}>
-              <Icon className="h-4 w-4" />
-            </div>
-          )}
-
-          {/* Value and title */}
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
-              {title}
-            </p>
-            <p className={cn(
-              "kpi-number text-lg font-semibold leading-tight tracking-tight",
-              TONE_CLASS[tone]
-            )}>
-              {value}
-            </p>
-            {subtitle && (
-              <p className="mt-0.5 text-[10px] text-muted-foreground">
-                {subtitle}
-              </p>
-            )}
+      <CardContent className="flex flex-col items-center justify-center p-3 text-center">
+        {/* Icon */}
+        {Icon && (
+          <div className={cn(
+            "mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+            TONE_BG_CLASS[tone]
+          )}>
+            <Icon className="h-4 w-4" />
           </div>
+        )}
 
-          {/* Trend indicator */}
-          {trend !== undefined && (
-            <div className={cn(
-              "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium",
-              trendUp ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-500"
-            )}>
-              <span>{trendUp ? "↑" : "↓"}</span>
-              <span>{Math.abs(trend)}%</span>
-            </div>
-          )}
-        </div>
+        {/* Value and title */}
+        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+          {title}
+        </p>
+        <p className={cn(
+          "kpi-number text-base font-semibold leading-tight tracking-tight",
+          TONE_CLASS[tone]
+        )}>
+          {value}
+        </p>
+        {subtitle && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {subtitle}
+          </p>
+        )}
 
-        {/* Sparkline */}
-        {sparkline && sparkline.length > 0 && (
-          <div className="mt-2 h-6 w-full">
-            <svg
-              viewBox={`0 0 ${sparkline.length} 20`}
-              preserveAspectRatio="none"
-              className="h-full w-full overflow-visible"
-            >
-              <defs>
-                <linearGradient id={`sparkline-${tone}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path
-                d={sparkline.map((val, i) => `${i === 0 ? 'M' : 'L'}${i} ${20 - (val / Math.max(...sparkline, 1)) * 20}`).join(' ')}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className={cn(TONE_CLASS[tone], "opacity-60")}
-              />
-              <path
-                d={`${sparkline.map((val, i) => `${i === 0 ? 'M' : 'L'}${i} ${20 - (val / Math.max(...sparkline, 1)) * 20}`).join(' ')} L${sparkline.length - 1} 20 L0 20 Z`}
-                fill={`url(#sparkline-${tone})`}
-                className={cn(TONE_CLASS[tone], "opacity-20")}
-              />
-            </svg>
+        {/* Trend indicator */}
+        {trend !== undefined && (
+          <div className={cn(
+            "mt-1.5 flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium",
+            trendUp ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-500"
+          )}>
+            <span>{trendUp ? "↑" : "↓"}</span>
+            <span>{Math.abs(trend)}%</span>
           </div>
         )}
       </CardContent>
@@ -125,15 +90,10 @@ export default function AnalyticsStatCard({
   if (loading) {
     return (
       <Card className={cn(className)}>
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between gap-2.5">
-            <Skeleton className="h-8 w-8 rounded-lg" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-5 w-28" />
-            </div>
-          </div>
-          <Skeleton className="mt-2 h-6 w-full" />
+        <CardContent className="flex flex-col items-center justify-center p-3">
+          <Skeleton className="mb-1.5 h-8 w-8 rounded-lg" />
+          <Skeleton className="mb-1 h-3 w-24" />
+          <Skeleton className="h-4 w-32" />
         </CardContent>
       </Card>
     );

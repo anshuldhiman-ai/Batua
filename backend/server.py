@@ -32,6 +32,7 @@ from app.routes import (  # noqa: E402
     backup,
     people,
     goals,
+    settings,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -95,6 +96,7 @@ api.include_router(transcribe.router, tags=["transcribe"])
 api.include_router(people.router, prefix="/people", tags=["people"])
 api.include_router(backup.router, tags=["backup"])
 api.include_router(goals.router, prefix="/goals", tags=["goals"])
+api.include_router(settings.router, tags=["settings"])
 
 # Mount API router
 app.include_router(api, prefix="/api")
