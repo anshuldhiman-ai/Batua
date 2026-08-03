@@ -38,11 +38,12 @@ def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
     "Test connection" button can check a typed-but-unsaved key).
 
     Returns ``(valid, reason, message)`` where ``reason`` is one of
-    ``"ok"``, ``"no_key"``, ``"invalid_key"``, ``"quota"``, or
-    ``"network_error"``. Never raises.
+    ``"ok"``, ``"no_key"``, ``"invalid_key"``, ``"model_unavailable"``,
+    ``"quota"``, or ``"network_error"``. Never raises.
 
     A valid key on a flaky network must not be rejected: transient failures
     (connection errors, HTTP 429/5xx) are retried once before giving up.
+    Raw exceptions are logged, never shown to the user.
     """
     key = (candidate or "").strip() or _API_KEY
     if not key:
@@ -54,7 +55,8 @@ def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
         try:
             resp = requests.get(f"{_API_BASE}/models/{_MODEL}?key={key}", timeout=15)
         except Exception as exc:
-            last = (False, "network_error", f"Could not reach Gemini: {exc}")
+            logger.debug("Gemini validation network failure: %s", exc)
+            last = (False, "network_error", "Could not reach Gemini — check your internet connection and try again.")
             continue  # connection blip — retry once
         if resp.status_code == 200:
             return True, "ok", "Key is valid — Gemini is reachable."
@@ -66,10 +68,16 @@ def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
             detail = err.get("message", "") if isinstance(err, dict) else ""
             snippet = f" — {detail}" if detail else ""
             return False, "invalid_key", f"Key rejected (HTTP {resp.status_code}){snippet}"
+        if resp.status_code == 404:
+            # The key is valid but this model isn't available to it.
+            return False, "model_unavailable", (
+                f"The key is valid, but the model '{_MODEL}' isn't available to it — "
+                "check the GEMINI_MODEL setting or your Google AI plan."
+            )
         if resp.status_code == 429:
             last = (False, "quota", "Gemini rate limit reached (HTTP 429) — wait a minute and try again.")
         elif resp.status_code >= 500:
-            last = (False, "network_error", f"Gemini is temporarily unavailable (HTTP {resp.status_code}).")
+            last = (False, "network_error", "Gemini is temporarily unavailable — try again in a moment.")
             continue  # transient server error — retry once
         else:
             last = (False, "network_error", f"Gemini answered with HTTP {resp.status_code}.")

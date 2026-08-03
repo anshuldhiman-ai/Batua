@@ -409,6 +409,21 @@ def test_validate_key_retries_transient_and_distinguishes_reasons(client):
         assert r.status_code == 429
         assert r.json()["detail"]["reason"] == "quota"
 
+    # 404 → the key is valid but the model isn't available — its own reason,
+    # with a friendly message that never leaks a raw exception.
+    with patch("ai.requests.get", side_effect=[_Resp(404)]) as get:
+        ok, reason, msg = ai_mod.validate_key("AIza-valid")
+        assert ok is False and reason == "model_unavailable"
+        assert get.call_count == 1  # authoritative, not retried
+        assert "GEMINI_MODEL" in msg
+
+    # Network failure → friendly message (no raw exception string); retried once.
+    with patch("ai.requests.get", side_effect=[ConnectionError("some raw detail"), ConnectionError("some raw detail")]) as get:
+        ok, reason, msg = ai_mod.validate_key("AIza-valid")
+        assert ok is False and reason == "network_error"
+        assert get.call_count == 2
+        assert "some raw detail" not in msg
+
 
 def test_transaction_price_derivation(client):
     """Test that POST without price derives price and PUT changing quantity recomputes price."""
