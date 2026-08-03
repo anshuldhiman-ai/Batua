@@ -70,6 +70,7 @@
 - **Flexible time filters** — daily/weekly/monthly/yearly views over presets (this month, last 30/90 days, last 3 months, this/last year), a single-month picker, month ranges, and fully custom date spans — filters persist across visits.
 - **Dashboard KPIs** — income, expense, net, and savings-rate with month-over-month deltas.
 - **Budgets** — per-category limits with live health indicators.
+- **Intelligent categorisation** — 20 default categories with fine-grained food & drink splits (Food & Dining · Fast Food · Snacks · Fruits · Refreshments · Beverages), classified by rules + an on-device ML model, with an optional Gemini pass for ambiguous input.
 - **AI insights** — instant rule-based coaching, optionally reworded by a local or cloud LLM for a natural tone.
 - **ML features** — cash-flow forecasting, spending-pattern clustering, budget optimisation, savings recommendations, and anomaly detection (scikit-learn).
 
@@ -77,7 +78,9 @@
 - **Conversational assistant** — a grounded Q&A engine with multi-turn session memory and follow-up resolution ("what about last month?"). Answers are computed from *your* data, then optionally reworded by a local Llama model.
 
 ### Export
-- One-click **CSV** and **Excel** export of all transactions.
+- **Excel** export as a stacked *"Expense Table : MM/YYYY"* sheet — every month its own headline + header + TOTAL block in its own colour theme, with rupee-formatted Price / Total Amount / TOTAL cells, exactly like a hand-kept expenditure file.
+- **Scoped exports** — an export dialog picks Excel or CSV and scopes it to all time, a single past/current month (dropdown), or a custom date range (native date picker).
+- One-click **CSV** dump of every transaction as well.
 
 ### Experience
 - **Polished, theme-aware UI** — light/dark modes with switchable accent themes, cursor-tracking card glows, an animated comet border on the input bar, and semantic chart colours (income always emerald, expense always red — matching the KPI indicators) so charts read consistently at a glance.
@@ -221,9 +224,9 @@ All routes are mounted under `/api`. Highlights:
 | **NL parsing** | `POST /parse-nl` · `parse-nl/bulk` · `parse-nl/voice` |
 | **Voice / transcription** | `GET /transcribe/status` · `POST /transcribe` (offline audio → text → parsed) |
 | **ML** | `/ml/spending-patterns` · `cash-flow-forecast` · `optimize-budget` · `recommendations` · `anomalies` · `qa` · `classify` |
-| **Import / Export** | `POST /upload-excel` (+ staged `start` / `upload-progress/{id}`) · `GET /export/csv` · `/export/excel` |
+| **Import / Export** | `POST /upload-excel` (+ staged `start` / `upload-progress/{id}`) · `GET /export/csv` · `/export/excel` (stacked monthly sheet; `?month=YYYY-MM` or `?from=&to=` filters) · `GET /export/months` |
 
-Enable `ENABLE_DOCS=1` and browse the full interactive spec at `/docs`.
+Enable `ENABLE_DOCS=1` and browse the full interactive spec — either the stock Swagger at `/docs` or the **in-app themed API reference at `http://localhost:3000/api-docs`** (also reachable from Settings → *API docs*).
 
 ---
 
