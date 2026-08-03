@@ -77,7 +77,13 @@ api = APIRouter()
 # Health check
 @api.get("/")
 async def health():
-    return {"app": "Batua", "status": "live", "storage": backend_name, "ai": ai.is_enabled()}
+    return {
+        "app": "Batua",
+        "status": "live",
+        "storage": backend_name,
+        "ai": ai.is_enabled(),
+        "ai_model": ai.model_name() if ai.is_enabled() else None,
+    }
 
 
 # Include route modules

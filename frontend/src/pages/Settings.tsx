@@ -114,7 +114,9 @@ const ENDPOINTS = [
   { label: "Dashboard API", path: "/dashboard/metrics", method: "GET" },
   { label: "Categories API", path: "/categories/", method: "GET" },
   { label: "NL Parser", path: "/parse-nl", method: "POST", data: { text: "test" } },
-  { label: "ML Insights", path: "/ml/spending-patterns", method: "GET" },
+  // /ml/spending-patterns warms up its analyzer on first hit and can exceed the
+  // default 5s — give it room so a slow-but-healthy endpoint isn't flagged down.
+  { label: "ML Insights", path: "/ml/spending-patterns", method: "GET", timeout: 20000 },
 ];
 
 const REPO_URL = "https://github.com/anshuldhiman-ai/Batua";
@@ -407,16 +409,19 @@ export default function Settings() {
         });
     };
     check();
-    // Re-ping every few seconds so the Server status always reflects whether
-    // the backend is actually reachable right now.
-    const id = setInterval(check, 10000);
     loadCategories();
+    // Re-ping every few seconds so the Server status always reflects whether
+    // the backend is actually reachable — EXCEPT while the System tab is open,
+    // where the 3s metrics poll below already covers connectivity. Pausing here
+    // avoids two concurrent pollers hitting the backend at once.
+    if (activeTab === "system") return () => { active = false; };
+    const id = setInterval(check, 10000);
     return () => {
       active = false;
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeTab]);
 
   // Poll live system metrics while the System tab is open. Uses exponential
   // backoff: on repeated failures the interval doubles (3s → 30s cap) and after
@@ -442,12 +447,17 @@ export default function Settings() {
         const { data } = await api.get("/settings/system-metrics");
         if (!active) return;
         setMetrics(data);
+        // Keep the header status pill accurate while the root health poller is
+        // paused on this tab — a successful metrics read proves the backend is up.
+        setHealth((h) => (h && !h.error ? h : { app: "Batua", status: "live" }));
+        setLastSync(Date.now());
         fails = 0;
         delay = 3000;
         setMetricsState("live");
         schedule(delay);
       } catch {
         if (!active) return;
+        setHealth({ error: true });
         fails += 1;
         if (fails >= 5) {
           setMetricsState("paused");
@@ -624,6 +634,10 @@ export default function Settings() {
 
   const [restoring, setRestoring] = React.useState(false);
   const restoreInputRef = React.useRef(null);
+  // Restore confirmation — staged pending data + typed keyword, mirroring the
+  // delete flow so the destructive restore is never a browser-native confirm().
+  const [restorePending, setRestorePending] = React.useState(null);
+  const [restoreText, setRestoreText] = React.useState("");
 
   const downloadBackup = async () => {
     try {
@@ -652,12 +666,24 @@ export default function Settings() {
       if (parsed?.app !== "batua" || (!parsed.transactions && !parsed.budgets)) {
         throw new Error("Not a Batua backup file");
       }
-      const ok = window.confirm(
-        `Restore ${parsed.transactions?.length ?? 0} transactions and ${parsed.budgets?.length ?? 0} budgets? ` +
-          "This REPLACES all current data."
-      );
-      if (!ok) return;
-      const { data } = await api.post("/restore", parsed);
+      // Stage the parsed backup and ask for typed confirmation — same guardrail
+      // as the destructive delete flow, never a browser-native confirm().
+      setRestorePending(parsed);
+      setRestoreText("");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e.message || "Restore failed");
+    } finally {
+      setRestoring(false);
+      if (restoreInputRef.current) restoreInputRef.current.value = "";
+    }
+  };
+
+  const confirmRestore = async () => {
+    if (!restorePending) return;
+    try {
+      const { data } = await api.post("/restore", restorePending);
+      setRestorePending(null);
+      setRestoreText("");
       toast.success(
         `Restored ${data.transactions} transactions and ${data.budgets} budgets` +
           (data.skipped ? ` · skipped ${data.skipped} invalid rows` : "")
@@ -667,9 +693,6 @@ export default function Settings() {
       setTimeout(() => window.location.reload(), 900);
     } catch (e) {
       toast.error(e?.response?.data?.detail || e.message || "Restore failed");
-    } finally {
-      setRestoring(false);
-      if (restoreInputRef.current) restoreInputRef.current.value = "";
     }
   };
 
@@ -1297,6 +1320,43 @@ export default function Settings() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={Boolean(restorePending)} onOpenChange={(o) => { if (!o) setRestorePending(null); setRestoreText(""); }}>
+        <DialogContent onClose={() => { setRestorePending(null); setRestoreText(""); }}>
+          <DialogHeader>
+            <DialogTitle>Restore this backup?</DialogTitle>
+            <DialogDescription>
+              This will <strong>replace</strong> all current data with{" "}
+              {restorePending?.transactions?.length ?? 0} transactions and{" "}
+              {restorePending?.budgets?.length ?? 0} budgets. This action cannot be undone.
+              Type <strong>RESTORE</strong> below to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={restoreText}
+            onChange={(e) => setRestoreText(e.target.value)}
+            placeholder='Type "RESTORE" to confirm'
+            data-testid="confirm-restore-input"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setRestorePending(null); setRestoreText(""); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmRestore}
+              disabled={restoreText.trim().toUpperCase() !== "RESTORE"}
+              data-testid="confirm-restore-btn"
+            >
+              Yes, restore backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={deleteCategoryOpen} onOpenChange={setDeleteCategoryOpen}>
         <DialogContent onClose={() => { setDeleteCategoryOpen(false); setCategoryToDelete(null); }}>
           <DialogHeader>
@@ -1505,7 +1565,9 @@ function GeminiCard({
   const aiEnabled = Boolean(health?.ai);
   const stats = [
     { label: "Key status", value: aiEnabled ? "Active" : "Not configured", tone: aiEnabled ? "emerald" : "neutral" },
-    { label: "Model", value: "gemini-2.5-flash", tone: "violet" },
+    // Model comes from the backend health payload; falls back to "—" only when
+    // Gemini is off (no model is configured then).
+    { label: "Model", value: health?.ai_model || "—", tone: "violet" },
     { label: "Added on", value: "—", note: "Not stored locally" },
     { label: "Last used", value: "—", note: "Tracked server-side" },
     { label: "Rate limit", value: "—", note: "Per Google's plan" },
@@ -1686,7 +1748,7 @@ function ActionRow({
  * One pinged endpoint — shows verb badge, health dot, latency and an
  * expandable detail (path + response/error). Clicking toggles the detail.
  */
-function EndpointRow({ label, path, method = "GET", data, runNonce }: any) {
+function EndpointRow({ label, path, method = "GET", data, timeout = 5000, runNonce }: any) {
   const [status, setStatus] = React.useState<"loading" | "ok" | "error">("loading");
   const [latency, setLatency] = React.useState(null);
   const [errorMsg, setErrorMsg] = React.useState("");
@@ -1697,7 +1759,9 @@ function EndpointRow({ label, path, method = "GET", data, runNonce }: any) {
     setStatus("loading");
     setLatency(null);
     const t0 = performance.now();
-    const opts: any = { timeout: 5000 };
+    // Per-endpoint timeout — slow-but-healthy endpoints (e.g. ML warmup) get a
+    // longer window instead of a single global 5s that false-flags them down.
+    const opts: any = { timeout };
     if (method === "POST") {
       opts.method = "POST";
       opts.headers = { "Content-Type": "application/json" };

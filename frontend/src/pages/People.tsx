@@ -72,6 +72,7 @@ export default function People() {
   const [editing, setEditing] = React.useState(null);
   const [form, setForm] = React.useState(emptyForm);
   const [expanded, setExpanded] = React.useState({}); // person_name -> bool
+  const [deleteTarget, setDeleteTarget] = React.useState(null);
   const reduce = useReducedMotion();
 
   const reload = React.useCallback(async () => {
@@ -158,11 +159,17 @@ export default function People() {
     }
   };
 
-  const deleteEntry = async (entry) => {
-    if (!window.confirm(`Delete this ${entry.direction} entry for ${entry.person_name}?`)) return;
+  const deleteEntry = (entry) => {
+    // In-app confirmation dialog, not a browser-native confirm().
+    setDeleteTarget(entry);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await api.delete(`/people/${entry.id}`);
+      await api.delete(`/people/${deleteTarget.id}`);
       toast.success("Entry deleted");
+      setDeleteTarget(null);
       reload();
     } catch (e) {
       toast.error("Failed to delete entry");
@@ -551,6 +558,27 @@ export default function People() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation — in-app dialog, not window.confirm(). */}
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent onClose={() => setDeleteTarget(null)}>
+          <DialogHeader>
+            <DialogTitle>Delete this entry?</DialogTitle>
+            <DialogDescription>
+              Remove the {deleteTarget?.direction} entry for{" "}
+              <strong>{deleteTarget?.person_name}</strong>. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} data-testid="confirm-delete-entry-btn">
+              Delete entry
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

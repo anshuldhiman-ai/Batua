@@ -89,7 +89,9 @@ function DesktopSidebar({ collapsed, onToggle }) {
         to="/dashboard"
         className={cn(
           "flex items-center",
-          collapsed ? "justify-center px-0 py-5" : "mx-auto w-fit gap-3 py-5"
+          // Expanded: match the nav icons' left padding (px-2 xl:px-3) so the
+          // logo row lines up with the items below instead of being centered.
+          collapsed ? "justify-center px-0 py-5" : "gap-3 px-2 py-5 xl:px-3"
         )}
       >
         <img

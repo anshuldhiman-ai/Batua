@@ -25,6 +25,11 @@ def is_enabled() -> bool:
     return bool(_API_KEY)
 
 
+def model_name() -> str:
+    """The Gemini model currently configured (for display in Settings)."""
+    return _MODEL
+
+
 def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
     """Check a Gemini API key against the live API.
 

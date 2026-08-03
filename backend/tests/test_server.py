@@ -1,5 +1,6 @@
 import pytest
 import io
+import openpyxl
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
@@ -323,16 +324,44 @@ def test_gemini_key_setting_route(client):
         assert r.status_code == 200
         assert r.json() == {"configured": False}
 
-    # Setting a key calls ai.set_api_key with the trimmed value.
-    with patch("ai.set_api_key") as set_key:
-        r = client.put("/api/settings/gemini-key", json={"api_key": "  AIza-fake  "})
+    # A valid key (per validate_key) is persisted with the trimmed value.
+    with patch("ai.validate_key", return_value=(True, "ok", "Key valid")), patch(
+        "ai.set_api_key"
+    ) as set_key:
+        r = client.put("/api/settings/gemini-key", json={"api_key": "  AIza-valid  "})
         assert r.status_code == 200
         assert r.json()["updated"] is True
-        set_key.assert_called_once_with("AIza-fake")
+        assert r.json()["configured"] is True
+        set_key.assert_called_once_with("AIza-valid")
 
     # Empty/whitespace keys are rejected.
     r = client.put("/api/settings/gemini-key", json={"api_key": "   "})
     assert r.status_code == 400
+
+    # A key the Gemini API rejects must NOT be persisted and returns 400 with a
+    # distinct reason — a bad key can never silently replace a good one.
+    with patch("ai.validate_key", return_value=(False, "invalid_key", "Key rejected")), patch(
+        "ai.set_api_key"
+    ) as set_key:
+        r = client.put("/api/settings/gemini-key", json={"api_key": "AIza-fake"})
+        assert r.status_code == 400
+        assert r.json()["detail"]["reason"] == "invalid_key"
+        set_key.assert_not_called()
+
+    # A network/transient failure is surfaced separately from auth failure.
+    with patch("ai.validate_key", return_value=(False, "network_error", "Timeout")), patch(
+        "ai.set_api_key"
+    ) as set_key:
+        r = client.put("/api/settings/gemini-key", json={"api_key": "AIza-temp"})
+        assert r.status_code == 502
+        assert r.json()["detail"]["reason"] == "network_error"
+        set_key.assert_not_called()
+
+    # Test endpoint reports the same distinct reasons.
+    with patch("ai.validate_key", return_value=(False, "invalid_key", "Key rejected")):
+        r = client.post("/api/settings/gemini-key/test")
+        assert r.status_code == 200
+        assert r.json() == {"valid": False, "reason": "invalid_key", "message": "Key rejected"}
 
 
 def test_transaction_price_derivation(client):
@@ -527,11 +556,60 @@ def test_export_endpoints(client):
     assert response.headers["Content-Disposition"] == "attachment; filename=batua_transactions.csv"
     assert "Salary" in response.text
     
-    # Excel Export
+    # Excel Export (stacked expense-sheet format)
     response = client.get("/api/export/excel")
     assert response.status_code == 200
-    assert response.headers["Content-Disposition"] == "attachment; filename=batua_transactions.xlsx"
+    assert response.headers["Content-Disposition"] == "attachment; filename=batua_expenditure.xlsx"
     assert len(response.content) > 0
+    # The income-only fixture produces an expense workbook with no blocks.
+    wb = openpyxl.load_workbook(io.BytesIO(response.content))
+    assert wb.sheetnames == ["Expenses"]
+    assert wb["Expenses"].max_row == 0 or wb["Expenses"]["A1"].value is None
+
+def test_export_month_and_range(client):
+    # Two expenses in May, two in June, plus income that must never leak into the
+    # expenditure workbook.
+    for d, desc, amt in [
+        ("2026-05-03", "Petrol", -1150.0),
+        ("2026-05-11", "Zomato Dinner", -520.0),
+        ("2026-06-02", "Netflix", -799.0),
+        ("2026-06-14", "Swiggy Lunch", -380.0),
+        ("2026-06-10", "Salary", 10000.0),
+    ]:
+        client.post("/api/transactions", json={"date": d, "description": desc, "amount": amt, "category": "Other"})
+
+    # Months endpoint — income-only months never appear; newest first.
+    response = client.get("/api/export/months")
+    assert response.status_code == 200
+    assert response.json()["months"] == ["2026-06", "2026-05"]
+
+    # Single-month export → one block, only that month's expenses, and the
+    # month's TOTAL matches its sum.
+    response = client.get("/api/export/excel", params={"month": "2026-06"})
+    assert response.status_code == 200
+    wb = openpyxl.load_workbook(io.BytesIO(response.content))
+    ws = wb["Expenses"]
+    a1 = ws["A1"].value
+    assert a1 == "Expense Table : 06/2026"
+    descs = [ws.cell(row=r, column=2).value for r in range(ws.max_row + 1)]
+    assert "Netflix" in descs and "Swiggy Lunch" in descs
+    assert "Petrol" not in descs and "Salary" not in descs
+    total = ws.cell(row=ws.max_row, column=5).value
+    assert total == 799.0 + 380.0
+
+    # Custom date range export → only expenses inside the inclusive range.
+    response = client.get("/api/export/excel", params={"from": "2026-05-01", "to": "2026-05-31"})
+    assert response.status_code == 200
+    ws = openpyxl.load_workbook(io.BytesIO(response.content))["Expenses"]
+    descs = [ws.cell(row=r, column=2).value for r in range(ws.max_row + 1)]
+    assert "Petrol" in descs and "Zomato Dinner" in descs
+    assert "Netflix" not in descs
+    # May + June together (no params) → two blocks with a YEAR marker between.
+    response = client.get("/api/export/excel")
+    ws = openpyxl.load_workbook(io.BytesIO(response.content))["Expenses"]
+    a_vals = [ws.cell(row=r, column=1).value for r in range(1, ws.max_row + 1)]
+    assert "Expense Table : 05/2026" in a_vals
+    assert "Expense Table : 06/2026" in a_vals
 
 def test_excel_upload_endpoints(client):
     # 1. Preview
