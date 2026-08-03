@@ -591,7 +591,7 @@ def test_export_month_and_range(client):
     ws = wb["Expenses"]
     a1 = ws["A1"].value
     assert a1 == "Expense Table : 06/2026"
-    descs = [ws.cell(row=r, column=2).value for r in range(ws.max_row + 1)]
+    descs = [ws.cell(row=r, column=2).value for r in range(1, ws.max_row + 1)]
     assert "Netflix" in descs and "Swiggy Lunch" in descs
     assert "Petrol" not in descs and "Salary" not in descs
     total = ws.cell(row=ws.max_row, column=5).value
@@ -601,7 +601,7 @@ def test_export_month_and_range(client):
     response = client.get("/api/export/excel", params={"from": "2026-05-01", "to": "2026-05-31"})
     assert response.status_code == 200
     ws = openpyxl.load_workbook(io.BytesIO(response.content))["Expenses"]
-    descs = [ws.cell(row=r, column=2).value for r in range(ws.max_row + 1)]
+    descs = [ws.cell(row=r, column=2).value for r in range(1, ws.max_row + 1)]
     assert "Petrol" in descs and "Zomato Dinner" in descs
     assert "Netflix" not in descs
     # May + June together (no params) → two blocks with a YEAR marker between.

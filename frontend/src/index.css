@@ -42,6 +42,10 @@
     --border: 150 14% 90%;
     --input: 150 14% 88%;
     --ring: 162 94% 30%;
+    /* Dropdown menus / popovers — solid so they never look transparent over
+       the page (was missing, so bg-popover produced no background at all). */
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 30% 10%;
     --radius: 0.75rem;
     /* Cursor-glow tint — follows the chosen accent so the hover glow always
        matches the active colour theme (updates live via applyAccent). */
@@ -73,6 +77,9 @@
     --border: 165 16% 18%;
     --input: 165 16% 20%;
     --ring: 158 84% 45%;
+    /* Popovers slightly lighter than cards so menus clearly float above. */
+    --popover: 165 28% 13%;
+    --popover-foreground: 150 14% 96%;
     /* Accent-tinted glow in dark mode too — slightly stronger so it stays
        visible against dark cards. */
     --glow-color: var(--primary);

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, APIRouter  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 import storage as storage_mod  # noqa: E402
@@ -72,6 +73,17 @@ app = FastAPI(
     openapi_url="/openapi.json" if _docs_enabled else None,
 )
 api = APIRouter()
+
+
+# The frontend's in-app API docs page (/api-docs) fetches the OpenAPI schema
+# through the same /api proxy/URL as every other endpoint. Gated behind the
+# same ENABLE_DOCS flag as /docs and /openapi.json so production stays closed
+# by default.
+if _docs_enabled:
+
+    @api.get("/openapi.json", include_in_schema=False)
+    async def api_openapi():
+        return JSONResponse(app.openapi())
 
 
 # Health check

@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 import { ThemeContext } from "@/App";
 import MicTest from "@/components/MicTest";
@@ -734,11 +735,9 @@ export default function Settings() {
 
   const syncLabel = lastSync ? "just now" : connected ? "just now" : "unavailable";
 
-  const openDocs = () => {
-    const envBase = String((import.meta as any).env.VITE_BACKEND_URL || "").replace(/\/+$/, "");
-    const origin = envBase || `${window.location.protocol}//${window.location.hostname}:8001`;
-    window.open(`${origin}/docs`, "_blank", "noopener,noreferrer");
-  };
+  // Open the in-app, theme-matched API reference (not the stock Swagger UI).
+  const navigate = useNavigate();
+  const openDocs = () => navigate("/api-docs");
 
   /* ── Render ── */
 

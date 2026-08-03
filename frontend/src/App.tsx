@@ -16,6 +16,7 @@ const Goals = React.lazy(() => import("./pages/Goals"));
 const People = React.lazy(() => import("./pages/People"));
 const MLInsights = React.lazy(() => import("./pages/MLInsights"));
 const Settings = React.lazy(() => import("./pages/Settings"));
+const ApiDocs = React.lazy(() => import("./pages/ApiDocs"));
 
 export const ThemeContext = React.createContext<any>({
   theme: "light",
@@ -74,6 +75,8 @@ export default function App() {
                 <Route path="/reports" element={<Navigate to="/analytics" replace />} />
                 <Route path="/ml-insights" element={<MLInsights />} />
                 <Route path="/settings" element={<Settings />} />
+                {/* In-app API reference — themed, replaces the stock Swagger UI */}
+                <Route path="/api-docs" element={<ApiDocs />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>
             </Routes>

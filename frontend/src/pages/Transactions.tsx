@@ -7,7 +7,6 @@ import {
   Pencil,
   Trash2,
   Download,
-  FileSpreadsheet,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -28,7 +27,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { api, apiUrl, formatINR, formatDate, categoryColor } from "@/lib/utils-finance";
+import { api, formatINR, formatDate, categoryColor } from "@/lib/utils-finance";
 import { sortTransactions } from "@/lib/analytics-utils";
 import { DateInput } from "@/components/ui/date-input";
 import { cn } from "@/lib/utils";
@@ -39,6 +38,7 @@ import NLInputBar from "@/components/NLInputBar";
 import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
 import ReceiptScanner from "@/components/ReceiptScanner";
+import ExportDialog from "@/components/ExportDialog";
 
 const PAGE_SIZE = 15;
 const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1, price: 0, price_text: "" };
@@ -700,12 +700,13 @@ export default function Transactions() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/csv"))} data-testid="export-csv-btn">
-                <Download className="h-4 w-4" /> CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => window.open(apiUrl("/export/excel"))} data-testid="export-excel-btn">
-                <FileSpreadsheet className="h-4 w-4" /> Excel
-              </Button>
+              <ExportDialog
+                trigger={
+                  <Button variant="outline" size="sm" data-testid="export-btn">
+                    <Download className="h-4 w-4" /> Export
+                  </Button>
+                }
+              />
               <Button variant="outline" size="sm" onClick={() => setReceiptModalOpen(true)} data-testid="scan-receipt-btn">
                 <Camera className="h-4 w-4" /> Scan Receipt
               </Button>

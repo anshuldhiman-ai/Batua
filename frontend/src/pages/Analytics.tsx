@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { RefreshCw, AlertCircle, Download, FileSpreadsheet } from "lucide-react";
+import { RefreshCw, AlertCircle, Download } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsFilter from "@/components/analytics/AnalyticsFilter";
 import AnalyticsSummaryCards from "@/components/analytics/AnalyticsSummaryCards";
@@ -21,8 +21,9 @@ import { useAnalyticsData } from "@/hooks/useAnalyticsData";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { apiUrl, currentYearMonth } from "@/lib/utils-finance";
+import { currentYearMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import ExportDialog from "@/components/ExportDialog";
 
 export default function Analytics() {
   // Filters persist in localStorage so the page reopens exactly where the
@@ -107,23 +108,13 @@ export default function Analytics() {
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               Refresh
             </Button>
-            <Button
-              size="sm"
-              className="gap-2"
-              onClick={() => window.open(apiUrl("/export/excel"))}
-              data-testid="report-export-excel"
-            >
-              <FileSpreadsheet className="h-4 w-4" /> Excel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => window.open(apiUrl("/export/csv"))}
-              data-testid="report-export-csv"
-            >
-              <Download className="h-4 w-4" /> CSV
-            </Button>
+            <ExportDialog
+              trigger={
+                <Button size="sm" className="gap-2" data-testid="report-export-btn">
+                  <Download className="h-4 w-4" /> Export
+                </Button>
+              }
+            />
           </>
         }
       />

@@ -112,29 +112,47 @@ async def export_excel(
     ws = wb.add_worksheet("Expenses")
 
     # "Good colours" — Batua's brand green header bar, green section titles,
-    # and a soft-green TOTAL band so each month block reads clearly.
-    title_fmt = wb.add_format({"bold": True, "font_size": 12, "font_color": "#047857"})
-    year_fmt = wb.add_format({"bold": True, "font_color": "#FFFFFF", "bg_color": "#047857", "font_size": 12})
-    header_fmt = wb.add_format({"bold": True, "bg_color": "#047857", "font_color": "#FFFFFF"})
-    total_fmt = wb.add_format({"bold": True, "bg_color": "#D1FAE5", "font_color": "#065F46"})
+    # and a soft-green TOTAL band so each month block reads clearly. Every
+    # column is centred; Calibri keeps it clean and universally renderable.
+    center_fmt = wb.add_format({"align": "center", "valign": "vcenter", "font_name": "Calibri", "font_size": 11})
+    title_fmt = wb.add_format(
+        {"bold": True, "font_size": 12, "font_color": "#047857", "font_name": "Calibri",
+         "align": "center", "valign": "vcenter", "bg_color": "#E7F6EE"}
+    )
+    year_fmt = wb.add_format(
+        {"bold": True, "font_size": 12, "font_color": "#FFFFFF", "bg_color": "#047857",
+         "font_name": "Calibri", "align": "center", "valign": "vcenter"}
+    )
+    header_fmt = wb.add_format(
+        {"bold": True, "bg_color": "#047857", "font_color": "#FFFFFF", "font_name": "Calibri",
+         "font_size": 11, "align": "center", "valign": "vcenter",
+         "border": 1, "border_color": "#FFFFFF"}
+    )
+    total_fmt = wb.add_format(
+        {"bold": True, "bg_color": "#D1FAE5", "font_color": "#065F46", "font_name": "Calibri",
+         "font_size": 11, "align": "center", "valign": "vcenter"}
+    )
 
     headers = ["Sno.", "Name Of Item", "Quantity", "Price", "Total Amount", "Date Of Purchase", "Mode of Payment"]
     for c, w in enumerate([6, 42, 10, 24, 14, 18, 20]):
-        ws.set_column(c, c, w)
+        ws.set_column(c, c, w, center_fmt)
 
     row = 0
     prev_year = None
     for key, items in months.items():
         year, month = key.split("-")
         if prev_year is not None and year != prev_year:
-            ws.write(row, 0, f"YEAR-{year}", year_fmt)
+            ws.merge_range(row, 0, row, 6, f"YEAR-{year}", year_fmt)
+            ws.set_row(row, 20)
             row += 1
         prev_year = year
 
-        ws.write(row, 0, f"Expense Table : {month}/{year}", title_fmt)
+        ws.merge_range(row, 0, row, 6, f"Expense Table : {month}/{year}", title_fmt)
+        ws.set_row(row, 24)
         row += 1
         for c, h in enumerate(headers):
             ws.write(row, c, h, header_fmt)
+        ws.set_row(row, 22)
         row += 1
 
         month_total = 0.0
@@ -151,8 +169,11 @@ async def export_excel(
             ws.write(row, 6, t.get("payment_method", ""))
             row += 1
 
-        ws.write(row, 0, "TOTAL", total_fmt)
+        # TOTAL band: label spans A:D, figure in E, fill carries across F:G.
+        ws.merge_range(row, 0, row, 3, "TOTAL", total_fmt)
         ws.write_number(row, 4, round(month_total, 2), total_fmt)
+        ws.merge_range(row, 5, row, 6, "", total_fmt)
+        ws.set_row(row, 22)
         row += 1
 
     wb.close()
