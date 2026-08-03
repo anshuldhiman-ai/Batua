@@ -33,6 +33,41 @@ async def get_all_txns():
     return await storage.all("transactions")
 
 
+# Each month block gets its own colour theme so consecutive months read as
+# distinct sections. ``base`` is dark enough for white header text; ``light``
+# is the pastel used for the title + TOTAL bands. Months cycle through the
+# palette; the YEAR divider rows stay a neutral dark.
+MONTH_THEMES = [
+    {"base": "#047857", "light": "#E7F6EE"},  # emerald
+    {"base": "#0F766E", "light": "#E7F4F3"},  # teal
+    {"base": "#075985", "light": "#E8F3FB"},  # sky
+    {"base": "#4338CA", "light": "#ECEAFB"},  # indigo
+    {"base": "#86198F", "light": "#FAEAFB"},  # fuchsia
+    {"base": "#9F1239", "light": "#FCE8EF"},  # rose
+    {"base": "#92400E", "light": "#FBF0E4"},  # amber
+    {"base": "#5B21B6", "light": "#EEEAFB"},  # violet
+]
+
+
+def _month_formats(wb, base: str, light: str):
+    """The title / header / TOTAL formats for one month's colour theme."""
+    return {
+        "title": wb.add_format(
+            {"bold": True, "font_size": 12, "font_color": base, "font_name": "Calibri",
+             "align": "center", "valign": "vcenter", "bg_color": light}
+        ),
+        "header": wb.add_format(
+            {"bold": True, "bg_color": base, "font_color": "#FFFFFF", "font_name": "Calibri",
+             "font_size": 11, "align": "center", "valign": "vcenter",
+             "border": 1, "border_color": "#FFFFFF"}
+        ),
+        "total": wb.add_format(
+            {"bold": True, "bg_color": light, "font_color": base, "font_name": "Calibri",
+             "font_size": 11, "align": "center", "valign": "vcenter"}
+        ),
+    }
+
+
 @router.get("/export/csv")
 async def export_csv(
     month: str | None = None,  # YYYY-MM — export just that month
@@ -111,34 +146,32 @@ async def export_excel(
     wb = xlsxwriter.Workbook(out, {"in_memory": True})
     ws = wb.add_worksheet("Expenses")
 
-    # "Good colours" — Batua's brand green header bar, green section titles,
-    # and a soft-green TOTAL band so each month block reads clearly. Every
-    # column is centred; Calibri keeps it clean and universally renderable.
+    # "Good colours" — every column centred, Calibri throughout, and each month
+    # block wears its own colour theme (see MONTH_THEMES) so the sheet reads as
+    # distinct monthly sections rather than one flat table. YEAR divider rows
+    # stay a neutral dark.
     center_fmt = wb.add_format({"align": "center", "valign": "vcenter", "font_name": "Calibri", "font_size": 11})
-    title_fmt = wb.add_format(
-        {"bold": True, "font_size": 12, "font_color": "#047857", "font_name": "Calibri",
-         "align": "center", "valign": "vcenter", "bg_color": "#E7F6EE"}
-    )
     year_fmt = wb.add_format(
-        {"bold": True, "font_size": 12, "font_color": "#FFFFFF", "bg_color": "#047857",
+        {"bold": True, "font_size": 12, "font_color": "#FFFFFF", "bg_color": "#1E293B",
          "font_name": "Calibri", "align": "center", "valign": "vcenter"}
-    )
-    header_fmt = wb.add_format(
-        {"bold": True, "bg_color": "#047857", "font_color": "#FFFFFF", "font_name": "Calibri",
-         "font_size": 11, "align": "center", "valign": "vcenter",
-         "border": 1, "border_color": "#FFFFFF"}
-    )
-    total_fmt = wb.add_format(
-        {"bold": True, "bg_color": "#D1FAE5", "font_color": "#065F46", "font_name": "Calibri",
-         "font_size": 11, "align": "center", "valign": "vcenter"}
     )
 
     headers = ["Sno.", "Name Of Item", "Quantity", "Price", "Total Amount", "Date Of Purchase", "Mode of Payment"]
     for c, w in enumerate([6, 42, 10, 24, 14, 18, 20]):
         ws.set_column(c, c, w, center_fmt)
 
+    # Cache one set of formats per theme colour (xlsxwriter also dedups, but
+    # this keeps the workbook small for very long histories).
+    fmt_cache: dict = {}
+
+    def fmts_for(base: str, light: str):
+        if base not in fmt_cache:
+            fmt_cache[base] = _month_formats(wb, base, light)
+        return fmt_cache[base]
+
     row = 0
     prev_year = None
+    theme_idx = 0
     for key, items in months.items():
         year, month = key.split("-")
         if prev_year is not None and year != prev_year:
@@ -147,11 +180,16 @@ async def export_excel(
             row += 1
         prev_year = year
 
-        ws.merge_range(row, 0, row, 6, f"Expense Table : {month}/{year}", title_fmt)
+        # Next colour theme for this month block.
+        theme = MONTH_THEMES[theme_idx % len(MONTH_THEMES)]
+        theme_idx += 1
+        fmts = fmts_for(theme["base"], theme["light"])
+
+        ws.merge_range(row, 0, row, 6, f"Expense Table : {month}/{year}", fmts["title"])
         ws.set_row(row, 24)
         row += 1
         for c, h in enumerate(headers):
-            ws.write(row, c, h, header_fmt)
+            ws.write(row, c, h, fmts["header"])
         ws.set_row(row, 22)
         row += 1
 
@@ -170,9 +208,9 @@ async def export_excel(
             row += 1
 
         # TOTAL band: label spans A:D, figure in E, fill carries across F:G.
-        ws.merge_range(row, 0, row, 3, "TOTAL", total_fmt)
-        ws.write_number(row, 4, round(month_total, 2), total_fmt)
-        ws.merge_range(row, 5, row, 6, "", total_fmt)
+        ws.merge_range(row, 0, row, 3, "TOTAL", fmts["total"])
+        ws.write_number(row, 4, round(month_total, 2), fmts["total"])
+        ws.merge_range(row, 5, row, 6, "", fmts["total"])
         ws.set_row(row, 22)
         row += 1
 
