@@ -59,6 +59,9 @@ export const CATEGORY_COLORS = {
   "Personal Care": "#22d3ee",
   Snacks: "#f97316",
   Investments: "#0d9488",
+  Fruits: "#22c55e",
+  Refreshments: "#60a5fa",
+  Beverages: "#e879f9",
   Other: "#64748b",
 };
 

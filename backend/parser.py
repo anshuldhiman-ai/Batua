@@ -42,13 +42,8 @@ INCOME_WORDS = [
 # more specific categories come before broad ones.
 CATEGORIES: dict[str, list[str]] = {
     "Income": INCOME_WORDS,
-    "Snacks": [
-        "lays", "chips", "samosa", "golgappa", "golgappe", "gol gappa", "gol gappe", "panipuri",
-        "pani puri", "kurkure", "namkeen", "biscuit", "cookie", "chocolate",
-        "dairy milk", "kitkat", "kit kat", "maggi", "chai", "tea", "coffee",
-        "juice", "icecream", "ice cream", "pastry", "snack", "snacks",
-        "pakora", "vada pav", "bhel", "popcorn",
-    ],
+    # Food/drink ordering matches ml_nlp.CATEGORY_KEYWORDS (the dict that
+    # actually classifies) so the category list and the classifier agree.
     "Food Delivery": ["swiggy", "zomato", "foodpanda", "ubereats", "uber eats", "eatsure", "dunzo"],
     "Food & Dining": [
         "restaurant", "dine", "dining", "cafe", "dosa",
@@ -56,9 +51,37 @@ CATEGORIES: dict[str, list[str]] = {
         "dominos", "dominoes", "thali", "lunch", "dinner", "breakfast",
         "meal", "buffet", "starbucks", "barbeque", "haldiram",
     ],
+    # Drinks come before fruits so "banana shake" → Beverages and
+    # "mix fruit juice" → Refreshments, while a bare fruit stays Fruits.
+    "Refreshments": [
+        "juice", "lemonade", "nimbu", "nimbu pani", "shikanji", "mineral water",
+        "bottled water", "packaged water", "drinking water", "bisleri", "kinley",
+        "soft drink", "cold drink", "coke", "pepsi", "sprite", "fanta",
+        "thums up", "limca", "maaza", "frooti", "slice", "appy", "soda",
+        "sherbet", "real juice", "lime water", "lime soda", "lime juice",
+        "minute maid",
+    ],
+    "Beverages": [
+        "shake", "milkshake", "milk shake", "smoothie", "lassi", "chaas",
+        "buttermilk", "butter milk", "cold coffee", "iced coffee", "iced tea",
+        "energy drink", "red bull", "horlicks", "bournvita", "boost",
+    ],
+    "Fruits": [
+        "mango", "banana", "apple", "orange", "grapes", "watermelon", "papaya",
+        "guava", "pineapple", "pomegranate", "kiwi", "strawberry", "mosambi",
+        "sweet lime", "litchi", "lychee", "peach", "apricot", "cherry",
+        "sapota", "chikoo", "custard apple", "jamun", "fruit", "fruits", "aam",
+    ],
+    "Snacks": [
+        "lays", "chips", "samosa", "golgappa", "golgappe", "gol gappa", "gol gappe", "panipuri",
+        "pani puri", "kurkure", "namkeen", "biscuit", "cookie", "chocolate",
+        "dairy milk", "kitkat", "kit kat", "maggi", "chai", "tea", "coffee",
+        "icecream", "ice cream", "pastry", "snack", "snacks",
+        "pakora", "vada pav", "bhel", "popcorn",
+    ],
     "Groceries": [
         "bigbasket", "big basket", "blinkit", "zepto", "grofers", "dmart",
-        "d mart", "grocery", "groceries", "vegetables", "fruits", "milk",
+        "d mart", "grocery", "groceries", "vegetables", "milk",
         "supermarket", "kirana", "jiomart", "jio mart", "reliance fresh",
     ],
     "Fuel": [
