@@ -23,11 +23,10 @@ import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
-// Pick the right on-brand logo tile for the current theme.
-// In light UI we want the dark-tile logo to stand out; in dark UI we want the
-// light-tile logo so the tile is visible against a dark background.
+// Brand lockup — the round "B" mark plus the "batua" wordmark, both already
+// baked into the SVG. Dark tile for dark UI, light tile for light UI.
 function brandLogoSrc(theme) {
-  return theme === "dark" ? "/batua-logo-dark.png" : "/batua-logo-light.png";
+  return theme === "dark" ? "/b_logo_dark.svg" : "/b_logo_light.svg";
 }
 
 const NAV = [
@@ -88,16 +87,21 @@ function DesktopSidebar({ collapsed, onToggle }) {
     >
       <NavLink
         to="/dashboard"
-        className={cn("flex items-center gap-3 py-5", collapsed ? "justify-center px-0" : "px-4")}
+        className={cn(
+          "flex items-center",
+          collapsed ? "justify-center px-0 py-5" : "mx-auto w-fit gap-3 py-5"
+        )}
       >
         <img
           src={brandLogoSrc(theme)}
           alt="Batua"
-          className="h-7 w-7 shrink-0 rounded object-cover shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.5)]"
+          className="h-9 w-9 shrink-0 object-cover"
         />
-        <span className={cn("hidden font-brand text-xl tracking-wide", !collapsed && "lg:inline")}>
-          Batua
-        </span>
+        {!collapsed && (
+          <span className="hidden font-brand text-xl leading-none tracking-wide lg:inline">
+            Batua
+          </span>
+        )}
       </NavLink>
 
       <nav className="flex flex-1 flex-col gap-1 px-2 xl:px-3">
@@ -194,8 +198,8 @@ function MobileNav() {
         )}
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
-          <img src={brandLogoSrc(theme)} alt="Batua" className="h-6 w-6 rounded object-cover" />
-          <span className="font-brand text-lg tracking-wide">Batua</span>
+          <img src={brandLogoSrc(theme)} alt="Batua" className="h-8 w-8 shrink-0 rounded object-cover" />
+          <span className="font-brand text-lg leading-none tracking-wide">Batua</span>
         </NavLink>
         <div className="flex items-center gap-2">
           <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />

@@ -25,6 +25,38 @@ def is_enabled() -> bool:
     return bool(_API_KEY)
 
 
+def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
+    """Check a Gemini API key against the live API.
+
+    ``candidate`` is normally ``None`` — validate the currently configured key.
+    Passing an explicit string validates that key instead (so the Settings
+    "Test connection" button can check a typed-but-unsaved key).
+
+    Returns ``(valid, reason, message)`` where ``reason`` is one of
+    ``"ok"``, ``"no_key"``, ``"invalid_key"``, or ``"network_error"``.
+    Never raises.
+    """
+    key = (candidate or "").strip() or _API_KEY
+    if not key:
+        return False, "no_key", "No API key configured — add one to enable Gemini."
+    try:
+        resp = requests.get(
+            f"{_API_BASE}/models/{_MODEL}?key={key}",
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return True, "ok", "Key is valid — Gemini is reachable."
+        if resp.status_code in (400, 401, 403):
+            body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+            err = body.get("error", {}) if isinstance(body, dict) else {}
+            detail = err.get("message", "") if isinstance(err, dict) else ""
+            snippet = f" — {detail}" if detail else ""
+            return False, "invalid_key", f"Key rejected (HTTP {resp.status_code}){snippet}"
+        return False, "network_error", f"Gemini answered with HTTP {resp.status_code}."
+    except Exception as exc:
+        return False, "network_error", f"Could not reach Gemini: {exc}"
+
+
 def set_api_key(key: str) -> None:
     """Update the Gemini API key at runtime.
 

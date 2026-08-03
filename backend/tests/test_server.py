@@ -315,8 +315,8 @@ def test_transaction_update_clamps_future_date(client):
 
 
 def test_gemini_key_setting_route(client):
-    import ai
-
+    # "ai" here is the project's own backend/ai.py Gemini wrapper, not the
+    # google.generativeai SDK. Patches use string paths so no import is needed.
     # Status reflects whether a key is configured.
     with patch("ai.is_enabled", return_value=False):
         r = client.get("/api/settings/gemini-key")

@@ -53,7 +53,8 @@ The repo already contains **`render.yaml`**, a Blueprint that configures this.
    {"app":"Batua","status":"live","storage":"mongodb", ...}
    ```
    `"storage":"mongodb"` confirms Atlas is connected. Copy this base URL
-   (`https://<your-service>.onrender.com`) — it's your `REACT_APP_BACKEND_URL`.
+   (`https://<your-service>.onrender.com`) without a trailing slash — it's your
+   `VITE_BACKEND_URL`.
 
 > **Free-tier note:** Render free services sleep after ~15 min idle; the first
 > request then takes ~30–60 s to wake. Fine for a demo/portfolio.
@@ -66,12 +67,12 @@ The repo already contains **`render.yaml`**, a Blueprint that configures this.
 2. **Add New… → Project** → import the `Batua` repo.
 3. Configure:
    - **Root Directory:** `frontend`
-   - **Framework Preset:** Create React App (auto-detected)
-   - **Build Command:** `yarn build` · **Output Directory:** `build` (defaults are fine)
+   - **Framework Preset:** Vite (auto-detected from `vite.config.js`)
+   - **Build Command:** `yarn build` · **Output Directory:** `dist` (auto-detected for Vite)
 4. **Environment Variables** → add:
    | Key | Value |
    |-----|-------|
-   | `REACT_APP_BACKEND_URL` | your Render URL from step 2 (no trailing slash) |
+   | `VITE_BACKEND_URL` | your Render URL from step 2 (no trailing slash) |
 5. **Deploy**. You get a URL like `https://batua.vercel.app`.
 
 ---
@@ -83,6 +84,16 @@ URL (e.g. `https://batua.vercel.app`), then redeploy the backend. Without this
 the browser blocks the frontend's API calls with a CORS error.
 
 Open your Vercel URL — Batua is live. 🎉
+
+---
+
+## Mobile (Android APK) — optional
+
+Batua is also being ported to a native Android APK where the **entire backend runs
+on-device** via Chaquopy (embedded CPython) inside a Capacitor WebView. Internet is
+used only for the optional Gemini fallback. See `CLAUDE.md` → *Android APK Conversion*
+for the current status (the spike is blocked on a `pydantic-core` Rust wheel for
+Android). This is production-stretch and does **not** affect the web deployment above.
 
 ---
 

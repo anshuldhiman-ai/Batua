@@ -11,6 +11,7 @@ import {
   Info,
   Coins,
   Activity,
+  RefreshCw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -37,6 +38,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api, formatINR, formatMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+
+// Shared across every recharts component on this page. Animations are off so
+// charts render instantly and never "laggy"-replay on data refresh or tab
+// switches. Keeping it here (not per-chart) stops them from drifting again.
+const CHART_DEFAULTS = { isAnimationActive: false };
 
 function EmptyState({ icon: Icon = Info, title, description }) {
   return (
@@ -132,6 +138,14 @@ export default function MLInsights() {
     loadData();
   }, [loadData]);
 
+  // Refetch when the tab regains focus so transactions added on the
+  // Transactions page (or in another tab) show up without a manual reload.
+  useEffect(() => {
+    const onFocus = () => loadData();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadData]);
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -183,6 +197,11 @@ export default function MLInsights() {
       <PageHeader
         title="AI Insights"
         subtitle="Pattern analytics, cash-flow forecasting and saving tips — tap the chat bubble to ask questions about your money"
+        actions={
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading} data-testid="ml-refresh-btn">
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /> Refresh
+          </Button>
+        }
       />
 
       {/* Tabs list */}
@@ -264,7 +283,7 @@ export default function MLInsights() {
                   <CardContent>
                     {monthly_patterns?.monthly_spending?.length ? (
                       <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={monthly_patterns.monthly_spending} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <BarChart data={monthly_patterns.monthly_spending} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} {...CHART_DEFAULTS}>
                           <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
                           <XAxis dataKey="month_str" stroke={CHART_AXIS} fontSize={11} tickLine={false} tickFormatter={formatMonth} />
                           <YAxis stroke={CHART_AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} />
@@ -441,7 +460,7 @@ export default function MLInsights() {
                 <CardContent>
                   {forecast?.forecast?.length ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={forecast.forecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <AreaChart data={forecast.forecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} {...CHART_DEFAULTS}>
                         <defs>
                           <linearGradient id="gForecast" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />

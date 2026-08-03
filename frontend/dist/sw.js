@@ -1,4 +1,6 @@
-const CACHE_NAME = "batua-static-cache-v1";
+// Bump this version whenever you change the app's JS/CSS — the browser only
+// clears the old cache when CACHE_NAME changes.
+const CACHE_NAME = "batua-static-cache-v2";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",

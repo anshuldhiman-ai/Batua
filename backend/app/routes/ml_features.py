@@ -393,3 +393,16 @@ async def reset_chat_session(session_id: str):
     storage = get_storage()
     await chat_engine.delete_session(storage, session_id)
     return {"deleted": True}
+
+
+@router.delete("/chat")
+async def reset_all_chat_sessions():
+    """Clear every chat session's memory.
+
+    The Settings "Clear memory" action falls back to this when no session id
+    is known (e.g. the user never opened the assistant) so the button is a
+    real operation instead of a silent no-op.
+    """
+    storage = get_storage()
+    cleared = await storage.clear(chat_engine.COLLECTION)
+    return {"deleted": cleared}

@@ -31,6 +31,7 @@
 - [Testing & CI](#-testing--ci)
 - [Security](#-security)
 - [Deployment](#-deployment)
+- [Documentation](#-documentation)
 - [License](#-license)
 
 ---
@@ -265,7 +266,9 @@ batua/
 │       └── lib/             # Finance utils, analytics helpers, themes, utility functions
 ├── scratch/                 # Android spike artifacts (gitignored)
 ├── render.yaml              # Render blueprint (backend)
-├── DEPLOYMENT.md            # Full deploy walkthrough
+├── DEPLOYMENT.md            # Full deploy walkthrough (Render + Vercel)
+├── AGENTS.md                # Agent working instructions for this repo
+├── docs/                    # API.md (endpoint reference) · DEVELOPMENT.md (build guide)
 └── SKILLS.md                # Engineering competencies demonstrated
 ```
 
@@ -314,9 +317,21 @@ See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the production checklist.
 ## ☁️ Deployment
 
 - **Backend** → [Render](https://render.com) via the included `render.yaml` blueprint (set `MONGO_URL`, `CORS_ORIGINS`, and optionally `GOOGLE_API_KEY` in the dashboard).
-- **Frontend** → [Vercel](https://vercel.com) (`frontend/` root, `VITE_BACKEND_URL` pointing at the deployed API).
+- **Frontend** → [Vercel](https://vercel.com) (`frontend/` root, Vite preset, `VITE_BACKEND_URL` pointing at the deployed API, output dir `dist`).
+- **Mobile** → native Android APK port (Chaquopy + Capacitor) is **in progress**; the on-device FastAPI backend means the whole app can eventually run offline on a phone with no hosted server. See `CLAUDE.md` → *Android APK Conversion*.
 
 Full step-by-step instructions live in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+---
+
+## 📚 Documentation
+
+Two focused docs live alongside the README:
+
+- **`docs/API.md`** — complete REST API reference: every route grouped by domain, with
+  methods, paths, payloads, and sample responses.
+- **`docs/DEVELOPMENT.md`** — the build guide: architecture, the request lifecycle,
+  storage & parsing internals, the AI/ML stack, and a recipe for adding new endpoints.
 
 ---
 

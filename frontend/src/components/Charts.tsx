@@ -208,7 +208,14 @@ export function CategoryDonut({ data, height = 300, centerLabel = "Total spend" 
             animationBegin={120}
           >
             {data.map((d) => (
-              <Cell key={d.category} fill={categoryColor(d.category)} className="cursor-pointer focus:outline-none" />
+              <Cell
+                key={d.category}
+                fill={categoryColor(d.category)}
+                // Soft glow in the segment's own colour — makes the donut feel
+                // luminous and interactive without over-powering the chart.
+                style={{ filter: `drop-shadow(0 0 6px ${categoryColor(d.category)}59)` }}
+                className="cursor-pointer focus:outline-none"
+              />
             ))}
           </Pie>
         </PieChart>

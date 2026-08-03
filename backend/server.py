@@ -108,6 +108,23 @@ app.include_router(api, prefix="/api")
 # forbids any active content is a cheap, safe default: even if a response were
 # ever mis-rendered as a document, nothing could execute. HSTS is only sent
 # over HTTPS (it's meaningless and can lock out local http:// dev otherwise).
+# A stricter CSP for the JSON API: it never renders HTML, so forbidding any
+# active content is safe.
+_API_CSP = "default-src 'none'; frame-ancestors 'none'"
+# Swagger/ReDoc pages (only reachable when ENABLE_DOCS=1) render real HTML and
+# need to load the UI bundle + styles from jsDelivr, fetch /openapi.json, and
+# run their inline bootstrapping script. Scope the CSP to exactly those sources.
+_DOCS_CSP = (
+    "default-src 'none'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "img-src 'self' data: https://fastapi.tiangolo.com; "
+    "font-src 'self' data: https://cdn.jsdelivr.net; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
 @app.middleware("http")
 async def _security_headers(request, call_next):
     """Attach security headers to every response and disable API caching."""
@@ -116,10 +133,10 @@ async def _security_headers(request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
-    response.headers.setdefault(
-        "Content-Security-Policy",
-        "default-src 'none'; frame-ancestors 'none'",
-    )
+    if request.url.path in ("/docs", "/redoc", "/openapi.json"):
+        response.headers.setdefault("Content-Security-Policy", _DOCS_CSP)
+    else:
+        response.headers.setdefault("Content-Security-Policy", _API_CSP)
     # Only advertise HSTS when the request actually arrived over TLS, so local
     # http development isn't pinned to https by the browser.
     if request.url.scheme == "https":

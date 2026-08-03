@@ -29,7 +29,7 @@ const isCanceled = (err) =>
  * reads as "Loading model…" rather than a stuck transcription, and any step can
  * be cancelled.
  */
-export default function MicTest() {
+export default function MicTest({ className }: { className?: string }) {
   const [status, setStatus] = React.useState(null);   // { available, model, models, loaded }
   const [activeModel, setActiveModel] = React.useState("");
   const [switching, setSwitching] = React.useState(false);
@@ -264,7 +264,7 @@ export default function MicTest() {
 
   if (status && status.available === false) {
     return (
-      <Card>
+      <Card className={cn("rounded-2xl", className)}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AudioLines className="h-4 w-4" /> Voice input (offline)
@@ -297,7 +297,7 @@ export default function MicTest() {
     : "Idle";
 
   return (
-    <Card>
+    <Card className={cn("rounded-2xl", className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <AudioLines className="h-4 w-4" /> Voice input (offline)
