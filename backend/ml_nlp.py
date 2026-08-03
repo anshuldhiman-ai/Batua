@@ -138,12 +138,26 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "food delivery", "online food", "delivery order", "delivery charge",
         "delivery tip",
     ],
-    # Food & Dining AFTER Food Delivery but BEFORE Snacks so "starbucks
-    # coffee" → Food & Dining while "zomato dinner order" stays Food Delivery.
+    # Fast Food BEFORE Food & Dining so quick-service food (burgers, pizza,
+    # fried chicken, noodles, momos…) is its own bucket, not "dining".
+    "Fast Food": [
+        "pizza", "burger", "fries", "french fries", "kfc", "mcdonald", "mcd",
+        "mcdonalds", "dominos", "domino's", "dominoes", "pizza hut",
+        "subway", "burger king", "wendy's", "wendys", "taco bell", "taco",
+        "tacos", "burrito", "popeyes", "fried chicken", "nuggets",
+        "chicken nuggets", "hot dog", "hotdog", "sandwich", "sandwiches",
+        "momos", "momo", "kathi roll", "egg roll", "chicken roll",
+        "spring roll", "spring rolls", "frankie", "shawarma", "wrap", "wraps",
+        "noodles", "chowmein", "chow mein", "hakka noodles", "manchurian",
+        "fried rice", "sizzler", "sizzlers", "oven story", "wow momo",
+        "la pinoz", "pizza express",
+    ],
+    # Food & Dining AFTER Food Delivery + Fast Food but BEFORE Snacks so
+    # "starbucks coffee" → Food & Dining while "zomato dinner order" stays
+    # Food Delivery.
     "Food & Dining": [
         "restaurant", "dine", "dining", "cafe", "cafeteria", "dosa", "idli",
-        "vada", "paneer", "biryani", "pizza", "burger", "kfc", "mcdonald",
-        "mcd", "dominos", "domino's", "dominoes", "thali", "lunch", "dinner",
+        "vada", "paneer", "biryani", "thali", "lunch", "dinner",
         "breakfast", "meal", "meals", "buffet", "starbucks", "barbeque",
         "nation", "barbeque nation", "chinese", "tandoor", "tadka",
         "mughlai", "north indian", "south indian", "street food", "chaat",
@@ -157,16 +171,15 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "takatak", "taka tak", "bikanervala", "bikanerwala", "haldiram restaurant",
         "sagar ratna", "saravana bhavan", "mtr", "nandini", "rajdhani thali",
         "panchavati", "goli vada pav", "goli vada", "faasos", "lunch box",
-        "oven story", "tiffin", "mess", "canteen", "food court", "dhaba",
+        "tiffin", "mess", "canteen", "food court", "dhaba",
         "baker", "bakery", "cake shop", "eat fit", "eatfit", "slimmeal",
         "health kitchen", "mainland china", "haldiram", "haldiram take away",
         "cafe coffee day", "ccd", "barista", "blue tokai", "third wave coffee",
-        "chai point", "wow momo", "momo", "momos", "roll", "kathi roll",
-        "frankie", "shawarma", "kebab", "tikka", "tandoori", "seekh kebab",
+        "chai point", "kebab", "tikka", "tandoori", "seekh kebab",
         "pav bhaji", "misal pav", "vada pav", "dabeli", "dhokla", "khandvi",
         "poha", "upma", "uttapam", "appam", "puttu", "idiyappam", "pesarattu",
-        "pongal", "rasam", "sambar", "curd rice", "lemon rice", "fried rice",
-        "noodles", "manchurian", "sizzler", "sizzlers", "soup", "salad bar",
+        "pongal", "rasam", "sambar", "curd rice", "lemon rice",
+        "soup", "salad bar",
     ],
     # Refreshments BEFORE Beverages/Fruits/Snacks so "mix fruit juice" is a
     # drink, not a fruit, and juices / soft drinks / water never become snacks.
@@ -684,7 +697,7 @@ TRAINING_DATA_FALLBACK: List[Tuple[str, str]] = [
     ("mcdonalds", "Food & Dining"),
     ("burger king", "Food & Dining"),
     ("subway sandwich", "Food & Dining"),
-    ("subway", "Food & Dining"),
+    ("subway", "Fast Food"),
     ("biryani zone", "Food & Dining"),
     ("biryani blues dine in", "Food & Dining"),
     ("haleem at paradise", "Food & Dining"),
@@ -1584,7 +1597,7 @@ TRAINING_DATA_FALLBACK: List[Tuple[str, str]] = [
     ("pakora", "Snacks"),
     ("pakode", "Snacks"),
     ("bread pakora", "Snacks"),
-    ("sandwich", "Snacks"),
+    ("sandwich", "Fast Food"),
     ("golgappa", "Snacks"),
     ("golgappe", "Snacks"),
     ("gol gappa", "Snacks"),
@@ -1718,7 +1731,7 @@ class TransactionClassifier:
         self._predict_cache = _PredictCache()
         self._training_fingerprint: Optional[str] = None
         self._categories = [
-            "Income", "Food & Dining", "Food Delivery", "Groceries", "Fuel", "Transportation",
+            "Income", "Food & Dining", "Fast Food", "Food Delivery", "Groceries", "Fuel", "Transportation",
             "Shopping", "Utilities", "Entertainment", "Subscriptions", "Health",
             "Education", "Investments", "Housing/Rent", "Personal Care", "Snacks", "Other",
             "Fruits", "Refreshments", "Beverages",

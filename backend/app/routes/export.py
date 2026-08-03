@@ -63,7 +63,8 @@ def _month_formats(wb, base: str, light: str):
         ),
         "total": wb.add_format(
             {"bold": True, "bg_color": light, "font_color": base, "font_name": "Calibri",
-             "font_size": 11, "align": "center", "valign": "vcenter"}
+             "font_size": 11, "align": "center", "valign": "vcenter",
+             "num_format": "₹#,##0.00"}
         ),
     }
 
@@ -151,6 +152,12 @@ async def export_excel(
     # distinct monthly sections rather than one flat table. YEAR divider rows
     # stay a neutral dark.
     center_fmt = wb.add_format({"align": "center", "valign": "vcenter", "font_name": "Calibri", "font_size": 11})
+    # Money cells stay numeric (so they sum in Excel) but display with a rupee
+    # symbol — this is a finance sheet, every amount should look like money.
+    money_fmt = wb.add_format(
+        {"num_format": "₹#,##0.00", "align": "center", "valign": "vcenter",
+         "font_name": "Calibri", "font_size": 11}
+    )
     year_fmt = wb.add_format(
         {"bold": True, "font_size": 12, "font_color": "#FFFFFF", "bg_color": "#1E293B",
          "font_name": "Calibri", "align": "center", "valign": "vcenter"}
@@ -201,8 +208,12 @@ async def export_excel(
             ws.write_number(row, 0, i)
             ws.write(row, 1, t.get("description", ""))
             ws.write_number(row, 2, float(qty))
-            ws.write(row, 3, _price_cell(t))
-            ws.write_number(row, 4, round(amount, 2))
+            price_cell = _price_cell(t)
+            if isinstance(price_cell, (int, float)):
+                ws.write_number(row, 3, price_cell, money_fmt)
+            else:
+                ws.write(row, 3, price_cell)  # verbatim breakdown already carries ₹
+            ws.write_number(row, 4, round(amount, 2), money_fmt)
             ws.write(row, 5, _dmy(t.get("date", "")))
             ws.write(row, 6, t.get("payment_method", ""))
             row += 1

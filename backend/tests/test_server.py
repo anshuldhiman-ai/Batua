@@ -364,6 +364,52 @@ def test_gemini_key_setting_route(client):
         assert r.json() == {"valid": False, "reason": "invalid_key", "message": "Key rejected"}
 
 
+def test_validate_key_retries_transient_and_distinguishes_reasons(client):
+    """A valid key must not be rejected by a single transient failure, and
+    auth/network/quota reasons stay distinct."""
+    import ai as ai_mod
+
+    class _Resp:
+        def __init__(self, code, json_body=None, ct="application/json"):
+            self.status_code = code
+            self._json = json_body or {}
+            self.headers = {"content-type": ct}
+
+        def json(self):
+            return self._json
+
+    # 500 → 200: retried once, succeeds.
+    with patch("ai.requests.get", side_effect=[_Resp(500), _Resp(200)]) as get:
+        ok, reason, _ = ai_mod.validate_key("AIza-valid")
+        assert ok is True and reason == "ok"
+        assert get.call_count == 2
+
+    # Connection exception → 200: retried once, succeeds.
+    with patch("ai.requests.get", side_effect=[ConnectionError("boom"), _Resp(200)]) as get:
+        ok, reason, _ = ai_mod.validate_key("AIza-valid")
+        assert ok is True and reason == "ok"
+        assert get.call_count == 2
+
+    # 400 auth failure is authoritative — no retry.
+    with patch("ai.requests.get", side_effect=[_Resp(400, {"error": {"message": "API key not valid"}})]) as get:
+        ok, reason, msg = ai_mod.validate_key("AIza-bad")
+        assert ok is False and reason == "invalid_key"
+        assert get.call_count == 1
+        assert "API key not valid" in msg
+
+    # 429 → quota, distinct from a network error.
+    with patch("ai.requests.get", side_effect=[_Resp(429), _Resp(429)]) as get:
+        ok, reason, _ = ai_mod.validate_key("AIza-valid")
+        assert ok is False and reason == "quota"
+        assert get.call_count == 2
+
+    # Quota reason maps to HTTP 429 on the settings route.
+    with patch("ai.validate_key", return_value=(False, "quota", "Rate limited")):
+        r = client.put("/api/settings/gemini-key", json={"api_key": "AIza-valid"})
+        assert r.status_code == 429
+        assert r.json()["detail"]["reason"] == "quota"
+
+
 def test_transaction_price_derivation(client):
     """Test that POST without price derives price and PUT changing quantity recomputes price."""
     # 1. POST without price - should derive price = |amount|/quantity

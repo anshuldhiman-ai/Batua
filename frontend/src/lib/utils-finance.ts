@@ -45,6 +45,7 @@ export function formatMonth(ym) {
 export const CATEGORY_COLORS = {
   Income: "#059669",
   "Food & Dining": "#f59e0b",
+  "Fast Food": "#ef4444",
   "Food Delivery": "#fb923c",
   Groceries: "#84cc16",
   Transportation: "#06b6d4",

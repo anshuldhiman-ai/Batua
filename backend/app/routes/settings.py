@@ -49,7 +49,8 @@ async def update_gemini_key(payload: GeminiKeyUpdate):
         raise HTTPException(400, "API key cannot be empty")
     ok, reason, message = await asyncio.to_thread(ai.validate_key, key)
     if not ok:
-        status = 400 if reason == "invalid_key" else 502
+        # invalid_key → 400 (auth), quota → 429 (rate limit), everything else → 502.
+        status = 400 if reason == "invalid_key" else 429 if reason == "quota" else 502
         raise HTTPException(status, {"reason": reason, "message": message})
     ai.set_api_key(key)
     return {"updated": True, "configured": True, "reason": "ok"}

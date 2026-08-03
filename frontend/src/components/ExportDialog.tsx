@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateInput } from "@/components/ui/date-input";
-import { api, apiUrl } from "@/lib/utils-finance";
+import { api, apiUrl, formatDate } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 
 const todayISO = () => {
@@ -100,7 +100,14 @@ export default function ExportDialog({ trigger }: { trigger: React.ReactElement 
   const scopeLabel = {
     all: "All time",
     month: month ? monthLabel(month) : "a month",
-    range: "Custom date range",
+    range:
+      from && to
+        ? `${formatDate(from)} → ${formatDate(to)}`
+        : from
+        ? `From ${formatDate(from)} onward`
+        : to
+        ? `Until ${formatDate(to)}`
+        : "Custom date range",
   };
 
   return (
@@ -168,7 +175,7 @@ export default function ExportDialog({ trigger }: { trigger: React.ReactElement 
                   <SelectTrigger>
                     <SelectValue placeholder="Select a month" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-40 min-w-[240px]">
                     {monthsQuery.isLoading && (
                       <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
@@ -196,9 +203,9 @@ export default function ExportDialog({ trigger }: { trigger: React.ReactElement 
               <div>
                 <Label>Date range</Label>
                 <div className="flex items-center gap-2">
-                  <DateInput className="min-w-0 flex-1" value={from} onChange={setFrom} max={to || todayISO()} placeholder="From" />
-                  <span className="text-muted-foreground">→</span>
-                  <DateInput className="min-w-0 flex-1" value={to} onChange={setTo} max={todayISO()} min={from || undefined} placeholder="To" />
+                  <DateInput className="w-[150px] shrink-0" value={from} onChange={setFrom} max={to || todayISO()} placeholder="From" />
+                  <span className="shrink-0 text-muted-foreground">→</span>
+                  <DateInput className="w-[150px] shrink-0" value={to} onChange={setTo} max={todayISO()} min={from || undefined} placeholder="To" />
                 </div>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Inclusive. Leave a side blank to go open-ended (e.g. “from 01/01/2026 onward”).

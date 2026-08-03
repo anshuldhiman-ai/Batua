@@ -38,28 +38,42 @@ def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
     "Test connection" button can check a typed-but-unsaved key).
 
     Returns ``(valid, reason, message)`` where ``reason`` is one of
-    ``"ok"``, ``"no_key"``, ``"invalid_key"``, or ``"network_error"``.
-    Never raises.
+    ``"ok"``, ``"no_key"``, ``"invalid_key"``, ``"quota"``, or
+    ``"network_error"``. Never raises.
+
+    A valid key on a flaky network must not be rejected: transient failures
+    (connection errors, HTTP 429/5xx) are retried once before giving up.
     """
     key = (candidate or "").strip() or _API_KEY
     if not key:
         return False, "no_key", "No API key configured — add one to enable Gemini."
-    try:
-        resp = requests.get(
-            f"{_API_BASE}/models/{_MODEL}?key={key}",
-            timeout=15,
-        )
+
+    # (valid, reason, message) for the most recent attempt.
+    last: tuple[bool, str, str] | None = None
+    for attempt in range(2):
+        try:
+            resp = requests.get(f"{_API_BASE}/models/{_MODEL}?key={key}", timeout=15)
+        except Exception as exc:
+            last = (False, "network_error", f"Could not reach Gemini: {exc}")
+            continue  # connection blip — retry once
         if resp.status_code == 200:
             return True, "ok", "Key is valid — Gemini is reachable."
         if resp.status_code in (400, 401, 403):
+            # Auth failure is authoritative — never retried, never silently
+            # replaces a working key.
             body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
             err = body.get("error", {}) if isinstance(body, dict) else {}
             detail = err.get("message", "") if isinstance(err, dict) else ""
             snippet = f" — {detail}" if detail else ""
             return False, "invalid_key", f"Key rejected (HTTP {resp.status_code}){snippet}"
-        return False, "network_error", f"Gemini answered with HTTP {resp.status_code}."
-    except Exception as exc:
-        return False, "network_error", f"Could not reach Gemini: {exc}"
+        if resp.status_code == 429:
+            last = (False, "quota", "Gemini rate limit reached (HTTP 429) — wait a minute and try again.")
+        elif resp.status_code >= 500:
+            last = (False, "network_error", f"Gemini is temporarily unavailable (HTTP {resp.status_code}).")
+            continue  # transient server error — retry once
+        else:
+            last = (False, "network_error", f"Gemini answered with HTTP {resp.status_code}.")
+    return last or (False, "network_error", "Could not reach Gemini.")
 
 
 def set_api_key(key: str) -> None:

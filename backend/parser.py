@@ -45,10 +45,15 @@ CATEGORIES: dict[str, list[str]] = {
     # Food/drink ordering matches ml_nlp.CATEGORY_KEYWORDS (the dict that
     # actually classifies) so the category list and the classifier agree.
     "Food Delivery": ["swiggy", "zomato", "foodpanda", "ubereats", "uber eats", "eatsure", "dunzo"],
+    "Fast Food": [
+        "pizza", "burger", "fries", "kfc", "mcdonald", "mcd", "dominos",
+        "dominoes", "pizza hut", "subway", "fried chicken", "nuggets",
+        "hot dog", "sandwich", "momos", "kathi roll", "shawarma", "noodles",
+        "manchurian", "chowmein", "fried rice",
+    ],
     "Food & Dining": [
         "restaurant", "dine", "dining", "cafe", "dosa",
-        "paneer", "biryani", "pizza", "burger", "kfc", "mcdonald", "mcd",
-        "dominos", "dominoes", "thali", "lunch", "dinner", "breakfast",
+        "paneer", "biryani", "thali", "lunch", "dinner", "breakfast",
         "meal", "buffet", "starbucks", "barbeque", "haldiram",
     ],
     # Drinks come before fruits so "banana shake" → Beverages and

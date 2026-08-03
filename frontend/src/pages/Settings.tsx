@@ -397,16 +397,22 @@ export default function Settings() {
 
   React.useEffect(() => {
     let active = true;
+    // A single failed poll shouldn't flip the whole page to "not reachable" —
+    // only declare the backend down after consecutive failures.
+    const failRef = { n: 0 };
     const check = () => {
       api
         .get("/")
         .then((r) => {
           if (!active) return;
+          failRef.n = 0;
           setHealth(r.data);
           setLastSync(Date.now());
         })
         .catch(() => {
-          if (active) setHealth({ error: true });
+          if (!active) return;
+          failRef.n += 1;
+          if (failRef.n >= 2) setHealth({ error: true });
         });
     };
     check();
@@ -458,8 +464,8 @@ export default function Settings() {
         schedule(delay);
       } catch {
         if (!active) return;
-        setHealth({ error: true });
         fails += 1;
+        if (fails >= 2) setHealth({ error: true });
         if (fails >= 5) {
           setMetricsState("paused");
           return; // stop polling; a retry button resumes it
@@ -493,9 +499,6 @@ export default function Settings() {
       await api.put("/settings/gemini-key", { api_key: key });
       setGeminiKey("");
       setKeyMsg({ type: "ok", text: "Saved — Gemini is now enabled." });
-      const r = await api.get("/");
-      setHealth(r.data);
-      setLastSync(Date.now());
       return true;
     } catch (e) {
       const detail = e?.response?.data?.detail;
@@ -509,6 +512,15 @@ export default function Settings() {
       toast.error(message);
       return false;
     } finally {
+      // Refresh health in the background — a hiccup on that call must never
+      // turn a successful key save into a "Failed to save key" error.
+      api
+        .get("/")
+        .then((r) => {
+          setHealth(r.data);
+          setLastSync(Date.now());
+        })
+        .catch(() => {});
       setSavingKey(false);
     }
   };
@@ -523,8 +535,8 @@ export default function Settings() {
     setTestingKey(true);
     setKeyMsg(null);
     try {
-      const { data } = await api.post("/settings/gemini-key/test");
-      setHealth((h) => ({ ...h, ai: data.valid, testing: false }));
+      const { data } = await api.post("/settings/gemini-key/test", null, { timeout: 20000 });
+      setHealth((h) => ({ ...h, ai: data.valid }));
       if (data.valid) {
         setKeyMsg({ type: "ok", text: data.message || "Gemini connection verified — AI features are live." });
         toast.success("Gemini connection verified — AI features are live.");
@@ -533,8 +545,21 @@ export default function Settings() {
         toast.error(data.message || "Gemini rejected this key.");
       }
     } catch {
-      setKeyMsg({ type: "error", text: "Backend not reachable — can't test the connection." });
-      toast.error("Backend not reachable — can't test the connection.");
+      // A correct key must not be blamed as "backend not reachable" just
+      // because Google's side hiccupped — probe the backend once to tell
+      // the two apart before showing a message.
+      let backendUp = false;
+      try {
+        await api.get("/", { timeout: 5000 });
+        backendUp = true;
+      } catch {
+        /* backend really is down */
+      }
+      const msg = backendUp
+        ? "Gemini couldn't verify the key — check the key or retry in a moment."
+        : "Backend not reachable — can't test the connection.";
+      setKeyMsg({ type: "error", text: msg });
+      toast.error(msg);
     } finally {
       setTestingKey(false);
     }
@@ -1562,16 +1587,6 @@ function GeminiCard({
   onReplace,
 }: any) {
   const aiEnabled = Boolean(health?.ai);
-  const stats = [
-    { label: "Key status", value: aiEnabled ? "Active" : "Not configured", tone: aiEnabled ? "emerald" : "neutral" },
-    // Model comes from the backend health payload; falls back to "—" only when
-    // Gemini is off (no model is configured then).
-    { label: "Model", value: health?.ai_model || "—", tone: "violet" },
-    { label: "Added on", value: "—", note: "Not stored locally" },
-    { label: "Last used", value: "—", note: "Tracked server-side" },
-    { label: "Rate limit", value: "—", note: "Per Google's plan" },
-    { label: "Usage today", value: "—", note: "Not tracked" },
-  ];
 
   return (
     <Panel className="relative overflow-hidden">
@@ -1580,28 +1595,33 @@ function GeminiCard({
         aria-hidden="true"
         className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-500/[0.07] blur-3xl"
       />
-      <div className="relative grid gap-6 p-6 lg:grid-cols-12">
-        {/* Left — security notice + key form */}
-        <div className="space-y-4 lg:col-span-7">
-          <div className="flex items-start gap-3 rounded-xl bg-violet-500/10 p-4 ring-1 ring-inset ring-violet-500/20">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-violet-400" />
+
+      <div className="relative space-y-5 p-6">
+        {/* Header — title + live status pill. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400 ring-1 ring-inset ring-violet-500/25">
+              <Sparkles className="h-5 w-5" />
+            </span>
             <div>
-              <div className="text-sm font-semibold text-violet-200 dark:text-violet-300">
-                Your API key stays on this device
+              <div className="text-sm font-semibold leading-tight tracking-tight">Gemini AI</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                AI parsing · receipt scanning · smarter categorisation
               </div>
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                Keys are written to the server&apos;s <code className="rounded bg-black/20 px-1 py-0.5">.env</code>{" "}
-                file — never stored in the browser, localStorage, or analytics — and only used for the
-                optional Gemini requests you trigger.
-              </p>
             </div>
           </div>
+          <Pill
+            tone={aiEnabled ? "emerald" : "neutral"}
+            dot
+            label={aiEnabled ? "Active" : "Not configured"}
+            title={aiEnabled ? "Gemini key verified & in use" : "No Gemini key set — local rules handle parsing"}
+          />
+        </div>
 
-          <div>
-            <div className="mb-1 text-sm font-medium">Gemini API key</div>
-            <div className="mb-2 text-xs text-muted-foreground">
-              Enables AI parsing, receipt scanning and smarter categorisation. Takes effect immediately.
-            </div>
+        {/* Body — key form left, compact status right. */}
+        <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+          {/* Key form */}
+          <div className="space-y-3">
             <div className="relative">
               <KeyRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -1634,60 +1654,61 @@ function GeminiCard({
                 </button>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={onSave} disabled={savingKey} data-testid="gemini-key-save" className="rounded-xl">
-              {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-              {savingKey ? "Saving…" : "Save key"}
-            </Button>
-            <Button variant="secondary" onClick={onTest} disabled={testingKey} className="rounded-xl">
-              <Zap className={cn("h-4 w-4", testingKey && "animate-pulse")} />{" "}
-              {testingKey ? "Testing…" : "Test connection"}
-            </Button>
-            <Button variant="ghost" onClick={onReplace} className="rounded-xl text-muted-foreground">
-              <RotateCcw className="h-4 w-4" /> Replace
-            </Button>
-          </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={onSave} disabled={savingKey} data-testid="gemini-key-save" className="rounded-xl">
+                {savingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {savingKey ? "Saving…" : "Save key"}
+              </Button>
+              <Button variant="secondary" onClick={onTest} disabled={testingKey} className="rounded-xl">
+                <Zap className={cn("h-4 w-4", testingKey && "animate-pulse")} />{" "}
+                {testingKey ? "Testing…" : "Test connection"}
+              </Button>
+              <Button variant="ghost" onClick={onReplace} className="rounded-xl text-muted-foreground">
+                <RotateCcw className="h-4 w-4" /> Replace
+              </Button>
+            </div>
 
-          {keyMsg && (
-            <p
-              className={cn(
-                "flex items-center gap-1.5 text-xs",
-                keyMsg.type === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-              )}
-            >
-              {keyMsg.type === "ok" ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
-              {keyMsg.text}
-            </p>
-          )}
-        </div>
-
-        {/* Right — status / usage grid */}
-        <div className="lg:col-span-5">
-          <div className="grid grid-cols-2 gap-3">
-            {stats.map((s) => (
-              <div
-                key={s.label}
-                className="rounded-xl border border-border/50 bg-muted/20 p-3.5 ring-1 ring-inset ring-border/40"
+            {keyMsg && (
+              <p
+                className={cn(
+                  "flex items-center gap-1.5 text-xs",
+                  keyMsg.type === "ok" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                )}
               >
-                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {s.label}
-                </div>
-                <div className="mt-1.5">
-                  <Pill tone={s.tone} label={s.value} className="px-2 py-0.5 text-[11px]" />
-                </div>
-                {s.note && <div className="mt-1.5 text-[10px] text-muted-foreground/70">{s.note}</div>}
-              </div>
-            ))}
+                {keyMsg.type === "ok" ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                {keyMsg.text}
+              </p>
+            )}
           </div>
-          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 font-medium text-violet-400">
-              <Sparkles className="h-3.5 w-3.5" /> AI
-            </span>{" "}
-            features degrade gracefully — when Gemini is off, parsing falls back to the local rules engine.
-          </p>
+
+          {/* Compact status card — the meaningful facts, no placeholder tiles. */}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 ring-1 ring-inset ring-border/40">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Key status</span>
+              <Pill tone={aiEnabled ? "emerald" : "neutral"} label={aiEnabled ? "Active" : "Not configured"} />
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Model</span>
+              <span className="font-medium">{health?.ai_model || "—"}</span>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">Where it lives</span>
+              <span className="text-right text-xs text-muted-foreground">Server .env — never in the browser</span>
+            </div>
+            <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-relaxed text-muted-foreground">
+              When Gemini is off, parsing falls back to the local rules engine — everything keeps working.
+            </p>
+          </div>
         </div>
+
+        {/* Compact security note. */}
+        <p className="flex items-start gap-2 rounded-lg bg-violet-500/[0.07] p-3 text-[11px] leading-relaxed text-muted-foreground ring-1 ring-inset ring-violet-500/15">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-400" />
+          Your key stays on this device — written only to the server&apos;s{" "}
+          <code className="rounded bg-black/20 px-1 py-0.5 dark:bg-white/10">.env</code> file, never to the browser,
+          localStorage or analytics, and used only for the Gemini requests you trigger.
+        </p>
       </div>
     </Panel>
   );
