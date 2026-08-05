@@ -1,6 +1,6 @@
 // Bump this version whenever you change the app's JS/CSS — the browser only
 // clears the old cache when CACHE_NAME changes.
-const CACHE_NAME = "batua-static-cache-v2";
+const CACHE_NAME = "batua-static-cache-v3";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
@@ -51,13 +51,31 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // HTML navigation: NETWORK-FIRST. index.html changes on every rebuild, and
+  // caching it cache-first served users a stale app shell indefinitely. Always
+  // fetch the latest shell, only falling back to the cached copy when offline.
+  if (event.request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (!response || !response.ok) throw new Error("bad html response");
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", copy));
+          return response;
+        })
+        .catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
+
+  // Static assets (hashed JS/CSS/images): cache-first — these are immutable,
+  // so a stale match is never a problem and offline use keeps working.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // Network fallback and cache update for static assets
       return fetch(event.request)
         .then((networkResponse) => {
           if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {

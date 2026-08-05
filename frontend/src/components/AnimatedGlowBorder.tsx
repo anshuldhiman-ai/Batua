@@ -2,14 +2,14 @@ import React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * A crisp comet — a thin bright line with a broader arrowhead — that
- * continuously orbits the border of its parent. Rendered on a <canvas> so
+ * A shooting star that orbits the border of its parent — a broad tapering tail
+ * led by a small round glowing head (no arrowhead). Rendered on a <canvas> so
  * the motion stays buttery without re-rendering React.
  *
- * The line is deliberately sharp (no blur): a ~1.5px stroke whose tail fades
- * out, led by an arrowhead ~3× the line's width (1:3 line-to-arrow ratio).
- * Colours follow the active accent theme (`--primary`) live, so switching
- * the accent in Settings recolours the orbit instantly.
+ * The tail is a crisp core streak wrapped in a soft glowing body; the head is a
+ * layered orb (halo → mid glow → bright core) with a shine. Colours follow the
+ * active accent theme (`--primary`) live, so switching the accent in Settings
+ * recolours the orbit instantly.
  *
  * The parent MUST be `position: relative` and `overflow-hidden`; this canvas
  * fills it (inset-0). Honours prefers-reduced-motion (draws one static frame
@@ -40,27 +40,32 @@ export default function AnimatedGlowBorder({
     let W = 0;
     let H = 0;
     let R = radius;
-    // Inset the orbit path from the canvas edge so the stroke (and the
-    // arrowhead, whose half-width is ARROW_W/2 = 3px) never gets clipped by
-    // the parent's overflow-hidden.
-    const INSET = 4;
-
+    // The orbit path runs exactly along the parent's BORDER box — the same line
+    // the Card's visible border draws. The canvas is inset by the border widths
+    // so its top-left lands on the border-box corner (padding-box + border),
+    // making the star's curve coincide with the border at the corners too.
     const resize = () => {
-      // clientWidth/Height = the padding box — the exact area an inset-0
-      // absolute child occupies. getBoundingClientRect() is the border box
-      // (1px bigger each side for a bordered Card), which made the canvas
-      // overhang the bottom/right and left the bottom edge half-clipped.
-      const cw = parent.clientWidth;
+      const cw = parent.clientWidth;              // padding box (content + padding)
       const ch = parent.clientHeight;
-      W = Math.max(0, cw - 2 * INSET);
-      H = Math.max(0, ch - 2 * INSET);
-      R = Math.max(2, Math.min(radius - INSET, W / 2, H / 2));
-      canvas.width = cw * dpr;
-      canvas.height = ch * dpr;
-      canvas.style.width = `${cw}px`;
-      canvas.style.height = `${ch}px`;
-      // Translate by the inset so path coords (0..W, 0..H) land inside the edge.
-      ctx.setTransform(dpr, 0, 0, dpr, INSET * dpr, INSET * dpr);
+      const bwL = parseFloat(getComputedStyle(parent).borderLeftWidth) || 0;
+      const bwT = parseFloat(getComputedStyle(parent).borderTopWidth) || 0;
+      const bwR = parseFloat(getComputedStyle(parent).borderRightWidth) || 0;
+      const bwB = parseFloat(getComputedStyle(parent).borderBottomWidth) || 0;
+      const fullW = cw + bwL + bwR;               // border box
+      const fullH = ch + bwT + bwB;
+      W = Math.max(0, fullW);
+      H = Math.max(0, fullH);
+      R = Math.max(2, Math.min(radius, W / 2, H / 2));
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = `${W}px`;
+      canvas.style.height = `${H}px`;
+      // Shift the canvas up-left so its origin sits on the border-box corner,
+      // not the padding-box corner. Then path coords (0..W, 0..H) are the
+      // border outline — exactly the track the star should ride.
+      canvas.style.left = `${-bwL}px`;
+      canvas.style.top = `${-bwT}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
     // Rounded-rectangle perimeter: 4 straight edges + 4 quarter-arcs. We walk
@@ -123,52 +128,85 @@ export default function AnimatedGlowBorder({
       return t ? `hsl(${t} / ${alpha})` : color;
     };
 
-    const LINE_W = 1.5;           // crisp, thin trail
-    const ARROW_W = LINE_W * 4;   // arrowhead is 4× the line width — clearly broader
-    const ARROW_LEN = ARROW_W * 2;
+    // Shooting-star shape: a round glowing head with a broad tail that tapers and
+// fades behind it — no arrowhead triangle.
+const LINE_W = 3.0;        // crisp core of the tail (broader streak)
+const HEAD_R = 4.5;        // small round glowing head
+const TAIL_MAX_W = 11;     // tail width right behind the head (broad, tapers off)
+const TAIL_FRAC = 0.3;     // how far back the tail reaches along the orbit
 
     let t = 0;
     let last = 0;
 
     const draw = () => {
-      // Clear the full canvas including the inset margin (the arrowhead can
-      // poke slightly outside the path rectangle).
-      ctx.clearRect(-INSET, -INSET, W + 2 * INSET, H + 2 * INSET);
+      ctx.clearRect(0, 0, W, H);
 
-      // Trail — short stroked segments with alpha fading toward the tail.
-      // Crisp on purpose: no shadowBlur, no radial gradients.
-      const steps = 48;
-      const trail = 0.22;
-      ctx.lineCap = "round";
-      ctx.lineWidth = LINE_W;
-      let prev = pointOnPath(t);
-      for (let i = 1; i <= steps; i++) {
-        const f = i / steps;
-        const pt = pointOnPath(t - f * trail);
-        ctx.beginPath();
-        ctx.moveTo(prev.x, prev.y);
-        ctx.lineTo(pt.x, pt.y);
-        ctx.strokeStyle = strokeColor((1 - f) * 0.9);
-        ctx.stroke();
-        prev = pt;
+      const head = pointOnPath(t);
+
+      // Sample the path backward from the head to build the tail.
+      const S = 12;
+      const tail = [];
+      for (let i = 0; i <= S; i++) {
+        const f = i / S;
+        const p = pointOnPath(t - TAIL_FRAC * f);
+        const q = pointOnPath(t - TAIL_FRAC * f - 0.0008);
+        const ang = Math.atan2(p.y - q.y, p.x - q.x);
+        const perp = ang + Math.PI / 2;
+        tail.push({ x: p.x, y: p.y, perp, w: Math.max(0, TAIL_MAX_W * (1 - f)) });
       }
 
-      // Arrowhead — a solid triangle pointing along the direction of travel.
-      const head = pointOnPath(t);
-      const back = pointOnPath(t - 0.004);
-      const ang = Math.atan2(head.y - back.y, head.x - back.x);
-      const tipX = head.x + Math.cos(ang) * ARROW_LEN * 0.5;
-      const tipY = head.y + Math.sin(ang) * ARROW_LEN * 0.5;
-      const baseX = head.x - Math.cos(ang) * ARROW_LEN * 0.5;
-      const baseY = head.y - Math.sin(ang) * ARROW_LEN * 0.5;
-      const perp = ang + Math.PI / 2;
+      ctx.lineCap = "round";
+      // Crisp core streak, narrowing+fading away from the head.
+      ctx.lineWidth = LINE_W;
+      let prev = head;
+      for (let i = 1; i <= S; i++) {
+        const p = tail[i];
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(p.x, p.y);
+        ctx.strokeStyle = strokeColor(Math.max(0, 0.85 * (1 - i / S)));
+        ctx.stroke();
+        prev = p;
+      }
+
+      // Broad glowing tail body (the "shooting star" streak), with a soft
+      // shadow so it shines. Widths widen toward the head and fade to nothing.
+      ctx.save();
+      ctx.shadowColor = strokeColor(0.7);
+      ctx.shadowBlur = 9;
       ctx.beginPath();
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(baseX + Math.cos(perp) * ARROW_W * 0.5, baseY + Math.sin(perp) * ARROW_W * 0.5);
-      ctx.lineTo(baseX - Math.cos(perp) * ARROW_W * 0.5, baseY - Math.sin(perp) * ARROW_W * 0.5);
+      ctx.moveTo(head.x, head.y);
+      for (let i = 0; i <= S; i++) {
+        const p = tail[i];
+        ctx.lineTo(p.x + Math.cos(p.perp) * p.w * 0.5, p.y + Math.sin(p.perp) * p.w * 0.5);
+      }
+      for (let i = S; i >= 0; i--) {
+        const p = tail[i];
+        ctx.lineTo(p.x - Math.cos(p.perp) * p.w * 0.5, p.y - Math.sin(p.perp) * p.w * 0.5);
+      }
       ctx.closePath();
-      ctx.fillStyle = strokeColor(1);
+      ctx.fillStyle = strokeColor(0.2);
       ctx.fill();
+      ctx.restore();
+
+      // Glowing round head — layered orbs: wide halo → mid glow → bright core.
+      ctx.save();
+      ctx.shadowColor = strokeColor(1);
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = strokeColor(0.35);
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, HEAD_R * 1.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = strokeColor(0.75);
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, HEAD_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = strokeColor(1);
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, HEAD_R * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     };
 
     const loop = (ts) => {
@@ -200,7 +238,7 @@ export default function AnimatedGlowBorder({
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className={cn("pointer-events-none absolute inset-0 z-0", className)}
+      className={cn("pointer-events-none absolute z-0", className)}
     />
   );
 }

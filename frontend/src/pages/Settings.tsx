@@ -767,7 +767,7 @@ export default function Settings() {
   /* ── Render ── */
 
   return (
-    <div className="page-enter mx-auto max-w-6xl space-y-8">
+    <div className="page-enter space-y-6">
       {/* ══ Header — title, subtitle + live system cluster ══ */}
       <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="flex items-start gap-3.5">

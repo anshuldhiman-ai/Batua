@@ -249,10 +249,10 @@ export default function NLInputBar({ onSaved }) {
   return (
     <Card
       glow={false}
-      className="relative overflow-hidden bg-card/60 backdrop-blur-sm"
+      className="relative overflow-hidden rounded-[30px] bg-card/60 backdrop-blur-sm"
     >
       {/* Animated luminous border that continuously orbits the prompt bar. */}
-      <AnimatedGlowBorder radius={12} speed={focused ? 8 : 5} />
+      <AnimatedGlowBorder radius={30} speed={focused ? 8 : 5} />
 
       <div className="relative z-10 p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-primary">

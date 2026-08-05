@@ -617,19 +617,21 @@ def test_export_endpoints(client):
     assert response.headers["Content-Disposition"] == "attachment; filename=batua_transactions.csv"
     assert "Salary" in response.text
     
-    # Excel Export (stacked expense-sheet format)
+    # Excel Export (stacked expense-sheet format, now with income + Debit/Credit)
     response = client.get("/api/export/excel")
     assert response.status_code == 200
     assert response.headers["Content-Disposition"] == "attachment; filename=batua_expenditure.xlsx"
     assert len(response.content) > 0
-    # The income-only fixture produces an expense workbook with no blocks.
+    # Income alone still produces a workbook containing one (credit) block.
     wb = openpyxl.load_workbook(io.BytesIO(response.content))
     assert wb.sheetnames == ["Expenses"]
-    assert wb["Expenses"].max_row == 0 or wb["Expenses"]["A1"].value is None
+    ws = wb["Expenses"]
+    a_vals = [ws.cell(row=r, column=1).value for r in range(1, ws.max_row + 1)]
+    assert "Expense Table : 06/2026" in a_vals
+    assert "Salary" in [ws.cell(row=r, column=2).value for r in range(1, ws.max_row + 1)]
 
 def test_export_month_and_range(client):
-    # Two expenses in May, two in June, plus income that must never leak into the
-    # expenditure workbook.
+    # Two expenses in May, two + income in June.
     for d, desc, amt in [
         ("2026-05-03", "Petrol", -1150.0),
         ("2026-05-11", "Zomato Dinner", -520.0),
@@ -644,8 +646,8 @@ def test_export_month_and_range(client):
     assert response.status_code == 200
     assert response.json()["months"] == ["2026-06", "2026-05"]
 
-    # Single-month export → one block, only that month's expenses, and the
-    # month's TOTAL matches its sum.
+    # Single-month export → one block: that month's expenses AND income, and the
+    # month's TOTAL (column F) equals the net (income − expenses).
     response = client.get("/api/export/excel", params={"month": "2026-06"})
     assert response.status_code == 200
     wb = openpyxl.load_workbook(io.BytesIO(response.content))
@@ -653,12 +655,15 @@ def test_export_month_and_range(client):
     a1 = ws["A1"].value
     assert a1 == "Expense Table : 06/2026"
     descs = [ws.cell(row=r, column=2).value for r in range(1, ws.max_row + 1)]
-    assert "Netflix" in descs and "Swiggy Lunch" in descs
-    assert "Petrol" not in descs and "Salary" not in descs
-    total = ws.cell(row=ws.max_row, column=5).value
-    assert total == 799.0 + 380.0
+    assert "Netflix" in descs and "Swiggy Lunch" in descs and "Salary" in descs
+    assert "Petrol" not in descs
+    # Salary is a Credit row; expenses are Debit rows.
+    types = [ws.cell(row=r, column=3).value for r in range(1, ws.max_row + 1)]
+    assert "Credit" in types and types.count("Debit") == 2
+    total = ws.cell(row=ws.max_row, column=6).value
+    assert total == 10000.0 - 799.0 - 380.0
 
-    # Custom date range export → only expenses inside the inclusive range.
+    # Custom date range export → only rows inside the inclusive range.
     response = client.get("/api/export/excel", params={"from": "2026-05-01", "to": "2026-05-31"})
     assert response.status_code == 200
     ws = openpyxl.load_workbook(io.BytesIO(response.content))["Expenses"]

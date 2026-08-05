@@ -19,15 +19,10 @@ import {
 } from "lucide-react";
 
 import { ThemeContext } from "@/App";
+import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-
-// Brand lockup — the round "B" mark plus the "batua" wordmark, both already
-// baked into the SVG. Dark tile for dark UI, light tile for light UI.
-function brandLogoSrc(theme) {
-  return theme === "dark" ? "/b_logo_dark.svg" : "/b_logo_light.svg";
-}
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -75,7 +70,6 @@ function ThemeToggle({ className }) {
 /* ─── Desktop sidebar ─────────────────────────────────────────────── */
 function DesktopSidebar({ collapsed, onToggle }) {
   const location = useLocation();
-  const { theme } = React.useContext(ThemeContext);
 
   return (
     <aside
@@ -94,13 +88,9 @@ function DesktopSidebar({ collapsed, onToggle }) {
           collapsed ? "justify-center px-0 py-5" : "gap-3 px-2 py-5 xl:px-3"
         )}
       >
-        <img
-          src={brandLogoSrc(theme)}
-          alt="Batua"
-          className="h-9 w-9 shrink-0 object-cover"
-        />
+        <Logo className="h-11 w-11 shrink-0" />
         {!collapsed && (
-          <span className="hidden font-brand text-xl leading-none tracking-wide lg:inline">
+          <span className="hidden font-brand text-[22px] leading-none tracking-wide lg:inline">
             Batua
           </span>
         )}
@@ -169,7 +159,6 @@ function DesktopSidebar({ collapsed, onToggle }) {
 /* ─── Mobile top bar + drawer ─────────────────────────────────────── */
 function MobileNav() {
   const location = useLocation();
-  const { theme } = React.useContext(ThemeContext);
   const [isOpen, setIsOpen] = useState(false);
 
   const activeIndex = Math.max(
@@ -200,8 +189,8 @@ function MobileNav() {
         )}
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
-          <img src={brandLogoSrc(theme)} alt="Batua" className="h-8 w-8 shrink-0 rounded object-cover" />
-          <span className="font-brand text-lg leading-none tracking-wide">Batua</span>
+          <Logo className="h-10 w-10 shrink-0 rounded" />
+          <span className="font-brand text-xl leading-none tracking-wide">Batua</span>
         </NavLink>
         <div className="flex items-center gap-2">
           <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />

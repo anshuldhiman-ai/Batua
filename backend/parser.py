@@ -792,7 +792,8 @@ def _strip_schedule_phrases(text: str) -> str:
     return re.sub(r"\s{2,}", " ", out).strip()
 
 
-def _extract_recurring_day(text: str, default: int = 1) -> int:
+def _explicit_recurring_day(text: str) -> int | None:
+    """The day-of-month explicitly named in the text, or None when unspecified."""
     lower = text.lower()
     for pat in (
         r"\bon\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b",
@@ -801,7 +802,18 @@ def _extract_recurring_day(text: str, default: int = 1) -> int:
         m = re.search(pat, lower)
         if m:
             return min(max(int(m.group(1)), 1), 31)
-    return default
+    return None
+
+
+def _extract_recurring_day(text: str, default: int = 1) -> int:
+    """Day-of-month for a recurring schedule, falling back to ``default``.
+
+    When the caller leaves the default unset, keyword-aware defaults apply at a
+    higher level (see ``parse_recurring``): e.g. a SIP is always placed on the
+    11th and salary on the 1st unless a day is stated explicitly.
+    """
+    explicit = _explicit_recurring_day(text)
+    return default if explicit is None else explicit
 
 
 def _month_name_to_num(name: str) -> int:
@@ -885,9 +897,15 @@ def _extract_months(text: str, today: datetime) -> list[str]:
 
 
 def parse_recurring(text: str, today: datetime | None = None) -> dict:
-    """Parse a recurring schedule like 'salary +5k on 1st every month'."""
+    """Parse a recurring schedule like 'salary +5k on 1st every month'.
+
+    Keyword-aware defaults apply only when a value isn't stated explicitly:
+      - a SIP is always placed on the 11th of the month and is an Online txn
+      - salary is always on the 1st
+    """
     today = today or datetime.now()
     original = text.strip()
+    lower = original.lower()
     months = _extract_months(original, today)
     day = _extract_recurring_day(original)
     base_text = _strip_schedule_phrases(original)
@@ -896,6 +914,18 @@ def parse_recurring(text: str, today: datetime | None = None) -> dict:
     if not months:
         start = today.strftime("%Y-%m")
         months = [_ym_add(start, i) for i in range(12)]
+
+    is_sip = "sip" in lower or "mutual fund" in lower or "mutual funds" in lower
+    is_salary = "salary" in lower
+
+    # Defaults only when the text doesn't name them outright.
+    if _explicit_recurring_day(original) is None:
+        if is_sip:
+            day = 11
+        elif is_salary:
+            day = 1
+    if is_sip and not base["payment_method"]:
+        base["payment_method"] = "Online"
 
     return {
         "kind": "recurring",

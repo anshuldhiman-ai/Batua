@@ -297,18 +297,23 @@ def aggregate_series(txns, start_str: str, end_str: str, granularity: str) -> li
                     buckets[k]["expense"] += abs(amt)
                     
     elif granularity == "weekly":
-        curr = start_dt
+        # True ISO weeks (Monday–Sunday, year-boundary aware). Start on the
+        # Monday of the week containing start_dt so every bucket is a complete
+        # calendar week — the previous %W-based code split boundary weeks
+        # across two keys and produced partial, misaligned first/last buckets.
+        curr = start_dt - timedelta(days=start_dt.weekday())
         while curr <= end_dt:
-            # Match ISO Week format YYYY-Www
-            k = curr.strftime("%Y-W%W")
+            iso_year, iso_week, _ = curr.isocalendar()
+            k = f"{iso_year}-W{iso_week:02d}"
             if k not in buckets:
                 buckets[k] = {"key": k, "date": curr.strftime("%Y-%m-%d"), "income": 0.0, "expense": 0.0, "net": 0.0, "savings": 0.0, "transactions": 0}
             curr += timedelta(days=7)
-            
+
         for t in in_range:
             try:
                 tdt = datetime.strptime(t["date"][:10], "%Y-%m-%d")
-                k = tdt.strftime("%Y-W%W")
+                iso_year, iso_week, _ = tdt.isocalendar()
+                k = f"{iso_year}-W{iso_week:02d}"
                 if k not in buckets:
                     buckets[k] = {"key": k, "date": t["date"][:10], "income": 0.0, "expense": 0.0, "net": 0.0, "savings": 0.0, "transactions": 0}
                 amt = t.get("amount", 0.0)

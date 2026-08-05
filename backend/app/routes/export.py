@@ -10,14 +10,6 @@ from app.dependencies import get_storage
 router = APIRouter()
 
 
-def _dmy(date_str) -> str:
-    """Convert YYYY-MM-DD to the DD/MM/YYYY used by the expense-sheet format."""
-    parts = str(date_str).split("-")
-    if len(parts) == 3:
-        return f"{parts[2]}/{parts[1]}/{parts[0]}"
-    return str(date_str)
-
-
 def _to_date(date_str):
     """Parse a YYYY-MM-DD/YYYY-MM-DD HH:MM:SS value into a date for the sheet."""
     s = str(date_str).strip()
@@ -48,20 +40,32 @@ async def get_all_txns():
     return await storage.all("transactions")
 
 
-# Fixed colour scheme from ``sample-data/Expenditure (1).xlsx`` — every month
-# block is styled identically (no per-month cycling), so the sheet reads as one
-# consistent expense table.
-TITLE_FILL = "#FFE699"      # pale yellow band behind each "Expense Table" title
-LABEL_FILL = "#F8CBAD"      # peach band behind the TOTAL label (A:D + F:G)
-VALUE_FILL = "#E2EFDA"      # pale-green cell holding the TOTAL figure (E)
-TOTAL_TEXT = "#002060"      # dark navy TOTAL figure
+# Each month block gets its own colour theme so consecutive months read as
+# distinct sections. ``base`` is dark enough for the title/TOTAL text on the
+# pastel ``light`` band. Months cycle through the palette; the YEAR divider
+# rows stay a neutral green.
+MONTH_THEMES = [
+    {"base": "#047857", "light": "#E7F6EE"},  # emerald
+    {"base": "#0F766E", "light": "#E7F4F3"},  # teal
+    {"base": "#075985", "light": "#E8F3FB"},  # sky
+    {"base": "#4338CA", "light": "#ECEAFB"},  # indigo
+    {"base": "#86198F", "light": "#FAEAFB"},  # fuchsia
+    {"base": "#9F1239", "light": "#FCE8EF"},  # rose
+    {"base": "#92400E", "light": "#FBF0E4"},  # amber
+    {"base": "#5B21B6", "light": "#EEEAFB"},  # violet
+]
+
 YEAR_FILL = "#00B050"       # green YEAR divider
 YEAR_TEXT = "#FFFF00"       # yellow YEAR label
 
-# Per-column header text colours (as in the sample's "Name Of Item" red,
-# "Total Amount" green, "Date Of Purchase" dark red, "Mode of Payment" navy).
-HEADER_COLOURS = ["#000000", "#FF0000", "#000000", "#000000", "#00B050",
-                  "#C00000", "#002060"]
+# One distinct font colour per column so a column can be read at a glance.
+# Index matches the header list: Sno · Name · Debit/Credit · Qty · Price ·
+# Total · Date · Mode. The Debit/Credit cell is recoloured live (red debit /
+# green credit) instead of keeping this entry's red.
+COLUMN_COLOURS = ["#6B7280", "#334155", "#DC2626", "#7C3AED", "#B45309",
+                  "#0F766E", "#1D4ED8", "#A21CAF"]
+DEBIT_COLOUR = "#DC2626"
+CREDIT_COLOUR = "#059669"
 
 
 @router.get("/export/csv")
@@ -119,90 +123,114 @@ async def export_excel(
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
 ):
-    """Export expenses as a stacked ``Expense Table : MM/YYYY`` workbook — byte-
-    for-byte the style of ``sample-data/Expenditure (1).xlsx``: identical fonts
-    (Calibri 11), colours (fixed pale-yellow title band, peach TOTAL band,
-    pale-green TOTAL cell, green/yellow YEAR dividers), per-column header text
-    colours, `mm-dd-yy` real dates and `₹``-prefixed number formats. Each month
-    gets a block with its own header + TOTAL row; ``YEAR-YYYY`` rows separate
-    year groups. Income (positive) transactions are excluded — an expense sheet.
+    """Export transactions as a stacked ``Expense Table : MM/YYYY`` workbook.
+
+    Falls back to the ``sample-data/Expenditure (1).xlsx`` style, upgraded:
+      - a distinct colour theme (title + TOTAL band) for each month,
+      - a unique font colour per column so columns read at a glance,
+      - a ``Debit / Credit`` column — income (credit) rows are now included,
+        not just expenses,
+      - `mm-dd-yy` real dates and `₹`-prefixed number formats.
 
     Filtering: pass ``month=YYYY-MM`` for a single month, or ``from=``/``to=``
-    (YYYY-MM-DD) for a custom inclusive range. No params → all expenses.
+    (YYYY-MM-DD) for a custom inclusive range. No params → everything.
     """
     import xlsxwriter
 
     txns = await get_all_txns()
-    expenses = _filter_by_scope(txns, month, from_, to)
-    expenses = [t for t in expenses if (t.get("amount") or 0) < 0]
-    expenses.sort(key=lambda t: str(t.get("date", "")))
+    rows = _filter_by_scope(txns, month, from_, to)
+    rows.sort(key=lambda t: str(t.get("date", "")))
 
     months = OrderedDict()
-    for t in expenses:
+    for t in rows:
         months.setdefault(str(t.get("date", ""))[:7], []).append(t)
 
     out = io.BytesIO()
     wb = xlsxwriter.Workbook(out, {"in_memory": True})
     ws = wb.add_worksheet("Expenses")
 
-    # Base cell style — Calibri 11, centred, no borders, exactly like the sample.
+    # Base cell style — Calibri 11, centred, no borders.
     center_fmt = wb.add_format({"align": "center", "valign": "vcenter", "font_name": "Calibri", "font_size": 11})
-    # Money cells stay numeric (so they sum in Excel) but display with the
-    # sample's currency format: `₹1,234` — no decimals, red negative.
-    money_fmt = wb.add_format(
-        {"num_format": '₹" "#,##0;[Red]₹"-"#,##0', "align": "center",
-         "valign": "vcenter", "font_name": "Calibri", "font_size": 11}
-    )
-    # Date cells read as a real dd-mm-yy date (as the sample does), not text.
+    # Date cells read as a real dd-mm-yy date, not text.
     date_fmt = wb.add_format(
         {"num_format": "mm-dd-yy", "align": "center", "valign": "vcenter",
          "font_name": "Calibri", "font_size": 11}
     )
-    # Each month's title band: pale-yellow sheet-wide banner, bold Calibri 11.
-    title_fmt = wb.add_format(
-        {"bold": True, "font_size": 11, "font_color": "#000000", "font_name": "Calibri",
-         "align": "center", "valign": "vcenter", "bg_color": TITLE_FILL}
-    )
-    # Peach TOTAL band; the figure cell keeps navy text on pale-green.
-    total_label_fmt = wb.add_format(
-        {"font_size": 11, "font_color": "#000000", "font_name": "Calibri",
-         "align": "center", "valign": "vcenter", "bg_color": LABEL_FILL}
-    )
-    total_value_fmt = wb.add_format(
-        {"font_size": 11, "font_color": TOTAL_TEXT, "font_name": "Calibri",
-         "align": "center", "valign": "vcenter", "bg_color": VALUE_FILL,
-         "num_format": '₹" "#,##0;[Red]₹"-"#,##0'}
-    )
-    # Green YEAR divider with yellow label (as in the sample).
+    # Green YEAR divider with yellow label.
     year_fmt = wb.add_format(
         {"bold": True, "font_size": 11, "font_color": YEAR_TEXT, "bg_color": YEAR_FILL,
          "font_name": "Calibri", "align": "center", "valign": "vcenter"}
     )
 
-    headers = ["Sno.", "Name Of Item", "Quantity", "Price", "Total Amount", "Date Of Purchase", "Mode of Payment"]
-    # Header cells are plain (no fill, no border) but each column's label keeps
-    # its sample text colour.
-    header_fmts = []
-    for c in range(len(headers)):
-        header_fmts.append(
-            wb.add_format({"font_size": 11, "font_color": HEADER_COLOURS[c], "font_name": "Calibri",
-                           "align": "center", "valign": "vcenter"})
-        )
+    headers = ["Sno.", "Name Of Item", "Debit / Credit", "Quantity", "Price", "Total Amount", "Date Of Purchase", "Mode of Payment"]
 
-    # Column widths match the sample exactly.
-    for c, w in enumerate([6, 72, 10, 37, 16, 18, 21]):
+    # One font colour per column — both the header and its data cells share it,
+    # so the whole column is distinguishable at a glance.
+    col_fmts = []
+    for c, col in enumerate(COLUMN_COLOURS):
+        base = {"font_size": 11, "font_color": col, "font_name": "Calibri",
+                "align": "center", "valign": "vcenter"}
+        if c in (4, 5):  # Price, Total Amount — money columns
+            base["num_format"] = '₹" "#,##0;[Red]₹"-"#,##0'
+            col_fmts.append(wb.add_format(base))
+        else:
+            col_fmts.append(wb.add_format(base))
+    header_fmts = [
+        wb.add_format({"bold": True, "font_size": 11, "font_color": COLUMN_COLOURS[c],
+                       "font_name": "Calibri", "align": "center", "valign": "vcenter"})
+        for c in range(len(headers))
+    ]
+
+    # Column widths.
+    for c, w in enumerate([6, 42, 14, 10, 16, 16, 16, 18]):
         ws.set_column(c, c, w, center_fmt)
+
+    # Per-month theme formats, cached by base colour to keep the file small.
+    fmt_cache: dict = {}
+
+    def month_fmts(base: str, light: str):
+        if base not in fmt_cache:
+            fmt_cache[base] = {
+                "title": wb.add_format(
+                    {"bold": True, "font_size": 11, "font_color": base, "font_name": "Calibri",
+                     "align": "center", "valign": "vcenter", "bg_color": light}
+                ),
+                "total_label": wb.add_format(
+                    {"font_size": 11, "font_color": base, "font_name": "Calibri",
+                     "align": "center", "valign": "vcenter", "bg_color": light}
+                ),
+                "total_value": wb.add_format(
+                    {"font_size": 11, "font_color": base, "font_name": "Calibri",
+                     "align": "center", "valign": "vcenter", "bg_color": light,
+                     "num_format": '₹" "#,##0;[Red]₹"-"#,##0'}
+                ),
+            }
+        return fmt_cache[base]
 
     row = 0
     prev_year = None
+    theme_idx = 0
+    debit_fmt = wb.add_format(
+        {"bold": True, "font_size": 11, "font_color": DEBIT_COLOUR, "font_name": "Calibri",
+         "align": "center", "valign": "vcenter"}
+    )
+    credit_fmt = wb.add_format(
+        {"bold": True, "font_size": 11, "font_color": CREDIT_COLOUR, "font_name": "Calibri",
+         "align": "center", "valign": "vcenter"}
+    )
+
     for key, items in months.items():
         year, month = key.split("-")
         if prev_year is not None and year != prev_year:
-            ws.merge_range(row, 0, row, 6, f"YEAR-{year}", year_fmt)
+            ws.merge_range(row, 0, row, len(headers) - 1, f"YEAR-{year}", year_fmt)
             row += 1
         prev_year = year
 
-        ws.merge_range(row, 0, row, 6, f"Expense Table : {month}/{year}", title_fmt)
+        theme = MONTH_THEMES[theme_idx % len(MONTH_THEMES)]
+        theme_idx += 1
+        fmts = month_fmts(theme["base"], theme["light"])
+
+        ws.merge_range(row, 0, row, len(headers) - 1, f"Expense Table : {month}/{year}", fmts["title"])
         row += 1
         for c, h in enumerate(headers):
             ws.write(row, c, h, header_fmts[c])
@@ -210,31 +238,35 @@ async def export_excel(
 
         month_total = 0.0
         for i, t in enumerate(items, start=1):
-            qty = t.get("quantity", 1) or 1
-            amount = abs(float(t.get("amount", 0) or 0))
+            amount = float(t.get("amount", 0) or 0)
             month_total += amount
-            ws.write_number(row, 0, i)
-            ws.write(row, 1, t.get("description", ""))
-            ws.write_number(row, 2, float(qty))
+            ws.write_number(row, 0, i, col_fmts[0])
+            ws.write(row, 1, t.get("description", ""), col_fmts[1])
+            if amount >= 0:
+                ws.write(row, 2, "Credit", credit_fmt)
+            else:
+                ws.write(row, 2, "Debit", debit_fmt)
+            qty = t.get("quantity", 1) or 1
+            ws.write_number(row, 3, float(qty), col_fmts[3])
             price_cell = _price_cell(t)
             if isinstance(price_cell, (int, float)):
-                ws.write_number(row, 3, price_cell, money_fmt)
+                ws.write_number(row, 4, price_cell, col_fmts[4])
             else:
-                ws.write(row, 3, price_cell)  # verbatim breakdown already carries ₹
-            ws.write_number(row, 4, round(amount, 2), money_fmt)
+                ws.write(row, 4, price_cell, col_fmts[4])  # verbatim breakdown carries ₹
+            ws.write_number(row, 5, round(amount, 2), col_fmts[5])
             date = _to_date(t.get("date", ""))
             if date is not None:
-                ws.write_datetime(row, 5, date, date_fmt)
+                ws.write_datetime(row, 6, date, date_fmt)
             else:
-                ws.write(row, 5, t.get("date", ""))
-            ws.write(row, 6, t.get("payment_method", ""))
+                ws.write(row, 6, t.get("date", ""), col_fmts[6])
+            ws.write(row, 7, t.get("payment_method", ""), col_fmts[7])
             row += 1
 
-        # TOTAL band: label spans A:D, figure in E (navy on pale-green), fill
-        # carries across F:G.
-        ws.merge_range(row, 0, row, 3, "TOTAL", total_label_fmt)
-        ws.write_number(row, 4, round(month_total, 2), total_value_fmt)
-        ws.merge_range(row, 5, row, 6, "", total_label_fmt)
+        # TOTAL band: label spans A:E, figure in F (Total Amount), fill carries
+        # across G:H.
+        ws.merge_range(row, 0, row, 4, "TOTAL", fmts["total_label"])
+        ws.write_number(row, 5, round(month_total, 2), fmts["total_value"])
+        ws.merge_range(row, 6, row, 7, "", fmts["total_label"])
         row += 1
 
     wb.close()
