@@ -808,9 +808,8 @@ def _explicit_recurring_day(text: str) -> int | None:
 def _extract_recurring_day(text: str, default: int = 1) -> int:
     """Day-of-month for a recurring schedule, falling back to ``default``.
 
-    When the caller leaves the default unset, keyword-aware defaults apply at a
-    higher level (see ``parse_recurring``): e.g. a SIP is always placed on the
-    11th and salary on the 1st unless a day is stated explicitly.
+    The day is taken only from what the user actually typed (``on 5th``,
+    ``2nd of every month``, …); no keyword-based defaults are applied here.
     """
     explicit = _explicit_recurring_day(text)
     return default if explicit is None else explicit
@@ -899,9 +898,10 @@ def _extract_months(text: str, today: datetime) -> list[str]:
 def parse_recurring(text: str, today: datetime | None = None) -> dict:
     """Parse a recurring schedule like 'salary +5k on 1st every month'.
 
-    Keyword-aware defaults apply only when a value isn't stated explicitly:
-      - a SIP is always placed on the 11th of the month and is an Online txn
-      - salary is always on the 1st
+    The day-of-month comes only from what the user states (``on 5th``,
+    ``salary on 1st``…), defaulting to 1 when nothing is given — no keyword
+    defaults are forced on SIP or salary. The caller (or the preview's
+    "Day of month" field) can set any date.
     """
     today = today or datetime.now()
     original = text.strip()
@@ -916,14 +916,6 @@ def parse_recurring(text: str, today: datetime | None = None) -> dict:
         months = [_ym_add(start, i) for i in range(12)]
 
     is_sip = "sip" in lower or "mutual fund" in lower or "mutual funds" in lower
-    is_salary = "salary" in lower
-
-    # Defaults only when the text doesn't name them outright.
-    if _explicit_recurring_day(original) is None:
-        if is_sip:
-            day = 11
-        elif is_salary:
-            day = 1
     if is_sip and not base["payment_method"]:
         base["payment_method"] = "Online"
 

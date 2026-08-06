@@ -647,7 +647,8 @@ def test_export_month_and_range(client):
     assert response.json()["months"] == ["2026-06", "2026-05"]
 
     # Single-month export → one block: that month's expenses AND income, and the
-    # month's TOTAL (column F) equals the net (income − expenses).
+    # month's TOTAL (column E, Total Amount) equals the debit subtotal only —
+    # income is not netted out.
     response = client.get("/api/export/excel", params={"month": "2026-06"})
     assert response.status_code == 200
     wb = openpyxl.load_workbook(io.BytesIO(response.content))
@@ -660,8 +661,16 @@ def test_export_month_and_range(client):
     # Salary is a Credit row; expenses are Debit rows.
     types = [ws.cell(row=r, column=3).value for r in range(1, ws.max_row + 1)]
     assert "Credit" in types and types.count("Debit") == 2
-    total = ws.cell(row=ws.max_row, column=6).value
-    assert total == 10000.0 - 799.0 - 380.0
+    total = ws.cell(row=ws.max_row, column=5).value
+    assert total == 799.0 + 380.0
+    # Quantity column is gone; header band is the navy "navigation" style.
+    headers = [ws.cell(row=2, column=c_).value for c_ in range(1, ws.max_column + 1)]
+    assert "Quantity" not in headers
+    assert ws.cell(row=2, column=1).fill.fgColor.rgb == "FF2C3E50"
+    # Dates are real dd/mm/yyyy cells, not mm-dd-yy text.
+    assert ws.cell(row=3, column=6).number_format == "dd/mm/yyyy"
+    # Zebra striping — second data row has the light-gray fill.
+    assert ws.cell(row=4, column=5).fill.fgColor.rgb == "FFF7F7F5"
 
     # Custom date range export → only rows inside the inclusive range.
     response = client.get("/api/export/excel", params={"from": "2026-05-01", "to": "2026-05-31"})

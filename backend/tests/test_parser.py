@@ -158,6 +158,13 @@ def test_parse_recurring():
     assert r["amount"] == -1000.0
     assert r["count"] == 6
     assert r["months"] == ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
+    # No keyword defaults: a SIP with no stated day is the generic 1st (not 11th),
+    # and an explicit day is honoured.
+    assert r["day"] == 1
+
+    r = parse_nl_input("sip 1k monthly on 15th", today)
+    assert r["kind"] == "recurring"
+    assert r["day"] == 15
 
     r = parse_nl_input("rent -15000 monthly for 2026", today)
     assert r["count"] == 12

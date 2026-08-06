@@ -59,13 +59,26 @@ YEAR_FILL = "#00B050"       # green YEAR divider
 YEAR_TEXT = "#FFFF00"       # yellow YEAR label
 
 # One distinct font colour per column so a column can be read at a glance.
-# Index matches the header list: Sno · Name · Debit/Credit · Qty · Price ·
-# Total · Date · Mode. The Debit/Credit cell is recoloured live (red debit /
-# green credit) instead of keeping this entry's red.
-COLUMN_COLOURS = ["#6B7280", "#334155", "#DC2626", "#7C3AED", "#B45309",
+# Index matches the header list: Sno · Name · Debit/Credit · Price · Total ·
+# Date · Mode. The Debit/Credit cell is recoloured live (red debit / green
+# credit) instead of keeping this entry's red.
+COLUMN_COLOURS = ["#6B7280", "#334155", "#DC2626", "#B45309",
                   "#0F766E", "#1D4ED8", "#A21CAF"]
-DEBIT_COLOUR = "#DC2626"
-CREDIT_COLOUR = "#059669"
+DEBIT_COLOUR = "#C0392B"        # muted red for debit side
+CREDIT_COLOUR = "#27AE60"       # muted green for credit side
+# Money columns (Price, Total Amount) get the ₹ red-for-negative format.
+MONEY_COLUMNS = (3, 4)
+MONEY_FORMAT = '₹" "#,##0;[Red]₹"-"#,##0'
+
+# Header ("navigation") row — one consistent navy-charcoal band with white
+# bold text across every month, matching the requested scheme.
+HEADER_BG = "#2C3E50"
+HEADER_TEXT = "#FFFFFF"
+
+# Zebra striping: alternate rows are a very light gray for easy scanning.
+ZEBRA_BG = "#F7F7F5"
+# Pale fill for the TOTAL band (spans the row).
+TOTAL_FILL = "#FCEFE3"
 
 
 @router.get("/export/csv")
@@ -126,11 +139,14 @@ async def export_excel(
     """Export transactions as a stacked ``Expense Table : MM/YYYY`` workbook.
 
     Falls back to the ``sample-data/Expenditure (1).xlsx`` style, upgraded:
-      - a distinct colour theme (title + TOTAL band) for each month,
-      - a unique font colour per column so columns read at a glance,
+      - a navy ``navigation`` header band + a distinct colour theme (title +
+        TOTAL band) for each month,
+      - a unique font colour per column so columns read at a glance, with
+        zebra striping on alternating rows,
       - a ``Debit / Credit`` column — income (credit) rows are now included,
-        not just expenses,
-      - `mm-dd-yy` real dates and `₹`-prefixed number formats.
+        not just expenses (no Quantity column),
+      - `dd/mm/yyyy` real dates and ``₹``-prefixed number formats,
+      - TOTAL per month = the debit subtotal only (credits are not netted out).
 
     Filtering: pass ``month=YYYY-MM`` for a single month, or ``from=``/``to=``
     (YYYY-MM-DD) for a custom inclusive range. No params → everything.
@@ -151,9 +167,9 @@ async def export_excel(
 
     # Base cell style — Calibri 11, centred, no borders.
     center_fmt = wb.add_format({"align": "center", "valign": "vcenter", "font_name": "Calibri", "font_size": 11})
-    # Date cells read as a real dd-mm-yy date, not text.
+    # Date cells read as a real dd/mm/yyyy date, not text.
     date_fmt = wb.add_format(
-        {"num_format": "mm-dd-yy", "align": "center", "valign": "vcenter",
+        {"num_format": "dd/mm/yyyy", "align": "center", "valign": "vcenter",
          "font_name": "Calibri", "font_size": 11}
     )
     # Green YEAR divider with yellow label.
@@ -162,27 +178,32 @@ async def export_excel(
          "font_name": "Calibri", "align": "center", "valign": "vcenter"}
     )
 
-    headers = ["Sno.", "Name Of Item", "Debit / Credit", "Quantity", "Price", "Total Amount", "Date Of Purchase", "Mode of Payment"]
+    headers = ["Sno.", "Name Of Item", "Debit / Credit", "Price", "Total Amount", "Date Of Purchase", "Mode of Payment"]
 
     # One font colour per column — both the header and its data cells share it,
-    # so the whole column is distinguishable at a glance.
-    col_fmts = []
+    # so the whole column is distinguishable at a glance. Formats are built in
+    # even/odd pairs for zebra striping; the header row is a solid navy band.
+    col_fmts = []  # even rows — white background
+    zebra_fmts = []  # odd rows — light gray background
     for c, col in enumerate(COLUMN_COLOURS):
         base = {"font_size": 11, "font_color": col, "font_name": "Calibri",
                 "align": "center", "valign": "vcenter"}
-        if c in (4, 5):  # Price, Total Amount — money columns
-            base["num_format"] = '₹" "#,##0;[Red]₹"-"#,##0'
-            col_fmts.append(wb.add_format(base))
-        else:
-            col_fmts.append(wb.add_format(base))
+        if c in MONEY_COLUMNS:  # Price, Total Amount — money columns
+            base["num_format"] = MONEY_FORMAT
+        even = dict(base)
+        odd = dict(base, bg_color=ZEBRA_BG)
+        col_fmts.append(wb.add_format(even))
+        zebra_fmts.append(wb.add_format(odd))
+    # Consistent navy header band — white bold text across every month.
     header_fmts = [
-        wb.add_format({"bold": True, "font_size": 11, "font_color": COLUMN_COLOURS[c],
-                       "font_name": "Calibri", "align": "center", "valign": "vcenter"})
-        for c in range(len(headers))
+        wb.add_format({"bold": True, "font_size": 11, "font_color": HEADER_TEXT,
+                       "font_name": "Calibri", "align": "center", "valign": "vcenter",
+                       "bg_color": HEADER_BG})
+        for _ in range(len(headers))
     ]
 
-    # Column widths.
-    for c, w in enumerate([6, 42, 14, 10, 16, 16, 16, 18]):
+    # Column widths (Quantity column removed).
+    for c, w in enumerate([6, 42, 14, 16, 16, 16, 18]):
         ws.set_column(c, c, w, center_fmt)
 
     # Per-month theme formats, cached by base colour to keep the file small.
@@ -236,37 +257,43 @@ async def export_excel(
             ws.write(row, c, h, header_fmts[c])
         row += 1
 
-        month_total = 0.0
+        # TOTAL is the sum of debits only — credits are NOT netted out.
+        month_debit_total = 0.0
         for i, t in enumerate(items, start=1):
             amount = float(t.get("amount", 0) or 0)
-            month_total += amount
-            ws.write_number(row, 0, i, col_fmts[0])
-            ws.write(row, 1, t.get("description", ""), col_fmts[1])
+            if amount < 0:
+                month_debit_total += -amount
+            fmts_row = zebra_fmts if i % 2 == 0 else col_fmts
+            ws.write_number(row, 0, i, fmts_row[0])
+            ws.write(row, 1, t.get("description", ""), fmts_row[1])
             if amount >= 0:
                 ws.write(row, 2, "Credit", credit_fmt)
             else:
                 ws.write(row, 2, "Debit", debit_fmt)
-            qty = t.get("quantity", 1) or 1
-            ws.write_number(row, 3, float(qty), col_fmts[3])
             price_cell = _price_cell(t)
             if isinstance(price_cell, (int, float)):
-                ws.write_number(row, 4, price_cell, col_fmts[4])
+                ws.write_number(row, 3, price_cell, fmts_row[3])
             else:
-                ws.write(row, 4, price_cell, col_fmts[4])  # verbatim breakdown carries ₹
-            ws.write_number(row, 5, round(amount, 2), col_fmts[5])
+                ws.write(row, 3, price_cell, fmts_row[3])  # verbatim breakdown carries ₹
+            ws.write_number(row, 4, round(amount, 2), fmts_row[4])
             date = _to_date(t.get("date", ""))
             if date is not None:
-                ws.write_datetime(row, 6, date, date_fmt)
+                ws.write_datetime(row, 5, date, date_fmt)
             else:
-                ws.write(row, 6, t.get("date", ""), col_fmts[6])
-            ws.write(row, 7, t.get("payment_method", ""), col_fmts[7])
+                ws.write(row, 5, t.get("date", ""), fmts_row[5])
+            ws.write(row, 6, t.get("payment_method", ""), fmts_row[6])
             row += 1
 
-        # TOTAL band: label spans A:E, figure in F (Total Amount), fill carries
-        # across G:H.
-        ws.merge_range(row, 0, row, 4, "TOTAL", fmts["total_label"])
-        ws.write_number(row, 5, round(month_total, 2), fmts["total_value"])
-        ws.merge_range(row, 6, row, 7, "", fmts["total_label"])
+        # TOTAL band: label spans A:D, figure in E (Total Amount), fill carries
+        # across F:G. Shows the debit subtotal (money spent), never net.
+        total_fmt = wb.add_format(
+            {"bold": True, "font_size": 11, "font_color": DEBIT_COLOUR,
+             "font_name": "Calibri", "align": "center", "valign": "vcenter",
+             "bg_color": TOTAL_FILL, "num_format": MONEY_FORMAT}
+        )
+        ws.merge_range(row, 0, row, 3, "TOTAL", fmts["total_label"])
+        ws.write_number(row, 4, round(month_debit_total, 2), total_fmt)
+        ws.merge_range(row, 5, row, 6, "", fmts["total_label"])
         row += 1
 
     wb.close()
