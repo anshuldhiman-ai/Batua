@@ -61,7 +61,7 @@
 - **Bulk input** — paste multiple lines; each line is parsed independently.
 - **People management** — track borrowed/lent money with named individuals, including settlement tracking.
   → `backend/app/routes/people.py`
-- **Recurring entries** — replicate a transaction across selected months in one action, with idempotent de-duplication.
+- **Recurring entries** — replicate a transaction across selected months in one action, with idempotent de-duplication and a settable day-of-month (1–31) per entry; no hardcoded dates are forced on SIP or salary.
 - **Excel / CSV import** — column auto-detection (including quantity and per-item price columns), staged progress reporting, 25 MB guard, and fingerprint-based dedupe on re-upload.
 - **Exact prices from your sheet** — a price cell written as an arithmetic breakdown (e.g. `120+240` or `₹15*2+₹20`) is evaluated for the total *and* shown verbatim in the Transactions table, so the app displays exactly what your file says.
 
@@ -78,7 +78,7 @@
 - **Conversational assistant** — a grounded Q&A engine with multi-turn session memory and follow-up resolution ("what about last month?"). Answers are computed from *your* data, then optionally reworded by a local Llama model.
 
 ### Export
-- **Excel** export as a stacked *"Expense Table : MM/YYYY"* sheet — every month its own headline + header + TOTAL block in its own colour theme, with rupee-formatted Price / Total Amount / TOTAL cells, exactly like a hand-kept expenditure file.
+- **Excel** export as a stacked *"Expense Table : MM/YYYY"* sheet — every month its own title + header + TOTAL block with a consistent navy header band, zebra-striped rows, and rupee-formatted Price / Total Amount cells. Per-month TOTAL sums **debits only** (income is not netted out), dates are real `DD/MM/YYYY` cells, and Quantity is omitted from the report table.
 - **Scoped exports** — an export dialog picks Excel or CSV and scopes it to all time, a single past/current month (dropdown), or a custom date range (native date picker).
 - One-click **CSV** dump of every transaction as well.
 

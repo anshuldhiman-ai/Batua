@@ -188,4 +188,7 @@ if __name__ == "__main__":
     # Hosts (Render, Railway, Fly, …) inject the port to bind via $PORT.
     # Fall back to 8001 for local development.
     port = int(os.environ.get("PORT", "8001"))
-    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
+    # Auto-reload only during local development; keep it off in production
+    # (e.g. `PORT=8000 BATUA_DEV=0 python server.py` or a `gunicorn` wrapper).
+    reload = os.environ.get("BATUA_DEV", "1") == "1"
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=reload)

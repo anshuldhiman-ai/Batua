@@ -59,12 +59,21 @@ class SpendingPatternAnalyzer:
         
         # Calculate month-over-month growth
         monthly['mom_growth'] = monthly['sum'].pct_change().replace([np.inf, -np.inf], np.nan).fillna(0) * 100
-        if len(monthly) < 2:
-            trend = "stable"
-        else:
+        if len(monthly) < 3:
+            # Too few points for a reliable regression — fall back to the
+            # simple first-vs-last comparison.
             delta = monthly['sum'].iloc[-1] - monthly['sum'].iloc[0]
             threshold = max(monthly['sum'].mean() * 0.05, 1)
             trend = "increasing" if delta > threshold else "decreasing" if delta < -threshold else "stable"
+        else:
+            # Linear regression slope over ALL months, so intermediate data is
+            # not ignored (6 months of oscillation with matching endpoints must
+            # not read as "stable"). ``slope`` is ₹ of change per month.
+            y = monthly['sum'].to_numpy(dtype=float)
+            x = np.arange(len(y), dtype=float)
+            slope = float(np.polyfit(x, y, 1)[0])
+            threshold = max(float(monthly['sum'].mean()) * 0.05, 1.0)
+            trend = "increasing" if slope > threshold else "decreasing" if slope < -threshold else "stable"
         
         return {
             "monthly_spending": monthly[['month_str', 'sum', 'mean', 'count', 'mom_growth']].to_dict('records'),

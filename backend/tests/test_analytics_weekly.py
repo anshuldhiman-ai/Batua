@@ -6,7 +6,7 @@ The old implementation used strftime("%Y-W%W"), which is NOT an ISO week:
   - Bucket generation started at the range start instead of the week's
     Monday, so a 7-day range could yield two partial, misaligned buckets.
 """
-from app.routes.analytics import aggregate_series
+from app.routes.analytics import aggregate_series, compute_trends_analysis
 
 
 def test_weekly_does_not_split_year_boundary_week():
@@ -23,6 +23,28 @@ def test_weekly_does_not_split_year_boundary_week():
     assert series[0]["key"] == "2026-W01"
     assert series[0]["expense"] == 200.0
     assert series[0]["transactions"] == 4
+
+
+def test_fastest_growing_category_is_computed_not_hardcoded():
+    # Food Delivery jumps from ₹100 in the first half to ₹300 in the second;
+    # Shopping falls from ₹200 to ₹50. The "fastest growing" must be real, not
+    # the old hardcoded 10.0 stub.
+    txns = [
+        {"date": "2026-01-05", "amount": -100.0, "category": "Food Delivery"},
+        {"date": "2026-01-20", "amount": -200.0, "category": "Shopping"},
+        {"date": "2026-02-05", "amount": -300.0, "category": "Food Delivery"},
+        {"date": "2026-02-15", "amount": -50.0, "category": "Shopping"},
+    ]
+    categories = [
+        {"category": "Food Delivery", "amount": 400.0, "transactions": 2},
+        {"category": "Shopping", "amount": 250.0, "transactions": 2},
+    ]
+    result = compute_trends_analysis(txns, "2026-01-01", "2026-02-28", categories)
+    fastest = result["fastestGrowingCategory"]
+    assert fastest is not None
+    assert fastest["category"] == "Food Delivery"
+    assert fastest["growth"] == 200.0
+    assert result["avgTransactionAmount"] == round(650.0 / 4, 2)
 
 
 def test_weekly_seven_day_range_totals_are_complete():

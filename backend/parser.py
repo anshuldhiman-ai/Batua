@@ -689,6 +689,14 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
     if result.get("date") and result["date"] > today_str:
         result["date"] = today_str
 
+    # A transaction with a negative amount is an expense and can never belong
+    # to the "Income" category. The local ML model treats "credit" as an income
+    # signal, so an expense like "credit card bill 5000" would otherwise be
+    # mislabelled Income even though its signed amount is a debit. Reclassify
+    # any contradiction between sign and category.
+    if result["amount"] < 0 and result["category"] == "Income":
+        result["category"] = "Other"
+
     result["txn_type"] = "credit" if result["amount"] >= 0 else "debit"
     _set_unit_price(result)
     return result

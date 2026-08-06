@@ -5,9 +5,27 @@ goals, recommendations, RAG Q&A, local NLP) had no tests. This drives each
 one against a seeded SQLite store to catch runtime errors and contract
 regressions.
 """
+import pandas as pd
 import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
+
+from ml_analytics import SpendingPatternAnalyzer
+
+
+def test_monthly_trend_uses_all_months_not_just_endpoints():
+    # Six months of oscillation whose first and last month sums are equal
+    # (-100 → … → -100). The old code compared only the endpoints and called
+    # this "stable"; with a clear bulge in the middle, a regression over every
+    # month must not read as flat.
+    analyzer = SpendingPatternAnalyzer()
+    df = pd.DataFrame({
+        "month": ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"],
+        "amount": [-100.0, -250.0, -400.0, -550.0, -400.0, -100.0],
+    })
+    result = analyzer._analyze_monthly_patterns(df)
+    assert result["trend"] != "stable"
+    assert result["avg_monthly_spending"] == -300.0
 
 
 @pytest.fixture

@@ -468,10 +468,29 @@ def compute_trends_analysis(txns, start_str: str, end_str: str, categories: list
         largest = {"amount": abs(l_txn.get("amount", 0.0)), "category": l_txn.get("category", "Other"), "description": l_txn.get("description", "")}
         smallest = {"amount": abs(s_txn.get("amount", 0.0)), "category": s_txn.get("category", "Other"), "description": s_txn.get("description", "")}
         
-    # Fastest growing category
+    # Fastest growing category — real growth, comparing each category's spend in
+    # the second half of the period against its spend in the first half.
     fastest_growing = None
-    if len(categories) > 0:
-        fastest_growing = {"category": categories[0]["category"], "growth": 10.0}
+    if expenses:
+        in_dates = sorted({t["date"][:10] for t in expenses if t.get("date")})
+        if len(in_dates) >= 2:
+            mid = in_dates[len(in_dates) // 2]
+            halves: dict[str, dict[str, float]] = {}
+            for t in expenses:
+                cat = t.get("category") or "Other"
+                halves.setdefault(cat, {"earlier": 0.0, "later": 0.0})
+                if t["date"][:10] >= mid:
+                    halves[cat]["later"] += abs(t.get("amount", 0.0))
+                else:
+                    halves[cat]["earlier"] += abs(t.get("amount", 0.0))
+            candidates = []
+            for cat, spend in halves.items():
+                base = max(spend["earlier"], 1.0)  # guard against divide-by-zero
+                growth = (spend["later"] - spend["earlier"]) / base * 100
+                candidates.append({"category": cat, "growth": round(growth, 1)})
+            # Favour categories that kept spending up in the second half, and
+            # rank by growth descending.
+            fastest_growing = max(candidates, key=lambda c: c["growth"])
         
     return {
         "highestSpendingCategory": categories[0] if categories else None,

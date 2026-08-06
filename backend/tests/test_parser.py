@@ -33,9 +33,25 @@ def test_detect_amount():
     assert _detect_amount("date 15/06 amount 100")[0] == 100.0
     assert _detect_amount("1st prize 1000")[0] == 1000.0
 
+def test_credit_card_bill_is_an_expense_not_income():
+    # "credit card bill 5000" is a ₹5000 payment — a debit. The ML model can
+    # treat "credit" as an income signal, so guard against Income category
+    # leaking onto a negative-amount transaction.
+    today = datetime(2026, 6, 19)
+    r = parse_transaction("credit card bill 5000", today)
+    assert r["amount"] == -5000.0
+    assert r["category"] != "Income"
+    assert r["txn_type"] == "debit"
+
+    # A genuine credit still parses as Income.
+    r = parse_transaction("salary credit 50000", today)
+    assert r["amount"] == 50000.0
+    assert r["category"] == "Income"
+
+
 def test_detect_date():
     today = datetime(2026, 6, 19)
-    
+
     # Absolute words
     assert _detect_date("zomato today", today)[0] == "2026-06-19"
     assert _detect_date("zomato yesterday", today)[0] == "2026-06-18"

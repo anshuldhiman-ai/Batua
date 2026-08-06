@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const BASE = ((import.meta as any).env.VITE_BACKEND_URL || "") + "/api";
+// Normalise a trailing slash so `http://host:8001/` + "/api" never becomes
+// `http://host:8001//api` (which Axios/proxies can 404 or double-route).
+const baseUrl = String((import.meta as any).env.VITE_BACKEND_URL || "").trim();
+const BASE = baseUrl.replace(/\/+$/, "") + "/api";
 
 export const api = axios.create({ baseURL: BASE });
 
