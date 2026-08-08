@@ -103,6 +103,17 @@
     cursor: pointer;
     opacity: 0.8;
   }
+  /* Ensure selected date in calendar picker is visible in dark mode */
+  .dark ::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+  /* Force the calendar popup to respect dark mode for selected date highlight */
+  input[type="date"]::-webkit-datetime-edit {
+    color: inherit;
+  }
+  .dark input[type="date"]::-webkit-datetime-edit {
+    color: hsl(var(--foreground));
+  }
 
   * {
     border-color: hsl(var(--border));

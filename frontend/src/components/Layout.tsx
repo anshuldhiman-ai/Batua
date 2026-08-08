@@ -35,6 +35,17 @@ const NAV = [
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
+const PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/transactions": "Transactions",
+  "/analytics": "Analytics",
+  "/budgets": "Budgets",
+  "/goals": "Goals",
+  "/people": "People",
+  "/ml-insights": "AI Insights",
+  "/settings": "Settings",
+};
+
 function ThemeToggle({ className }) {
   const { theme, toggle } = React.useContext(ThemeContext);
   const reduce = useReducedMotion();
@@ -250,6 +261,15 @@ function MobileNav() {
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useLocalStorage("batua-sidebar-collapsed", false);
+  const location = useLocation();
+
+  // Update document title based on current route
+  useEffect(() => {
+    const path = location.pathname;
+    const pageTitle = PAGE_TITLES[path] || "Batua";
+    document.title = `${pageTitle} — Batua`;
+  }, [location.pathname]);
+
   return (
     <div className="min-h-screen bg-background">
       <a
