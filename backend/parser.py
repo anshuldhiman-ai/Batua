@@ -992,7 +992,13 @@ def parse_recurring(text: str, today: datetime | None = None) -> dict:
 
 
 def parse_nl_input(text: str, today: datetime | None = None) -> dict:
-    """Parse NL text as a single transaction or a recurring schedule."""
+    """Parse NL text as a single transaction or a recurring schedule.
+
+    When the line lists several priced items ("banana + mango 50+20",
+    "banana 50 mango 20"), a ``fragments`` array of separate transaction
+    dicts is attached so the UI can offer splitting them apart. The main
+    result stays the combined transaction.
+    """
     today = today or datetime.now()
     original = text.strip()
     if not original:
@@ -1001,18 +1007,214 @@ def parse_nl_input(text: str, today: datetime | None = None) -> dict:
         return parse_recurring(original, today)
     result = parse_transaction(original, today)
     result["kind"] = "single"
+    fragments = fragment_transactions(original, today)
+    if fragments:
+        result["fragments"] = fragments
+        # The combined "keep as one" entry is the SUM of its items, with a clean
+        # joined description — otherwise a leading count ("2 samosay 50 …") would
+        # be misread as the whole amount, and numbers would leak into the name.
+        result["amount"] = round(sum(f["amount"] for f in fragments), 2)
+        result["description"] = " + ".join(f["description"] for f in fragments)
+        result["quantity"] = 1
+        result["txn_type"] = "credit" if result["amount"] >= 0 else "debit"
+        _set_unit_price(result)
     return result
 
 
+# --------------------------------------------------------------------------- #
+# Multi-item fragmentation ("banana + mango 50+20" -> two transactions)
+# --------------------------------------------------------------------------- #
+
+# Separators between item descriptions: "banana + mango", "chai 10 aur samosa 15".
+_ITEM_LIST_SEPARATOR_RE = re.compile(
+    r"\s*[+&,;]\s*|\s+(?:and|aur)\s+", re.IGNORECASE
+)
+# Words and numbers, in order — used to walk an alternating item/price list.
+_ITEM_TOKEN_RE = re.compile(r"[A-Za-z]+|\d+(?:\.\d+)?")
+
+
+def _typed_item_fragments(text: str) -> list[str]:
+    """Break a typed multi-item line into per-item strings, keeping each item's
+    own words (quantity, payment method) so every item parses independently.
+
+    Recognised shapes:
+      * "banana + mango 50+20"          — item list + price list, zipped
+      * "banana 50 mango 20"            — alternating item/price pairs
+      * "2 samosay 50 upi and 1 cup coffe 15 cash" — items joined by
+        and / aur / & / + / ,, each keeping its own quantity + payment method.
+
+    Returns [] when the line is a single transaction or not cleanly splittable,
+    so callers can fall back to the combined entry.
+    """
+    text = text.strip()
+    if not text:
+        return []
+
+    # (a) and/aur separated items — same rule as the voice path. Every fragment
+    # must carry a price AND a description word, so "zomato 450 and 500" (a bare
+    # number as a "second item") never fragments.
+    parts = [p.strip(" -") for p in _ITEM_SPLIT_RE.split(text) if p.strip(" -")]
+    if len(parts) >= 2:
+        items: list[str] = []
+        buffer = ""
+        for part in parts:
+            buffer = f"{buffer} {part}".strip() if buffer else part
+            if re.search(r"\d", buffer):
+                items.append(buffer)
+                buffer = ""
+        if buffer:
+            if items:
+                items[-1] = f"{items[-1]} {buffer}".strip()
+            else:
+                items.append(buffer)
+        if len(items) >= 2 and all(re.search(r"[A-Za-z]", it) for it in items):
+            return items
+
+    # A counted quantity ("2 packet", "3 plate") means ONE grouped item, not a
+    # list of separate transactions ("maggi 2 packet 20") — never fragment.
+    if _detect_quantity(text)[0] > 1:
+        return []
+
+    # (b) "<items> <price-list>", e.g. "banana + mango 50+20". The price list
+    # must be a pure +-chain of two or more numbers (so "15*2+20", a single
+    # basket total, is left alone); a short tail of words (payment method, date)
+    # is allowed after it.
+    m = re.match(
+        r"^(?P<desc>.+?)\s+(?P<prices>\d+(?:\.\d+)?(?:\s*[+]\s*\d+(?:\.\d+)?)+)"
+        r"(?:\s+[\w/.\-]+)*\s*$",
+        text,
+    )
+    if m:
+        desc_part = m.group("desc").strip()
+        prices = [float(p) for p in re.split(r"\s*[+]\s*", m.group("prices"))]
+        items = [
+            d.strip() for d in _ITEM_LIST_SEPARATOR_RE.split(desc_part) if d.strip()
+        ]
+        if len(items) == len(prices) >= 2 and all(len(d) >= 2 for d in items):
+            return [f"{d} {p:g}" for d, p in zip(items, prices)]
+
+    # (c) alternating word-run / number pairs, e.g. "banana 50 mango 20".
+    # Separators are collapsed to spaces first so "+" / "&" / "and" / "aur"
+    # between pairs never leak into a description. A number with an empty
+    # word-run (adjacent numbers) or a trailing word-run with no price means
+    # this is something else ("maggi 2 packet 20", "flight 6e 2345") — bail out.
+    plain = _ITEM_LIST_SEPARATOR_RE.sub(" ", text)
+    pairs: list[tuple[str, float]] = []
+    words: list[str] = []
+    for tok in _ITEM_TOKEN_RE.findall(plain):
+        if tok[0].isalpha():
+            words.append(tok)
+        else:
+            if not words:
+                return []
+            pairs.append((" ".join(words), float(tok)))
+            words = []
+    if words:
+        return []
+    if len(pairs) < 2 or any(len(desc) < 2 for desc, _ in pairs):
+        return []
+    return [f"{d} {p:g}" for d, p in pairs]
+
+
+def _has_date_indicator(text: str) -> bool:
+    """True when a line explicitly mentions a date (relative word, weekday, or a
+    dd/mm / ordinal date) rather than leaving the date defaulted to today.
+
+    ``_detect_date`` always returns *a* date (today on fall-through), so a
+    fragment must know whether "yesterday" on the whole line was a real signal
+    worth inheriting, or merely the parser's default for the sub-item.
+    """
+    lower = text.lower()
+    if re.search(r"\btoday\b|\byesterday\b|\btomorrow\b", lower):
+        return True
+    if re.search(r"\b\d+\s+days?\s+ago\b", lower):
+        return True
+    if re.search(
+        r"\b(?:last|this|coming|next)\s+(" + "|".join(WEEKDAYS) + r")\b", lower
+    ):
+        return True
+    if re.search(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", lower):
+        return True
+    if re.search(
+        r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:" + _MONTH_NAMES + r")\b|\b(?:" + _MONTH_NAMES + r")\s+\d{1,2}(?:st|nd|rd|th)?\b",
+        lower,
+    ):
+        return True
+    return False
+
+
+def _parse_typed_fragment(text: str, today: datetime) -> dict:
+    """Parse one typed sub-item, honouring a leading count as quantity.
+
+    "2 samosay 50 upi" -> Samosay, qty 2, ₹50 total (₹25 each), payment UPI.
+    """
+    lead_qty, rest = _extract_lead_quantity(text)
+    rest = rest.strip() or text
+    parsed = parse_nl_input(rest, today)
+    parsed.pop("fragments", None)  # never nest fragment lists
+    if lead_qty is not None:
+        parsed["quantity"] = lead_qty
+    return _set_unit_price(parsed)
+
+
+def fragment_transactions(text: str, today: datetime | None = None) -> list[dict]:
+    """Split a single NL line into separate transactions when it lists several
+    priced items ("banana + mango 50+20" -> banana ₹50 + mango ₹20).
+
+    Every item keeps its OWN category, quantity and payment method
+    ("2 samosay 50 upi and 1 cup coffe 15 cash" -> Samosay/UPI + Coffe/Cash).
+    Only a missing date (and a missing payment method) falls back to the whole
+    line, so shared context like "yesterday upi" applies to all items.
+    Returns [] when the line isn't a clean multi-item list.
+    """
+    today = today or datetime.now()
+    subs = _typed_item_fragments(text)
+    if len(subs) < 2:
+        return []
+    base = parse_transaction(text, today)
+    fragments: list[dict] = []
+    for sub in subs:
+        parsed = _parse_typed_fragment(sub, today)
+        # Per-item context wins; a shared date/payment from the whole line is
+        # inherited only when the item doesn't carry its own. A date is only
+        # copied from the line when the line explicitly stated one ("yesterday",
+        # "on 15/06") — parse_transaction otherwise defaults every item to today.
+        if _has_date_indicator(text):
+            parsed["date"] = base.get("date") or parsed.get("date")
+        parsed["payment_method"] = (
+            parsed.get("payment_method") or base.get("payment_method") or ""
+        )
+        # An expense list stays expenses even if a word in it hints at income;
+        # an income list keeps each fragment's own sign.
+        if base.get("amount", 0) < 0 and parsed.get("amount", 0) > 0:
+            parsed["amount"] = -parsed["amount"]
+        parsed["txn_type"] = "credit" if parsed["amount"] >= 0 else "debit"
+        _set_unit_price(parsed)
+        parsed["kind"] = "single"
+        fragments.append(parsed)
+    return fragments
+
+
 def parse_bulk_lines(text: str, today: datetime | None = None) -> list[dict]:
-    """Parse multiple NL lines (one transaction or schedule per line)."""
+    """Parse multiple NL lines (one transaction or schedule per line).
+
+    A line that itself lists several priced items is expanded into its
+    fragments ("2 samosay 50 upi and 1 cup coffe 15 cash" becomes two entries),
+    so every parsing path — single, bulk, voice — splits multi-item input the
+    same way.
+    """
     today = today or datetime.now()
     items = []
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        items.append(parse_nl_input(line, today))
+        parsed = parse_nl_input(line, today)
+        fragments = parsed.get("fragments")
+        if fragments:
+            items.extend(fragments)
+        else:
+            items.append(parsed)
     return items
 
 

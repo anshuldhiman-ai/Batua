@@ -401,6 +401,8 @@ _FOOD_TYPO_FIXES: Tuple[Tuple[re.Pattern, str], ...] = (
     (re.compile(r"\bmomo[s]?\b", re.I), "momo"),
     (re.compile(r"\bcoffe\b", re.I), "coffee"),
     (re.compile(r"\bbhujiya\b", re.I), "bhujia"),
+    # Hinglish plurals — "samosay"/"samose" are a bag of 2 samosas, not a brand.
+    (re.compile(r"\bsamosa[ys]?\b", re.I), "samosa"),
 )
 
 

@@ -195,4 +195,68 @@ describe("NLInputBar Component", () => {
     // 10 per item × 2 qty = 20.
     expect(screen.getByTestId("preview-amount")).toHaveValue("-20");
   });
+
+  const MULTI = {
+    kind: "single",
+    description: "Samosay + Cup Coffe",
+    amount: -65,
+    quantity: 1,
+    price: 65,
+    category: "Snacks",
+    payment_method: "UPI",
+    date: "2026-07-26",
+    fragments: [
+      { kind: "single", description: "Samosay", amount: -50, quantity: 2, price: 25, category: "Snacks", payment_method: "UPI", date: "2026-07-26" },
+      { kind: "single", description: "Cup Coffe", amount: -15, quantity: 1, price: 15, category: "Snacks", payment_method: "Cash", date: "2026-07-26" },
+    ],
+  };
+
+  async function parseMulti() {
+    mockedPost.mockResolvedValue({ data: MULTI } as any);
+    renderBar();
+    const input = firstInput();
+    fireEvent.change(input, { target: { value: "2 samosay 50 upi and 1 cup coffe 15 cash" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("fragment-split")).toBeInTheDocument();
+    });
+  }
+
+  it("shows a split toggle for a multi-item line and keeps one by default", async () => {
+    await parseMulti();
+    expect(screen.getByTestId("fragment-split")).toHaveTextContent("2 items detected");
+    fireEvent.click(screen.getByTestId("nl-save-btn"));
+    await waitFor(() => {
+      expect(mockedPost).toHaveBeenCalledWith(
+        "/transactions",
+        expect.objectContaining({ description: "Samosay + Cup Coffe", amount: -65 })
+      );
+    });
+    // The combined entry must not leak its fragment list into the payload.
+    expect(mockedPost).not.toHaveBeenCalledWith(
+      "/transactions",
+      expect.objectContaining({ fragments: expect.anything() })
+    );
+  });
+
+  it("splits a multi-item line into separate transactions on demand", async () => {
+    await parseMulti();
+    expect(screen.queryAllByTestId("fragment-item")).toHaveLength(0);
+    fireEvent.click(screen.getByTestId("fragment-split-btn"));
+    // Split view shows every item.
+    expect(screen.getAllByTestId("fragment-item")).toHaveLength(2);
+    expect(screen.getByTestId("nl-save-btn")).toHaveTextContent("Save 2 transactions");
+
+    fireEvent.click(screen.getByTestId("nl-save-btn"));
+    await waitFor(() => {
+      expect(mockedPost).toHaveBeenCalledWith(
+        "/transactions",
+        expect.objectContaining({ description: "Samosay", amount: -50, payment_method: "UPI", quantity: 2 })
+      );
+      expect(mockedPost).toHaveBeenCalledWith(
+        "/transactions",
+        expect.objectContaining({ description: "Cup Coffe", amount: -15, payment_method: "Cash", quantity: 1 })
+      );
+    });
+  });
 });

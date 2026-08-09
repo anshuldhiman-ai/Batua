@@ -5,6 +5,8 @@ from parser import (
     parse_nl_input,
     parse_bulk_lines,
     parse_voice_input,
+    fragment_transactions,
+    _typed_item_fragments,
     _detect_payment,
     _detect_amount,
     _detect_date,
@@ -53,6 +55,116 @@ def test_detect_amount_arithmetic():
     assert r["amount"] == -279.0
     assert r["description"].lower() == "banana"
     assert r["price"] == 279.0
+
+
+def test_typed_item_fragments_shapes():
+    # Item list + price list, zipped into per-item strings.
+    assert _typed_item_fragments("banana + mango 50+20") == ["banana 50", "mango 20"]
+    # Alternating item/price pairs.
+    assert _typed_item_fragments("banana 50 mango 20") == ["banana 50", "mango 20"]
+    # Hinglish / English conjunctions between pairs.
+    assert _typed_item_fragments("lays 10 aur samosa 15") == ["lays 10", "samosa 15"]
+    assert _typed_item_fragments("chai 10 and samosa 15") == ["chai 10", "samosa 15"]
+    # Each item keeps its OWN quantity + payment method words.
+    assert _typed_item_fragments("2 samosay 50 upi and 1 cup coffe 15 cash") == [
+        "2 samosay 50 upi", "1 cup coffe 15 cash",
+    ]
+    # A lead-count quantity ("2 plate momos 120") is a real second item here.
+    assert _typed_item_fragments("2 plate momos 120 aur ek coffee 60") == [
+        "2 plate momos 120", "ek coffee 60",
+    ]
+
+
+def test_typed_item_fragments_not_splittable():
+    # Single transaction — no fragments.
+    assert _typed_item_fragments("zomato 450 upi") == []
+    assert _typed_item_fragments("salary 85000 credit") == []
+    assert _typed_item_fragments("petrol 1200 10/05/2026 hdfc") == []
+    # A counted quantity is ONE grouped item, not a list.
+    assert _typed_item_fragments("maggi 2 packet 20") == []
+    # A single basket total (arithmetic with *) is not a price list.
+    assert _typed_item_fragments("chai 15*2+20") == []
+    # Model numbers ("6e 2345") and a bare-number "second item" ("and 500")
+    # must not be read as item/price lists.
+    assert _typed_item_fragments("flight 6e 2345") == []
+    assert _typed_item_fragments("banana 50 and 500") == []
+    # A lone item/price pair stays a single transaction.
+    assert _typed_item_fragments("chai 10") == []
+
+
+def test_parse_nl_input_attaches_fragments():
+    today = datetime(2026, 6, 19)
+    r = parse_nl_input("banana + mango 50+20", today)
+    assert r["amount"] == -70.0
+    assert "fragments" in r
+    frags = r["fragments"]
+    assert [f["description"] for f in frags] == ["Banana", "Mango"]
+    assert [f["amount"] for f in frags] == [-50.0, -20.0]
+    assert all(f["category"] == "Fruits" for f in frags)
+    assert all(f["kind"] == "single" for f in frags)
+
+
+def test_parse_nl_input_combined_is_sum_of_fragments():
+    today = datetime(2026, 6, 19)
+    r = parse_nl_input("2 samosay 50 upi and 1 cup coffe 15 cash", today)
+    # Combined = whole basket (₹65), not the stray count "2".
+    assert r["amount"] == -65.0
+    assert r["description"] == "Samosay + Cup Coffe"
+    assert r["quantity"] == 1
+    frags = r["fragments"]
+    assert [(f["description"], f["amount"], f["quantity"]) for f in frags] == [
+        ("Samosay", -50.0, 2), ("Cup Coffe", -15.0, 1),
+    ]
+
+
+def test_fragment_transactions_per_item_payment_and_category():
+    today = datetime(2026, 6, 19)
+    frags = fragment_transactions("2 samosay 50 upi and 1 cup coffe 15 cash", today)
+    assert len(frags) == 2
+    samosa, coffe = frags
+    assert samosa["description"] == "Samosay"
+    assert samosa["payment_method"] == "UPI"   # its OWN method, not the line's
+    assert samosa["amount"] == -50.0
+    assert samosa["quantity"] == 2
+    assert samosa["price"] == 25.0             # ₹50 total ÷ 2
+    assert samosa["category"] == "Snacks"
+    assert coffe["description"] == "Cup Coffe"
+    assert coffe["payment_method"] == "Cash"
+    assert coffe["amount"] == -15.0
+    assert coffe["quantity"] == 1
+    assert coffe["category"] == "Snacks"
+
+
+def test_fragment_transactions_inherits_shared_context():
+    today = datetime(2026, 6, 19)
+    frags = fragment_transactions("banana + mango 50+20 yesterday upi", today)
+    assert len(frags) == 2
+    for f in frags:
+        assert f["date"] == "2026-06-18"       # shared date inherited
+        assert f["payment_method"] == "UPI"    # shared payment inherited
+        assert f["amount"] < 0                 # expense list stays expenses
+        assert f["txn_type"] == "debit"
+        assert f["price"] == abs(f["amount"])  # per-item price = its own amount
+
+
+def test_fragment_transactions_not_splittable_returns_empty():
+    today = datetime(2026, 6, 19)
+    assert fragment_transactions("zomato 450 upi", today) == []
+    assert fragment_transactions("maggi 2 packet 20", today) == []
+
+
+def test_parse_bulk_lines_flattens_fragments():
+    today = datetime(2026, 6, 19)
+    items = parse_bulk_lines(
+        "zomato 450 upi\n2 samosay 50 upi and 1 cup coffe 15 cash", today
+    )
+    # The multi-item line expands into its two entries, so every one-off line
+    # maps to one transaction in the bulk preview.
+    assert len(items) == 3
+    assert items[0]["description"] == "Zomato"
+    assert items[1]["description"] == "Samosay" and items[1]["payment_method"] == "UPI"
+    assert items[2]["description"] == "Cup Coffe" and items[2]["payment_method"] == "Cash"
+    assert all(i["kind"] == "single" for i in items)
 
 
 def test_credit_card_bill_is_an_expense_not_income():

@@ -16,7 +16,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
 } from "lucide-react";
+
+import Tour from "@/components/Tour";
+import { TOUR_STEPS } from "@/tour-steps";
 
 import { ThemeContext } from "@/App";
 import Logo from "@/components/Logo";
@@ -79,7 +83,7 @@ function ThemeToggle({ className }) {
 }
 
 /* ─── Desktop sidebar ─────────────────────────────────────────────── */
-function DesktopSidebar({ collapsed, onToggle }) {
+function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
   const location = useLocation();
 
   return (
@@ -149,7 +153,19 @@ function DesktopSidebar({ collapsed, onToggle }) {
       </nav>
 
       <div className="flex flex-col gap-2 border-t border-border/50 p-3">
-        <ThemeToggle className="w-full" />
+        <div className="flex items-center gap-2">
+          <ThemeToggle className="min-w-0 flex-1" />
+          <button
+            type="button"
+            onClick={onLaunchTour}
+            aria-label="Take the tour"
+            data-testid="tour-launch"
+            title="Guided tour"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <CircleHelp className="h-[18px] w-[18px]" />
+          </button>
+        </div>
         <button
           type="button"
           onClick={onToggle}
@@ -168,7 +184,7 @@ function DesktopSidebar({ collapsed, onToggle }) {
 }
 
 /* ─── Mobile top bar + drawer ─────────────────────────────────────── */
-function MobileNav() {
+function MobileNav({ onLaunchTour }) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -205,6 +221,14 @@ function MobileNav() {
         </NavLink>
         <div className="flex items-center gap-2">
           <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />
+          <button
+            onClick={onLaunchTour}
+            aria-label="Take the tour"
+            data-testid="tour-launch-mobile"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50"
+          >
+            <CircleHelp className="h-5 w-5" />
+          </button>
           <button
             onClick={() => setIsOpen(!isOpen)}
             aria-label={isOpen ? "Close menu" : "Open menu"}
@@ -261,6 +285,8 @@ function MobileNav() {
 
 export default function Layout() {
   const [collapsed, setCollapsed] = useLocalStorage("batua-sidebar-collapsed", false);
+  const [tourSeen, setTourSeen] = useLocalStorage("batua-tour-seen", false);
+  const [tourOpen, setTourOpen] = useState(false);
   const location = useLocation();
 
   // Update document title based on current route
@@ -270,6 +296,25 @@ export default function Layout() {
     document.title = `${pageTitle} — Batua`;
   }, [location.pathname]);
 
+  // First-time visitors get the onboarding tour automatically.
+  useEffect(() => {
+    if (!tourSeen) setTourOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Lock page scroll while the tour is covering the screen.
+  useEffect(() => {
+    document.body.style.overflow = tourOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [tourOpen]);
+
+  const closeTour = () => {
+    setTourOpen(false);
+    setTourSeen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <a
@@ -278,8 +323,14 @@ export default function Layout() {
       >
         Skip to main content
       </a>
-      <DesktopSidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-      <MobileNav />
+      <DesktopSidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+        onLaunchTour={() => setTourOpen(true)}
+      />
+      <MobileNav onLaunchTour={() => setTourOpen(true)} />
+
+      <Tour steps={TOUR_STEPS} open={tourOpen} onClose={closeTour} onFinish={closeTour} />
 
       <main
         id="main-content"

@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, Wand2, Check, X, Loader2, Repeat, List, Mic } from "lucide-react";
+import { Sparkles, Wand2, Check, X, Loader2, Repeat, List, Mic, Split } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card } from "@/components/ui/card";
@@ -57,6 +57,9 @@ export default function NLInputBar({ onSaved }) {
   const [bulkDrafts, setBulkDrafts] = React.useState(null);
   const [categories, setCategories] = React.useState(FALLBACK_CATEGORIES);
   const [paymentMethods, setPaymentMethods] = React.useState(FALLBACK_PAYMENT_METHODS);
+  // When a single line lists several priced items ("banana + mango 50+20"),
+  // the user can save it as one entry or split it into N separate ones.
+  const [split, setSplit] = React.useState(false);
 
   // Load the real category + payment lists once so the preview offers pickers
   // (with search) instead of forcing manual typing.
@@ -89,6 +92,7 @@ export default function NLInputBar({ onSaved }) {
           : data;
       setDraft(draftData);
       setBulkDrafts(null);
+      setSplit(false);
     } catch {
       toast.error("Could not parse that. Try rephrasing.");
     } finally {
@@ -192,8 +196,10 @@ export default function NLInputBar({ onSaved }) {
     try {
       if (draft.kind === "recurring") {
         await saveRecurring(draft);
+      } else if (split && draft.fragments?.length) {
+        await saveFragments(draft);
       } else {
-        const { kind, count, total, ...txn } = draft;
+        const { kind, count, total, fragments, ...txn } = draft;
         await api.post("/transactions", txn);
         toast.success("Transaction saved");
       }
@@ -204,6 +210,17 @@ export default function NLInputBar({ onSaved }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  // "Split into N" — save each detected item as its own transaction.
+  const saveFragments = async (src) => {
+    let saved = 0;
+    for (const item of src.fragments || []) {
+      const { kind, count, total, fragments, ...txn } = item;
+      await api.post("/transactions", txn);
+      saved += 1;
+    }
+    toast.success(`Saved ${saved} transactions`);
   };
 
   const saveRecurring = async (rec) => {
@@ -364,6 +381,8 @@ export default function NLInputBar({ onSaved }) {
             saving={saving}
             categories={categories}
             paymentMethods={paymentMethods}
+            split={split}
+            onToggleSplit={setSplit}
           />
         )}
 
@@ -929,10 +948,12 @@ function ExampleChips({ examples, onPick }) {
   );
 }
 
-function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, saving, categories, paymentMethods }) {
+function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, saving, categories, paymentMethods, split, onToggleSplit }) {
   const isRecurring = draft.kind === "recurring";
   const qty = draft.quantity > 0 ? draft.quantity : 1;
   const isDebit = (draft.amount || 0) < 0;
+  const fragments = Array.isArray(draft.fragments) ? draft.fragments : null;
+  const fragmentCount = fragments?.length ?? 0;
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-background/60 p-4 animate-fade-up" data-testid="nl-preview">
@@ -1063,6 +1084,69 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         </Field>
       </div>
 
+      {!isRecurring && fragmentCount >= 2 && (
+        <div
+          className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-3"
+          data-testid="fragment-split"
+        >
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
+            <Split className="h-3.5 w-3.5 text-primary" />
+            {fragmentCount} items detected in this line
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={split ? "outline" : "default"}
+              onClick={() => onToggleSplit(false)}
+              data-testid="fragment-keep"
+            >
+              Keep as one ({formatINR(draft.amount)})
+            </Button>
+            <Button
+              size="sm"
+              variant={split ? "default" : "outline"}
+              onClick={() => onToggleSplit(true)}
+              data-testid="fragment-split-btn"
+            >
+              Split into {fragmentCount} ({formatINR(draft.amount)})
+            </Button>
+          </div>
+          {split && (
+            <ul className="mt-3 space-y-1.5">
+              {fragments.map((fr, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between rounded-md bg-background/60 px-3 py-1.5 text-sm"
+                  data-testid="fragment-item"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{fr.description}</span>
+                    {fr.quantity > 1 && (
+                      <Badge variant="outline" className="shrink-0">
+                        × {fr.quantity}
+                      </Badge>
+                    )}
+                    {fr.payment_method && (
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {fr.payment_method}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 tabular-nums font-medium",
+                      fr.amount >= 0 ? "text-emerald-600" : "text-rose-500"
+                    )}
+                  >
+                    {formatINR(fr.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {isRecurring && (
         <MonthPicker
           className="mt-4"
@@ -1085,7 +1169,11 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             data-testid="nl-save-btn"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {isRecurring ? `Apply to ${draft.count || 0} months` : "Save"}
+            {isRecurring
+              ? `Apply to ${draft.count || 0} months`
+              : split && fragmentCount >= 2
+                ? `Save ${fragmentCount} transactions`
+                : "Save"}
           </Button>
         </div>
       </div>
