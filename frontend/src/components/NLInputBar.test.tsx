@@ -3,15 +3,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-// Mock dependencies before imports
-vi.mock("@/lib/utils-finance", () => ({
-  api: {
-    post: vi.fn(),
-  },
-  formatINR: vi.fn((n) => `₹${Number(n).toLocaleString("en-IN")}`),
-  upcomingMonths: vi.fn(() => ["2026-07", "2026-08", "2026-09"]),
-  currentYearMonth: vi.fn(() => "2026-07"),
-}));
+// Mock dependencies before imports — keep the real priceBreakdown logic so the
+// preview's formula behaviour is actually exercised in tests.
+vi.mock("@/lib/utils-finance", async () => {
+  const actual = await vi.importActual("@/lib/utils-finance");
+  return {
+    ...actual,
+    api: {
+      post: vi.fn(),
+      get: vi.fn(() => Promise.resolve({ data: { categories: [], methods: [] } })),
+    },
+    formatINR: vi.fn((n) => `₹${Number(n).toLocaleString("en-IN")}`),
+    upcomingMonths: vi.fn(() => ["2026-07", "2026-08", "2026-09"]),
+    currentYearMonth: vi.fn(() => "2026-07"),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -142,5 +148,51 @@ describe("NLInputBar Component", () => {
     const input = firstInput();
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockedPost).not.toHaveBeenCalled();
+  });
+
+  async function parseSingle(text) {
+    renderBar();
+    mockedPost.mockResolvedValueOnce({
+      data: { kind: "single", description: "Banana", amount: -450, quantity: 1, price: 450, date: "2026-07-26", category: "Fruits", payment_method: "UPI" },
+    } as any);
+    const input = firstInput();
+    fireEvent.change(input, { target: { value: text } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => {
+      expect(screen.getByTestId("preview-description")).toBeInTheDocument();
+    });
+  }
+
+  it("offers searchable category + payment pickers in the preview", async () => {
+    await parseSingle("banana 450");
+    const categoryBtn = screen.getByTestId("preview-category");
+    const paymentBtn = screen.getByTestId("preview-payment");
+    expect(categoryBtn.tagName).toBe("BUTTON");
+    expect(paymentBtn.tagName).toBe("BUTTON");
+    expect(paymentBtn).toHaveTextContent("UPI");
+  });
+
+  it("evaluates a price expression as the total, without multiplying by qty", async () => {
+    await parseSingle("banana 450");
+    const qtyInput = screen.getByTestId("preview-quantity");
+    fireEvent.change(qtyInput, { target: { value: "2" } });
+
+    const priceInput = screen.getByTestId("preview-price");
+    fireEvent.change(priceInput, { target: { value: "12+15+48" } });
+
+    // 12+15+48 = 75 — the basket total, NOT 75 × 2.
+    expect(screen.getByTestId("preview-amount")).toHaveValue("-75");
+  });
+
+  it("multiplies a bare price by the quantity", async () => {
+    await parseSingle("banana 450");
+    const qtyInput = screen.getByTestId("preview-quantity");
+    fireEvent.change(qtyInput, { target: { value: "2" } });
+
+    const priceInput = screen.getByTestId("preview-price");
+    fireEvent.change(priceInput, { target: { value: "10" } });
+
+    // 10 per item × 2 qty = 20.
+    expect(screen.getByTestId("preview-amount")).toHaveValue("-20");
   });
 });

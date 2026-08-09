@@ -33,6 +33,28 @@ def test_detect_amount():
     assert _detect_amount("date 15/06 amount 100")[0] == 100.0
     assert _detect_amount("1st prize 1000")[0] == 1000.0
 
+def test_detect_amount_arithmetic():
+    # Addition breakdown "120+89+70" is one total (not three amounts / signs).
+    assert _detect_amount("banana 120+89+70")[0:2] == (279.0, False)
+    # Mixed + and * respects precedence: 15*2+20 = 50.
+    assert _detect_amount("chai 15*2+20")[0:2] == (50.0, False)
+    # Spaces around operators are fine.
+    assert _detect_amount("basket 10 + 5 + 3")[0:2] == (18.0, False)
+    # Leading sign still works on an expression.
+    assert _detect_amount("salary +5+3")[0:2] == (8.0, True)
+    # A dd/mm date must NOT be treated as division.
+    assert _detect_amount("date 15/06 amount 100")[0] == 100.0
+    # A bare single number is untouched by the arithmetic path.
+    assert _detect_amount("netflix 599")[0:2] == (599.0, False)
+    # A multi-term expression is a single total.
+    assert _detect_amount("order 10+20")[0:2] == (30.0, False)
+    # End-to-end: NL parse of an arithmetic price produces a single expense.
+    r = parse_nl_input("banana 120+89+70")
+    assert r["amount"] == -279.0
+    assert r["description"].lower() == "banana"
+    assert r["price"] == 279.0
+
+
 def test_credit_card_bill_is_an_expense_not_income():
     # "credit card bill 5000" is a ₹5000 payment — a debit. The ML model can
     # treat "credit" as an income signal, so guard against Income category

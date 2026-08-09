@@ -5,6 +5,7 @@ Tokens are removed from the working string as each field is extracted so the
 leftover becomes a clean description.
 """
 import re
+import ast
 import calendar
 from datetime import datetime, timedelta
 
@@ -467,8 +468,57 @@ def _detect_quantity(text: str) -> tuple[int, str]:
     return qty, text
 
 
+def _eval_arithmetic(expr: str) -> float | None:
+    """Safely evaluate an amount breakdown like ``120+89+70`` or ``15*2+20``.
+
+    Only +, * and parentheses over plain numbers are allowed — anything else
+    (names, calls, attributes, division) is rejected. Returns None when the
+    string isn't a pure arithmetic expression. ``/`` is deliberately excluded
+    so a dd/mm date like ``10/05`` is never misread as division.
+    """
+    s = expr.strip()
+    if not s or not re.fullmatch(r"[\d+*(). ]+", s):
+        return None
+
+    def ev(node):
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Mult)):
+            a, b = ev(node.left), ev(node.right)
+            return a + b if isinstance(node.op, ast.Add) else a * b
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            return -ev(node.operand)
+        raise ValueError("unsupported expression")
+
+    try:
+        val = float(ev(ast.parse(s, mode="eval")))
+        return val if val > 0 else None
+    except (ValueError, SyntaxError, ZeroDivisionError, RecursionError, TypeError):
+        return None
+
+
+# A chain of at least two numbers joined by + or * (e.g. "120+89+70",
+# "15*2+20"). The leading lookbehind stops it matching inside a word, and the
+# trailing \b keeps "12+15+48" (ends on a digit) intact.
+_ARITH_AMOUNT_RE = re.compile(
+    r"(?<!\w)([+-]?)(\d+(?:\.\d+)?(?:\s*[+*]\s*\d+(?:\.\d+)?)+)\b",
+    re.IGNORECASE,
+)
+
+
 def _detect_amount(text: str) -> tuple[float | None, bool, str]:
     """Return (amount_abs, explicit_positive, remaining_text)."""
+    # Arithmetic breakdown first: "chai 120+89+70" -> 279 (a single total).
+    # Runs before the sign/plain-number checks so "120+89+70" isn't picked
+    # apart into "89" (with its "+" read as an explicit income sign) and "70".
+    am = _ARITH_AMOUNT_RE.search(text)
+    if am:
+        val = _eval_arithmetic(am.group(2))
+        if val is not None:
+            text = _remove(text, am.start(), am.end())
+            return val, am.group(1) == "+", text
     # Explicit sign first, e.g. +85000, -250, +5k
     m = re.search(
         r"([+-])\s?(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?\b", text, re.IGNORECASE

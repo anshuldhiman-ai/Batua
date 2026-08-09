@@ -116,6 +116,14 @@ def test_categories_endpoint_includes_new_categories(client):
         assert c in cats
 
 
+def test_payment_methods_endpoint(client):
+    r = client.get("/api/categories/payment-methods")
+    assert r.status_code == 200
+    methods = r.json()["methods"]
+    for m in ("UPI", "Cash", "Net Banking", "Credit Card", "Wallet"):
+        assert m in methods
+
+
 @pytest.fixture
 def test_storage(tmp_path):
     from storage import SQLiteStorage

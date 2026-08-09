@@ -1,7 +1,7 @@
 """Categories route."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from parser import CATEGORIES
+from parser import CATEGORIES, PAYMENT_METHODS
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
 
@@ -47,6 +47,16 @@ async def categories():
     
     allc = list(dict.fromkeys(DEFAULT_CATEGORIES + sorted(custom_cats) + sorted(used)))
     return {"categories": allc, "custom": custom_cats}
+
+
+@router.get("/payment-methods")
+async def payment_methods():
+    """The recognised payment methods (UPI, Cash, Net Banking, …).
+
+    Single source of truth is the backend's ``PAYMENT_METHODS`` dict so the
+    parse preview's payment picker can't drift from what the parser detects.
+    """
+    return {"methods": list(PAYMENT_METHODS.keys())}
 
 
 @router.post("/add")

@@ -37,6 +37,53 @@ export function formatDate(dateStr) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+// Only digits/operators — never handed to Function() unless it matches this.
+const PRICE_EXPR_CHARS = /^[0-9+\-*/(). ]*$/;
+
+/**
+ * Safely evaluate an arithmetic price breakdown like "10+20+25" or "15*2+20".
+ * Returns the numeric value, or null when the string isn't a pure arithmetic
+ * expression (or doesn't evaluate to a positive number). Mirrors the backend's
+ * arithmetic price-cell parsing.
+ */
+export function evalPriceExpr(raw) {
+  // Strip currency markers / thousands separators (mirrors the backend), so
+  // "₹15*2+20" or "1,200+80" evaluate the same as "15*2+20" / "1200+80".
+  const s = (raw || "").trim().replace(/[₹$,]/g, "");
+  if (!s || !PRICE_EXPR_CHARS.test(s)) return null;
+  try {
+    // eslint-disable-next-line no-new-func
+    const val = Function(`"use strict"; return (${s});`)();
+    return Number.isFinite(val) && val > 0 ? val : null;
+  } catch {
+    return null;
+  }
+}
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/**
+ * Turn a Price-field input into { isBare, price, mag } given the quantity.
+ *
+ * - A bare single number is a per-item price → total = price × quantity.
+ * - A multi-term expression (e.g. "12+15+48") is the basket total → total is
+ *   the sum itself (NO quantity multiplication), with per-item = total ÷ qty.
+ * - Returns null while the input is mid-typing or invalid so callers can keep
+ *   showing exactly what was typed without touching the total.
+ */
+export function priceBreakdown(raw, qty = 1) {
+  const s = String(raw ?? "").trim();
+  const n = qty > 0 ? qty : 1;
+  // A single numeric literal (optionally with a ₹ prefix) = per-item price.
+  if (/^₹?\s*\d*\.?\d+$/.test(s)) {
+    const price = round2(Math.abs(parseFloat(s.replace(/₹/g, "")) || 0));
+    return { isBare: true, price, mag: round2(price * n) };
+  }
+  const val = evalPriceExpr(s);
+  if (val === null) return null;
+  return { isBare: false, price: round2(val / n), mag: round2(val) };
+}
+
 export function formatMonth(ym) {
   if (!ym) return "";
   const [y, m] = ym.split("-");

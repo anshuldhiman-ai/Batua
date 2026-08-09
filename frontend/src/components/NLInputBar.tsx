@@ -10,13 +10,28 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import MonthPicker from "@/components/MonthPicker";
 import { DateInput, DayInput } from "@/components/ui/date-input";
-import { api, formatINR, upcomingMonths, currentYearMonth } from "@/lib/utils-finance";
+import { api, formatINR, upcomingMonths, currentYearMonth, priceBreakdown } from "@/lib/utils-finance";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { cn } from "@/lib/utils";
 
 const SINGLE_EXAMPLES = [
   "zomato 450 yesterday upi",
   "salary +85000 5th may",
   "petrol 1200 10/05/2026 hdfc",
+];
+
+// Shown while the backend lists are loading (or offline) so the pickers in the
+// preview always have something to offer.
+const FALLBACK_CATEGORIES = [
+  "Income", "Food Delivery", "Fast Food", "Food & Dining", "Groceries",
+  "Transportation", "Fuel", "Shopping", "Utilities", "Subscriptions",
+  "Entertainment", "Health", "Education", "Housing/Rent", "Personal Care",
+  "Snacks", "Investments", "Fruits", "Refreshments", "Beverages", "Other",
+];
+
+const FALLBACK_PAYMENT_METHODS = [
+  "UPI", "Cash", "Credit Card", "Debit Card", "Net Banking", "Wallet",
+  "HDFC", "SBI", "ICICI", "Axis",
 ];
 
 const RECURRING_EXAMPLES = [
@@ -40,6 +55,21 @@ export default function NLInputBar({ onSaved }) {
   const [focused, setFocused] = React.useState(false);
   const [draft, setDraft] = React.useState(null);
   const [bulkDrafts, setBulkDrafts] = React.useState(null);
+  const [categories, setCategories] = React.useState(FALLBACK_CATEGORIES);
+  const [paymentMethods, setPaymentMethods] = React.useState(FALLBACK_PAYMENT_METHODS);
+
+  // Load the real category + payment lists once so the preview offers pickers
+  // (with search) instead of forcing manual typing.
+  React.useEffect(() => {
+    let cancelled = false;
+    api.get("/categories/")
+      .then((r) => !cancelled && setCategories((r.data?.categories?.length ? r.data.categories : FALLBACK_CATEGORIES)))
+      .catch(() => {});
+    api.get("/categories/payment-methods")
+      .then((r) => !cancelled && setPaymentMethods((r.data?.methods?.length ? r.data.methods : FALLBACK_PAYMENT_METHODS)))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const parseSingle = async (inputText = text) => {
     // `inputText` may arrive as a click event (the Parse button) or undefined
@@ -332,6 +362,8 @@ export default function NLInputBar({ onSaved }) {
             onDiscard={() => setDraft(null)}
             onSave={saveSingle}
             saving={saving}
+            categories={categories}
+            paymentMethods={paymentMethods}
           />
         )}
 
@@ -897,8 +929,10 @@ function ExampleChips({ examples, onPick }) {
   );
 }
 
-function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, saving }) {
+function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, saving, categories, paymentMethods }) {
   const isRecurring = draft.kind === "recurring";
+  const qty = draft.quantity > 0 ? draft.quantity : 1;
+  const isDebit = (draft.amount || 0) < 0;
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-background/60 p-4 animate-fade-up" data-testid="nl-preview">
@@ -917,13 +951,32 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         </Field>
         <Field label="Amount (₹)">
           <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={draft.amount}
             onChange={(e) => {
-              const amount = parseFloat(e.target.value) || 0;
-              updateDraft("amount", amount);
-              if (isRecurring) updateDraft("total", round2(amount * (draft.months?.length || 0)));
-              else updateDraft("price", round2(Math.abs(amount) / (draft.quantity > 0 ? draft.quantity : 1)));
+              const raw = e.target.value;
+              // An explicit +/- the user types wins; otherwise keep the type
+              // the transaction already has (debit shows "-").
+              let sign = isDebit ? -1 : 1;
+              if (/^\s*[+-]/.test(raw)) sign = raw.trim().startsWith("-") ? -1 : 1;
+              const clean = raw.replace(/^[+-]/, "");
+              // Amount is always the total: a bare number is the total, and an
+              // expression like "120+89+70" adds up to the total too.
+              const bd = priceBreakdown(clean, 1);
+              if (bd === null) {
+                // Mid-typing ("120+") — keep the last valid amount untouched.
+                if (raw.trim() !== "") return;
+                updateDraft("amount", 0);
+                updateDraft("price_text", "");
+                if (isRecurring) updateDraft("total", 0);
+                return;
+              }
+              const amt = sign * bd.mag;
+              updateDraft("amount", amt);
+              updateDraft("price", round2(bd.mag / qty));
+              updateDraft("price_text", ""); // the amount is the total — no price breakdown
+              if (isRecurring) updateDraft("total", round2(amt * (draft.months?.length || 0)));
             }}
             data-testid="preview-amount"
           />
@@ -951,17 +1004,31 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         {!isRecurring && (
           <Field label="Price / item (₹)">
             <Input
-              type="number"
-              min={0}
-              value={draft.price ?? round2(Math.abs(draft.amount || 0) / (draft.quantity > 0 ? draft.quantity : 1))}
+              type="text"
+              inputMode="decimal"
+              placeholder="e.g. 10, 12+15+48, 15*2"
+              value={draft.price_text || String(draft.price ?? round2(Math.abs(draft.amount || 0) / qty))}
               onChange={(e) => {
-                const price = Math.abs(parseFloat(e.target.value) || 0);
-                const qty = draft.quantity > 0 ? draft.quantity : 1;
-                updateDraft("price", price);
-                updateDraft("amount", draft.amount < 0 ? -round2(price * qty) : round2(price * qty));
+                const raw = e.target.value;
+                // A single number is a per-item price → total = price × qty.
+                // An expression like "12+15+48" is the basket total → just added.
+                const bd = priceBreakdown(raw, qty);
+                if (bd === null) {
+                  // Mid-typing / invalid — remember exactly what was typed.
+                  updateDraft("price_text", raw);
+                  return;
+                }
+                updateDraft("price", bd.price);
+                updateDraft("price_text", bd.isBare ? "" : raw);
+                updateDraft("amount", (isDebit ? -1 : 1) * bd.mag);
               }}
               data-testid="preview-price"
             />
+            {draft.price_text && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                = <span className="font-medium tabular-nums">{formatINR(Math.abs(draft.amount || 0))}</span> total
+              </p>
+            )}
           </Field>
         )}
         {isRecurring && (
@@ -974,10 +1041,25 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
           </Field>
         )}
         <Field label="Category">
-          <Input value={draft.category} onChange={(e) => updateDraft("category", e.target.value)} data-testid="preview-category" />
+          <SearchableSelect
+            value={draft.category || ""}
+            options={categories}
+            onChange={(v) => updateDraft("category", v)}
+            placeholder="Choose category…"
+            search
+            allowCustom
+            data-testid="preview-category"
+          />
         </Field>
         <Field label="Payment">
-          <Input value={draft.payment_method || ""} onChange={(e) => updateDraft("payment_method", e.target.value)} data-testid="preview-payment" />
+          <SearchableSelect
+            value={draft.payment_method || ""}
+            options={paymentMethods}
+            onChange={(v) => updateDraft("payment_method", v)}
+            placeholder="Choose or type…"
+            allowCustom
+            data-testid="preview-payment"
+          />
         </Field>
       </div>
 

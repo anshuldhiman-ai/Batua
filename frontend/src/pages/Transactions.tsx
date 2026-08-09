@@ -27,9 +27,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { api, formatINR, formatDate, categoryColor } from "@/lib/utils-finance";
+import { api, formatINR, formatDate, categoryColor, priceBreakdown } from "@/lib/utils-finance";
 import { sortTransactions } from "@/lib/analytics-utils";
 import { DateInput } from "@/components/ui/date-input";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -61,23 +62,6 @@ const round2 = (n) => Math.round(n * 100) / 100;
 const selectClass =
   "h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-// Only digits/operators — never handed to Function() unless it matches this.
-const PRICE_EXPR_CHARS = /^[0-9+\-*/(). ]*$/;
-
-// Lets the Price field accept a breakdown like "10+20+25", not just a bare
-// number — mirrors the backend's arithmetic price-cell parsing.
-function evalPriceExpr(raw) {
-  const s = (raw || "").trim();
-  if (!s || !PRICE_EXPR_CHARS.test(s)) return null;
-  try {
-    // eslint-disable-next-line no-new-func
-    const val = Function(`"use strict"; return (${s});`)();
-    return Number.isFinite(val) && val > 0 ? val : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function Transactions() {
   const queryClient = useQueryClient();
   const [search, setSearch] = React.useState("");
@@ -85,6 +69,10 @@ export default function Transactions() {
   const [category, setCategory] = React.useState("All");
   const [page, setPage] = React.useState(1);
   const [categories, setCategories] = React.useState([]);
+  const [paymentMethods, setPaymentMethods] = React.useState([
+    "UPI", "Cash", "Credit Card", "Debit Card", "Net Banking", "Wallet",
+    "HDFC", "SBI", "ICICI", "Axis",
+  ]);
   const [selected, setSelected] = React.useState(new Set());
   const [uploading, setUploading] = React.useState(false);
   const [uploadStage, setUploadStage] = React.useState("uploading"); // uploading | reading | categorizing | saving | complete | error
@@ -226,6 +214,9 @@ export default function Transactions() {
 
   React.useEffect(() => {
     api.get("/categories/").then((r) => setCategories(r.data.categories));
+    api.get("/categories/payment-methods")
+      .then((r) => r.data?.methods?.length && setPaymentMethods(r.data.methods))
+      .catch(() => {});
   }, []);
 
   // Reset to page 1 when filters change
@@ -862,12 +853,25 @@ export default function Transactions() {
               />
             </Field>
             <Field label="Category">
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} data-testid="form-category" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm">
-                {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <SearchableSelect
+                value={form.category}
+                options={categories}
+                onChange={(v) => setForm({ ...form, category: v })}
+                placeholder="Choose category…"
+                search
+                allowCustom
+                data-testid="form-category"
+              />
             </Field>
             <Field label="Payment Method">
-              <Input value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })} data-testid="form-payment" />
+              <SearchableSelect
+                value={form.payment_method}
+                options={paymentMethods}
+                onChange={(v) => setForm({ ...form, payment_method: v })}
+                placeholder="Choose or type…"
+                allowCustom
+                data-testid="form-payment"
+              />
             </Field>
             <Field label="Quantity">
               <Input
@@ -886,37 +890,34 @@ export default function Transactions() {
               <Input
                 type="text"
                 inputMode="decimal"
-                placeholder="e.g. 10+20+25"
+                placeholder="e.g. 10, 12+15+48, 15*2"
                 value={form.price_text || String(form.price ?? 0)}
                 onChange={(e) => {
                   const raw = e.target.value;
                   const qty = form.quantity > 0 ? form.quantity : 1;
 
-                  // A bare number is stored as a plain price — no breakdown to show.
-                  if (/^\d*\.?\d*$/.test(raw)) {
-                    const price = Math.abs(parseFloat(raw) || 0);
-                    const mag = round2(price * qty);
-                    setForm({ ...form, price, amount: form.amount < 0 ? -mag : mag, price_text: "" });
-                    return;
-                  }
-
-                  // Mid-typing an expression (e.g. "10+") won't evaluate yet —
-                  // keep showing exactly what was typed without touching the amount.
-                  const evaluated = evalPriceExpr(raw);
-                  if (evaluated === null) {
+                  // A bare number is a per-item price → total = price × qty.
+                  // An expression like "12+15+48" is the basket total → just
+                  // added, never multiplied by the quantity.
+                  const bd = priceBreakdown(raw, qty);
+                  if (bd === null) {
+                    // Mid-typing an expression (e.g. "10+") won't evaluate yet
+                    // — keep showing exactly what was typed.
                     setForm({ ...form, price_text: raw });
                     return;
                   }
-
-                  const price = round2(evaluated);
-                  const mag = round2(price * qty);
-                  setForm({ ...form, price, price_text: raw, amount: form.amount < 0 ? -mag : mag });
+                  setForm({
+                    ...form,
+                    price: bd.price,
+                    price_text: bd.isBare ? "" : raw,
+                    amount: (form.amount < 0 ? -1 : 1) * bd.mag,
+                  });
                 }}
                 data-testid="form-price"
               />
               {form.price_text ? (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  = <span className="font-medium tabular-nums">{formatINR(form.price)}</span> per item
+                  = <span className="font-medium tabular-nums">{formatINR(Math.abs(form.amount || 0))}</span> total
                 </p>
               ) : null}
             </Field>
