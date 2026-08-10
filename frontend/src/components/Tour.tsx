@@ -1,47 +1,105 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type TourPlacement = "left" | "right" | "top" | "bottom";
 
+/** Two coach-mark types sharing the app's own visual language:
+ *  - "spotlight"  Type A — hero moment: a connector draws from a centred
+ *    glass panel to the highlighted element.
+ *  - "hint"       Type B — quiet: a small card docks next to the element.
+ *  Both blur out the rest of the page (sharp window over the target) and
+ *  ring the element with the app's primary border + breathing glow.
+ */
+export type TourStepKind = "spotlight" | "hint";
+
 export type TourStep = {
   /** Route the step must be shown on; the tour navigates there first. */
   route?: string;
-  /** CSS selector of the element to spotlight (optional → centered card). */
+  /** CSS selector of the element to spotlight/highlight (optional → centered card). */
   target?: string;
   title: string;
   body: React.ReactNode;
+  /** Preferred dock side for Type B cards (falls back to best fit). */
   placement?: TourPlacement;
+  kind?: TourStepKind;
+  /** Verb-first button label; defaults to "Next" / "Got it". */
+  cta?: string;
 };
 
-const TOOLTIP_W = 320;
-const TOOLTIP_H = 176;
-const GAP = 14;
+type Rect = { left: number; top: number; width: number; height: number };
 
-/** Position the card next to a rect, clamping it inside the viewport. */
-function placeCard(
-  rect: { left: number; right: number; top: number; bottom: number; width: number; height: number },
-  placement: TourPlacement
-) {
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  let x = rect.right + GAP;
-  let y = cy - TOOLTIP_H / 2;
-  if (placement === "left") {
-    x = rect.left - TOOLTIP_W - GAP;
-  } else if (placement === "top") {
-    x = cx - TOOLTIP_W / 2;
-    y = rect.top - TOOLTIP_H - GAP;
-  } else if (placement === "bottom") {
-    x = cx - TOOLTIP_W / 2;
-    y = rect.bottom + GAP;
+const SPOT_W = 420; // Type A panel max width
+const HINT_W = 320; // Type B card max width
+const GAP = 12; // gap between a hint card and its anchor
+
+/* Hand-drawn-style connector: a cubic bezier with perpendicular control
+ * offsets that read as a slight natural wobble, not a ruler-straight line. */
+function connectorPath(from: { x: number; y: number }, to: { x: number; y: number }) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const wob = Math.min(28, len * 0.12);
+  const px = -dy / len;
+  const py = dx / len;
+  const c1 = { x: from.x + dx * 0.35 + px * wob, y: from.y + dy * 0.35 + py * wob };
+  const c2 = { x: from.x + dx * 0.65 - px * wob, y: from.y + dy * 0.65 - py * wob };
+  return `M ${from.x} ${from.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${to.x} ${to.y}`;
+}
+
+/** The point on the panel's edge closest to the anchor — where the connector
+ *  should start, so the curve always leaves the card toward the element. */
+function panelEdge(panel: Rect, to: { x: number; y: number }) {
+  const cx = panel.left + panel.width / 2;
+  const cy = panel.top + panel.height / 2;
+  if (Math.abs(to.x - cx) >= Math.abs(to.y - cy)) {
+    return { x: to.x >= cx ? panel.left + panel.width : panel.left, y: cy };
   }
-  x = Math.max(8, Math.min(x, window.innerWidth - TOOLTIP_W - 8));
-  y = Math.max(8, Math.min(y, window.innerHeight - TOOLTIP_H - 8));
-  return { x, y };
+  return { x: cx, y: to.y >= cy ? panel.top + panel.height : panel.top };
+}
+
+/** Dock a Type B card next to its anchor without overlap, preferring the
+ *  requested side then the most spacious alternative; clamp to the viewport. */
+function fitHint(anchor: Rect, placement: TourPlacement, w: number, h: number) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const cand: Record<TourPlacement, { x: number; y: number }> = {
+    right: { x: anchor.left + anchor.width + GAP, y: anchor.top + anchor.height / 2 - h / 2 },
+    left: { x: anchor.left - w - GAP, y: anchor.top + anchor.height / 2 - h / 2 },
+    bottom: { x: anchor.left + anchor.width / 2 - w / 2, y: anchor.bottom + GAP },
+    top: { x: anchor.left + anchor.width / 2 - w / 2, y: anchor.top - h - GAP },
+  };
+  const order: TourPlacement[] = [placement, "right", "bottom", "top", "left"];
+  for (const p of order) {
+    const c = cand[p];
+    if (c.x >= 8 && c.x + w <= vw - 8 && c.y >= 8 && c.y + h <= vh - 8) return { x: c.x, y: c.y };
+  }
+  const base = cand[placement] || cand.right;
+  return {
+    x: Math.max(8, Math.min(base.x, vw - w - 8)),
+    y: Math.max(8, Math.min(base.y, vh - h - 8)),
+  };
+}
+
+/** An SVG mask that blurs the page everywhere except a sharp rounded window
+ *  over the highlighted element — the "spotlight" effect. */
+function cutoutMask(x: number, y: number, w: number, h: number) {
+  const pad = 6;
+  const x0 = Math.max(0, Math.round(x - pad));
+  const y0 = Math.max(0, Math.round(y - pad));
+  const w0 = Math.round(w + pad * 2);
+  const h0 = Math.round(h + pad * 2);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">` +
+    `<mask id="m"><rect width="100%" height="100%" fill="white"/>` +
+    `<rect x="${x0}" y="${y0}" width="${w0}" height="${h0}" rx="18" fill="black"/></mask>` +
+    `<rect width="100%" height="100%" fill="black" mask="url(#m)"/>` +
+    `</svg>`;
+  return `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
 }
 
 export default function Tour({
@@ -55,165 +113,260 @@ export default function Tour({
   onClose: () => void;
   onFinish: () => void;
 }) {
-  const [index, setIndex] = React.useState(0);
-  const [spot, setSpot] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const [tip, setTip] = React.useState<{ x: number; y: number } | null>(null);
+  const [index, setIndex] = useState(0);
+  const [anchor, setAnchor] = useState<Rect | null>(null);
+  const [panel, setPanel] = useState<{ x: number; y: number } | null>(null);
+  const [panelRect, setPanelRect] = useState<Rect | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const reduce = !!useReducedMotion();
 
   // Reset to step 0 each time the tour is (re)opened.
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) setIndex(0);
   }, [open]);
 
   const step = steps[Math.min(index, steps.length - 1)];
+  const kind: TourStepKind = step?.kind ?? "hint";
+  const total = steps.length;
+  const isLast = index === total - 1;
 
-  const locate = React.useCallback(() => {
+  /** Locate the step's target and record its screen rect. Whole-page targets
+   *  (e.g. <main>) and missing selectors fall back to a centered card. */
+  const refresh = useCallback(() => {
     const s = steps[index] || steps[0];
-    if (!s.target) {
-      setSpot(null);
-      setTip({ x: Math.round(window.innerWidth / 2 - TOOLTIP_W / 2), y: Math.round(window.innerHeight / 2 - TOOLTIP_H / 2) });
-      return;
-    }
-    const el = document.querySelector(s.target) as HTMLElement | null;
-    const centered = () =>
-      setTip({ x: Math.round(window.innerWidth / 2 - TOOLTIP_W / 2), y: Math.round(window.innerHeight / 2 - TOOLTIP_H / 2) });
+    const el = s.target ? (document.querySelector(s.target) as HTMLElement | null) : null;
+    const center = () => {
+      const vw = window.innerWidth;
+      const w = Math.min(kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
+      setAnchor(null);
+      setPanel({ x: Math.round((vw - w) / 2), y: Math.round(window.innerHeight / 2 - 110) });
+      setPanelRect(null);
+    };
     if (!el) {
-      setSpot(null);
-      centered();
+      center();
       return;
     }
-    // Whole-page targets (e.g. <main>) get a centered card instead of a ring.
     const r = el.getBoundingClientRect();
     const isPage =
-      el.tagName === "MAIN" ||
-      (r.width > window.innerWidth * 0.6 && r.height > window.innerHeight * 0.6);
+      el.tagName === "MAIN" || (r.width > window.innerWidth * 0.6 && r.height > window.innerHeight * 0.6);
     if (isPage) {
-      setSpot(null);
-      centered();
+      center();
       return;
     }
-    if (typeof el.scrollIntoView === "function") {
-      el.scrollIntoView({ block: "center", behavior: "auto" });
-    }
-    const rect = {
-      left: r.left,
-      right: r.right,
-      top: r.top,
-      bottom: r.bottom,
-      width: r.width,
-      height: r.height,
-    };
-    const { x, y } = placeCard(rect, s.placement || "right");
-    setSpot({ x: rect.left - 8, y: rect.top - 8, w: rect.width + 16, h: rect.height + 16 });
-    setTip({ x: Math.round(x), y: Math.round(y) });
-  }, [index, steps]);
+    if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", behavior: "auto" });
+    setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
+  }, [index, steps, kind]);
 
-  // Navigate to the step's route, then wait for the page (lazy-loaded) to
-  // render before positioning the spotlight. Re-run whenever the route settles.
-  React.useEffect(() => {
+  // Navigate to the step's route, then wait for the lazy-loaded page before
+  // positioning. Re-run whenever the route settles.
+  useEffect(() => {
     if (!open) return;
     const s = steps[index] || steps[0];
     if (s.route && s.route !== location.pathname) {
       navigate(s.route);
-      return; // the location change below re-triggers positioning
+      return;
     }
-    const timers = [30, 300, 700].map((ms) => window.setTimeout(locate, ms));
+    const timers = [30, 300, 700].map((ms) => window.setTimeout(refresh, ms));
     return () => timers.forEach(clearTimeout);
-  }, [open, index, location.pathname, steps, navigate, locate]);
+  }, [open, index, location.pathname, steps, navigate, refresh]);
 
-  // Keep the spotlight glued to its element while the page scrolls or resizes.
-  React.useEffect(() => {
+  // Measure the rendered panel and pin it in place — Type B cards hug their
+  // anchor; spotlight panels float centered. Also feeds the connector geometry.
+  useEffect(() => {
     if (!open) return;
-    window.addEventListener("resize", locate);
-    window.addEventListener("scroll", locate, { passive: true });
+    const t = window.setTimeout(() => {
+      const el = panelRef.current;
+      if (!el) return;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      if (anchor && kind === "hint") {
+        const p = fitHint(anchor, step?.placement || "right", w, h);
+        setPanel({ x: p.x, y: p.y });
+        setPanelRect({ left: p.x, top: p.y, width: w, height: h });
+      } else {
+        const x = Math.round((window.innerWidth - w) / 2);
+        const y = Math.round(window.innerHeight / 2 - h / 2);
+        setPanel({ x, y });
+        setPanelRect({ left: x, top: y, width: w, height: h });
+      }
+    }, 40);
+    return () => window.clearTimeout(t);
+  }, [open, anchor, index, steps, kind, step?.placement]);
+
+  // Keep the spotlight and cards glued to their elements while scrolling/resizing.
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("resize", refresh);
+    window.addEventListener("scroll", refresh, { passive: true });
     return () => {
-      window.removeEventListener("resize", locate);
-      window.removeEventListener("scroll", locate);
+      window.removeEventListener("resize", refresh);
+      window.removeEventListener("scroll", refresh);
     };
-  }, [open, locate]);
+  }, [open, refresh]);
+
+  // Esc dismisses the tour.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // Move focus into the panel whenever the step changes.
+  useEffect(() => {
+    if (open && panel) panelRef.current?.focus?.();
+  }, [open, panel, index]);
 
   if (!open || !step) return null;
 
-  const total = steps.length;
-  const isLast = index === total - 1;
-
-  const next = () => {
-    if (isLast) onFinish();
-    else setIndex(index + 1);
-  };
+  const next = () => (isLast ? onFinish() : setIndex(index + 1));
   const prev = () => {
     if (index > 0) setIndex(index - 1);
   };
 
-  return (
-    <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Guided tour" data-testid="tour-overlay">
-      {/* Dimmed backdrop */}
-      <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+  const vw = window.innerWidth;
+  const panelW = Math.min(kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
+  const label = step.cta || (isLast ? "Got it" : "Next");
+  const mask = anchor ? cutoutMask(anchor.left, anchor.top, anchor.width, anchor.height) : null;
+  const anchorC = anchor ? { x: anchor.left + anchor.width / 2, y: anchor.top + anchor.height / 2 } : null;
 
-      {/* Spotlight ring around the highlighted element */}
-      {spot && (
-        <div
-          data-testid="tour-spotlight"
-          className="pointer-events-none absolute rounded-2xl border-2 border-primary shadow-[0_0_0_4px_rgba(0,0,0,0.55)]"
-          style={{ left: spot.x, top: spot.y, width: spot.w, height: spot.h }}
+  const dots = steps.map((_, i) => (
+    <button
+      key={i}
+      type="button"
+      aria-label={`Go to step ${i + 1}`}
+      data-testid="tour-dot"
+      onClick={() => setIndex(i)}
+      className={cn(
+        "h-1.5 rounded-full transition-all duration-300",
+        i === index ? "w-5 bg-primary" : "w-1.5 bg-foreground/20 hover:bg-foreground/35"
+      )}
+    />
+  ));
+
+  return (
+    <div
+      className="fixed inset-0 z-[100]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Guided tour"
+      data-testid="tour-overlay"
+    >
+      {/* Backdrop — matches the app's modal veil (bg-black/50) but blurs the
+          whole page, with a sharp window punched over the highlighted element
+          (SVG mask) so only the target stays in crisp focus. */}
+      <motion.div
+        data-testid="tour-scrim"
+        className="absolute inset-0 z-[10] bg-black/50"
+        style={{
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          ...(mask ? { WebkitMaskImage: mask, maskImage: mask } : {}),
+        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reduce ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
+      />
+
+      {/* Theme ring — the app's primary border + breathing glow around the
+          element. Shown for both step kinds. */}
+      {anchor && (
+        <motion.div
+          data-testid="tour-ring"
+          className="pointer-events-none absolute z-[11] rounded-2xl border-2 border-primary tour-ring-breathe"
+          style={{ left: anchor.left - 6, top: anchor.top - 6, width: anchor.width + 12, height: anchor.height + 12 }}
+          initial={{ opacity: 0, scale: reduce ? 1 : 0.92 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 26 }}
         />
       )}
 
-      {/* Tooltip card */}
-      <div
-        data-testid="tour-tooltip"
-        className="absolute rounded-2xl border border-border bg-card p-4 text-card-foreground shadow-2xl"
-        style={{ left: tip?.x ?? 0, top: tip?.y ?? 0, width: TOOLTIP_W }}
-      >
-        <div className="mb-1 flex items-start justify-between gap-3">
-          <h3 className="text-sm font-semibold leading-snug">{step.title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close tour"
-            data-testid="tour-close"
-            className="shrink-0 rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+      {/* Type A — connector drawing from panel to the highlighted element. */}
+      {kind === "spotlight" && anchor && panelRect && anchorC && (
+        <svg
+          data-testid="tour-connector"
+          className="pointer-events-none absolute inset-0 z-[11]"
+          style={{ width: "100%", height: "100%", overflow: "visible" }}
+        >
+          <motion.path
+            d={connectorPath(panelEdge(panelRect, anchorC), anchorC)}
+            fill="none"
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
+            strokeLinecap="round"
+            initial={{ pathLength: reduce ? 1 : 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: reduce ? 0 : 0.6, delay: reduce ? 0 : 0.15, ease: "easeOut" }}
+          />
+        </svg>
+      )}
 
-        <div className="max-h-[92px] overflow-y-auto text-[13px] leading-relaxed text-muted-foreground">
+      {/* Message panel — the app's own glass card styling. */}
+      <motion.div
+        ref={panelRef}
+        data-testid="tour-panel"
+        tabIndex={-1}
+        aria-labelledby="tour-headline"
+        aria-describedby="tour-body"
+        className={cn(
+          "absolute z-[12] rounded-2xl border border-border bg-card/95 p-5 shadow-elevated backdrop-blur-xl",
+          kind === "spotlight" && "text-center"
+        )}
+        style={{ left: panel?.x, top: panel?.y, width: panelW }}
+        initial={{ opacity: 0, y: reduce ? 0 : 10, scale: reduce ? 1 : 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 28 }}
+      >
+        <h2
+          id="tour-headline"
+          className={cn("font-bold leading-snug text-foreground", kind === "spotlight" ? "text-lg" : "text-base")}
+        >
+          {step.title}
+        </h2>
+        <div
+          id="tour-body"
+          className={cn(
+            "mt-1.5 leading-relaxed text-muted-foreground",
+            kind === "spotlight" ? "text-[15px]" : "text-sm"
+          )}
+        >
           {step.body}
         </div>
 
-        {/* Step dots */}
-        <div className="mt-3 flex items-center gap-1">
-          {steps.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              aria-label={`Go to step ${i + 1}`}
-              onClick={() => setIndex(i)}
-              className={cn(
-                "h-1.5 rounded-full transition-all",
-                i === index ? "w-5 bg-primary" : "w-1.5 bg-foreground/20 hover:bg-foreground/40"
-              )}
-            />
-          ))}
+        <div className={cn("mt-4 flex items-center gap-2", kind === "spotlight" && "justify-center")}>
+          <Button size="sm" onClick={next} data-testid="tour-cta" className={cn(kind === "hint" && "flex-1")}>
+            {label}
+            {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={prev}
+            disabled={index === 0}
+            aria-label="Previous step"
+            data-testid="tour-prev"
+            className="px-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
         </div>
 
-        <div className="mt-3 flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={onClose} data-testid="tour-skip">
-            Skip
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={prev} disabled={index === 0} data-testid="tour-prev" aria-label="Previous step">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button size="sm" onClick={next} data-testid="tour-next">
-              {isLast ? "Done" : "Next"}
-              {!isLast && <ChevronRight className="ml-1 h-4 w-4" />}
-            </Button>
-          </div>
+        <div className={cn("mt-4 flex items-center gap-3", kind === "spotlight" && "justify-center")}>
+          <div className="flex items-center gap-1.5">{dots}</div>
+          <button
+            type="button"
+            data-testid="tour-skip"
+            onClick={onClose}
+            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Skip tour
+          </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -331,6 +331,21 @@
   }
 }
 
+/* Tour spotlight ring — breathing emerald glow around the highlighted element.
+   Theme-driven via --primary; the global reduced-motion rule zeroes it. */
+@keyframes tour-ring-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 7px hsl(var(--primary) / 0.12);
+  }
+}
+.tour-ring-breathe {
+  animation: tour-ring-breathe 2.4s ease-in-out infinite;
+}
+
 /* Thin scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
