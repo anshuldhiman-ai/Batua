@@ -29,6 +29,9 @@ export type TourStep = {
   kind?: TourStepKind;
   /** Verb-first button label; defaults to "Next" / "Got it". */
   cta?: string;
+  /** Show the full page with no blur/veil — use when the whole page IS the
+   *  content (e.g. Analytics charts). The emerald ring + card still show. */
+  full?: boolean;
 };
 
 type Rect = { left: number; top: number; width: number; height: number };
@@ -129,6 +132,7 @@ export default function Tour({
 
   const step = steps[Math.min(index, steps.length - 1)];
   const kind: TourStepKind = step?.kind ?? "hint";
+  const full = !!step?.full;
   const total = steps.length;
   const isLast = index === total - 1;
 
@@ -250,7 +254,7 @@ export default function Tour({
 
   return (
     <div
-      className="fixed inset-0 z-[100]"
+      className="pointer-events-none fixed inset-0 z-[100]"
       role="dialog"
       aria-modal="true"
       aria-label="Guided tour"
@@ -258,19 +262,22 @@ export default function Tour({
     >
       {/* Backdrop — matches the app's modal veil (bg-black/50) but blurs the
           whole page, with a sharp window punched over the highlighted element
-          (SVG mask) so only the target stays in crisp focus. */}
-      <motion.div
-        data-testid="tour-scrim"
-        className="absolute inset-0 z-[10] bg-black/50"
-        style={{
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          ...(mask ? { WebkitMaskImage: mask, maskImage: mask } : {}),
-        }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: reduce ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
-      />
+          (SVG mask) so only the target stays in crisp focus. Omitted for
+          `full` steps so the whole page stays visible and interactive. */}
+      {!full && (
+        <motion.div
+          data-testid="tour-scrim"
+          className="absolute inset-0 z-[10] bg-black/50"
+          style={{
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            ...(mask ? { WebkitMaskImage: mask, maskImage: mask } : {}),
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduce ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
+        />
+      )}
 
       {/* Theme ring — the app's primary border + breathing glow around the
           element. Shown for both step kinds. */}
@@ -313,7 +320,7 @@ export default function Tour({
         aria-labelledby="tour-headline"
         aria-describedby="tour-body"
         className={cn(
-          "absolute z-[12] rounded-2xl border border-border bg-card/95 p-5 shadow-elevated backdrop-blur-xl",
+          "pointer-events-auto absolute z-[12] rounded-2xl border border-border bg-card/95 p-5 shadow-elevated backdrop-blur-xl",
           kind === "spotlight" && "text-center"
         )}
         style={{ left: panel?.x, top: panel?.y, width: panelW }}

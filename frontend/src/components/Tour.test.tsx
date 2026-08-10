@@ -88,6 +88,26 @@ describe("Tour", () => {
     expect(screen.queryByTestId("tour-connector")).not.toBeInTheDocument();
   });
 
+  it("full steps show the page without blur but still frame the target", async () => {
+    const FULL: TourStep[] = [
+      { title: "Full Page", body: "Body", kind: "hint", route: "/a", target: "[data-testid='spot-a']", full: true },
+    ];
+    render(
+      <MemoryRouter initialEntries={["/a"]}>
+        <Routes>
+          <Route path="/a" element={<div data-testid="spot-a">Page A</div>} />
+        </Routes>
+        <Tour steps={FULL} open onClose={() => {}} onFinish={() => {}} />
+      </MemoryRouter>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("tour-ring")).toBeInTheDocument();
+    });
+    // No blurred/veiled backdrop, but the panel is still there.
+    expect(screen.queryByTestId("tour-scrim")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tour-panel")).toBeInTheDocument();
+  });
+
   it("falls back to a centered card when there is no target", async () => {
     renderTour();
     fireEvent.click(screen.getByTestId("tour-cta")); // 2
