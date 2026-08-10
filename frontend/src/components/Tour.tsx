@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,9 @@ export type TourStep = {
   target?: string;
   title: string;
   body: React.ReactNode;
+  /** Short chapter label shown as an eyebrow above the title — gives the tour
+   *  a visible narrative structure (e.g. "Add your money"). */
+  chapter?: { label: string };
   /** Preferred dock side for Type B cards (falls back to best fit). */
   placement?: TourPlacement;
   kind?: TourStepKind;
@@ -159,7 +162,10 @@ export default function Tour({
       center();
       return;
     }
-    if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", behavior: "auto" });
+    // Only recentre the page on blurred steps — `full` steps must stay freely
+    // scrollable, and this runs on every scroll, so calling scrollIntoView here
+    // would yank the page back toward the target and fight the user.
+    if (!s.full && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", behavior: "auto" });
     setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
   }, [index, steps, kind]);
 
@@ -210,20 +216,52 @@ export default function Tour({
     };
   }, [open, refresh]);
 
-  // Esc dismisses the tour.
+  // Esc dismisses the tour. Tab is trapped inside the panel for blurred
+  // (modal) steps, but left free on `full` steps where the page is the content.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === "Tab" && !full) {
+        const el = panelRef.current;
+        if (!el) return;
+        const focusables = Array.from(
+          el.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((n) => !n.hasAttribute("disabled"));
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, full, onClose]);
 
   // Move focus into the panel whenever the step changes.
   useEffect(() => {
     if (open && panel) panelRef.current?.focus?.();
   }, [open, panel, index]);
+
+  // Lock page scroll behind blurred steps; `full` steps stay scrollable so the
+  // user can move through the page the step is explaining.
+  useEffect(() => {
+    document.body.style.overflow = open && !full ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open, full]);
 
   if (!open || !step) return null;
 
@@ -238,7 +276,9 @@ export default function Tour({
   const mask = anchor ? cutoutMask(anchor.left, anchor.top, anchor.width, anchor.height) : null;
   const anchorC = anchor ? { x: anchor.left + anchor.width / 2, y: anchor.top + anchor.height / 2 } : null;
 
-  const dots = steps.map((_, i) => (
+  // Segmented progress bar — a single modern strip (vs. 13 cramped dots).
+  // Each segment is clickable to jump ahead, and the fill shows chapter flow.
+  const progressSegments = steps.map((_, i) => (
     <button
       key={i}
       type="button"
@@ -246,19 +286,23 @@ export default function Tour({
       data-testid="tour-dot"
       onClick={() => setIndex(i)}
       className={cn(
-        "h-1.5 rounded-full transition-all duration-300",
-        i === index ? "w-5 bg-primary" : "w-1.5 bg-foreground/20 hover:bg-foreground/35"
+        "h-1.5 flex-1 rounded-full transition-colors duration-300",
+        i === index ? "bg-primary" : i < index ? "bg-primary/45" : "bg-foreground/15 hover:bg-foreground/30"
       )}
     />
   ));
 
   return (
-    <div
+    <motion.div
       className="pointer-events-none fixed inset-0 z-[100]"
       role="dialog"
-      aria-modal="true"
+      aria-modal={!full}
       aria-label="Guided tour"
       data-testid="tour-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={reduce ? { duration: 0 } : { duration: 0.25, ease: "easeOut" }}
     >
       {/* Backdrop — matches the app's modal veil (bg-black/50) but blurs the
           whole page, with a sharp window punched over the highlighted element
@@ -296,6 +340,8 @@ export default function Tour({
       {kind === "spotlight" && anchor && panelRect && anchorC && (
         <svg
           data-testid="tour-connector"
+          aria-hidden="true"
+          focusable="false"
           className="pointer-events-none absolute inset-0 z-[11]"
           style={{ width: "100%", height: "100%", overflow: "visible" }}
         >
@@ -312,7 +358,8 @@ export default function Tour({
         </svg>
       )}
 
-      {/* Message panel — the app's own glass card styling. */}
+      {/* Message panel — the app's own glass card, anchored by a primary accent
+          bar and eyebrow chip so every step reads as one cohesive system. */}
       <motion.div
         ref={panelRef}
         data-testid="tour-panel"
@@ -320,7 +367,7 @@ export default function Tour({
         aria-labelledby="tour-headline"
         aria-describedby="tour-body"
         className={cn(
-          "pointer-events-auto absolute z-[12] rounded-2xl border border-border bg-card/95 p-5 shadow-elevated backdrop-blur-xl",
+          "pointer-events-auto absolute z-[12] overflow-hidden rounded-2xl border border-border bg-card/95 p-5 shadow-elevated ring-1 ring-primary/15 backdrop-blur-xl",
           kind === "spotlight" && "text-center"
         )}
         style={{ left: panel?.x, top: panel?.y, width: panelW }}
@@ -328,6 +375,23 @@ export default function Tour({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 28 }}
       >
+        {/* Theme-contrast accent strip across the top of every panel. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-primary via-primary/85 to-accent-foreground"
+        />
+
+        {step.chapter && (
+          <span
+            className={cn(
+              "mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary",
+              kind === "spotlight" && "mx-auto block w-fit"
+            )}
+          >
+            {step.chapter.label}
+          </span>
+        )}
+
         <h2
           id="tour-headline"
           className={cn("font-bold leading-snug text-foreground", kind === "spotlight" ? "text-lg" : "text-base")}
@@ -344,36 +408,52 @@ export default function Tour({
           {step.body}
         </div>
 
-        <div className={cn("mt-4 flex items-center gap-2", kind === "spotlight" && "justify-center")}>
-          <Button size="sm" onClick={next} data-testid="tour-cta" className={cn(kind === "hint" && "flex-1")}>
-            {label}
-            {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
-          </Button>
+        <div className={cn("mt-5 flex items-center gap-2", kind === "spotlight" && "justify-center")}>
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={prev}
             disabled={index === 0}
             aria-label="Previous step"
             data-testid="tour-prev"
-            className="px-2"
+            className="shrink-0 px-3"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Back
+          </Button>
+          <Button size="sm" onClick={next} data-testid="tour-cta" className="flex-1">
+            {label}
+            {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
           </Button>
         </div>
 
-        <div className={cn("mt-4 flex items-center gap-3", kind === "spotlight" && "justify-center")}>
-          <div className="flex items-center gap-1.5">{dots}</div>
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex flex-1 items-center gap-1">{progressSegments}</div>
+          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground" aria-hidden="true">
+            {index + 1} / {total}
+          </span>
           <button
             type="button"
             data-testid="tour-skip"
             onClick={onClose}
-            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="shrink-0 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            Skip tour
+            Skip
           </button>
         </div>
+
+        {/* On `full` steps the page is intentionally interactive — say so, so the
+            missing blur reads as a deliberate mode, not an inconsistency. */}
+        {full && (
+          <p
+            className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground"
+            data-testid="tour-full-hint"
+          >
+            <MousePointerClick className="h-3 w-3 shrink-0" aria-hidden="true" />
+            Full page — explore freely, then continue
+          </p>
+        )}
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

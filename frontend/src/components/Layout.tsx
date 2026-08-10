@@ -296,19 +296,15 @@ export default function Layout() {
     document.title = `${pageTitle} — Batua`;
   }, [location.pathname]);
 
-  // First-time visitors get the onboarding tour automatically.
+  // First-time visitors get the onboarding tour automatically — after the page
+  // has painted, so the tour never feels like it snatches the screen. (Body
+  // scroll is locked/unlocked inside Tour itself, which knows whether the
+  // current step blurs the page or is a full-page interactive step.)
   useEffect(() => {
-    if (!tourSeen) setTourOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Lock page scroll while the tour is covering the screen.
-  useEffect(() => {
-    document.body.style.overflow = tourOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [tourOpen]);
+    if (tourSeen) return;
+    const t = window.setTimeout(() => setTourOpen(true), 600);
+    return () => window.clearTimeout(t);
+  }, [tourSeen]);
 
   const closeTour = () => {
     setTourOpen(false);
@@ -330,7 +326,11 @@ export default function Layout() {
       />
       <MobileNav onLaunchTour={() => setTourOpen(true)} />
 
-      <Tour steps={TOUR_STEPS} open={tourOpen} onClose={closeTour} onFinish={closeTour} />
+      <AnimatePresence>
+        {tourOpen && (
+          <Tour steps={TOUR_STEPS} open onClose={closeTour} onFinish={closeTour} />
+        )}
+      </AnimatePresence>
 
       <main
         id="main-content"

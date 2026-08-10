@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 
 import Tour, { TourStep } from "./Tour";
@@ -9,7 +9,7 @@ import Tour, { TourStep } from "./Tour";
 // exactly how Layout mounts the real tour.
 const STEPS: TourStep[] = [
   // 0 — Type A hero: centered panel, no anchor → no connector/ring.
-  { title: "Step One", body: "Body one", kind: "spotlight", cta: "Show me around" },
+  { title: "Step One", body: "Body one", kind: "spotlight", cta: "Show me around", chapter: { label: "Start" } },
   // 1 — Type A with a real anchor → connector draws to it.
   { title: "Step Two", body: "Body two", kind: "spotlight", route: "/b", target: "[data-testid='spot-b']", cta: "Got it" },
   // 2 — Type B anchored hint → breathing ring around the element.
@@ -49,6 +49,8 @@ describe("Tour", () => {
     expect(panel).toBeInTheDocument();
     expect(screen.getByText("Step One")).toBeInTheDocument();
     expect(screen.getByText("Body one")).toBeInTheDocument();
+    // Chapter eyebrow gives the tour a visible narrative structure.
+    expect(screen.getByText("Start")).toBeInTheDocument();
     expect(screen.getByTestId("tour-cta")).toHaveTextContent("Show me around");
     // Hero has no anchor: no ring, no connector.
     expect(screen.queryByTestId("tour-ring")).not.toBeInTheDocument();
@@ -161,5 +163,54 @@ describe("Tour", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("locks page scroll behind blurred steps", () => {
+    renderTour();
+    expect(document.body.style.overflow).toBe("hidden");
+    cleanup();
+  });
+
+  it("keeps the page scrollable on full steps", async () => {
+    const FULL: TourStep[] = [
+      { title: "Full Page", body: "Body", kind: "hint", route: "/a", target: "[data-testid='spot-a']", full: true },
+    ];
+    render(
+      <MemoryRouter initialEntries={["/a"]}>
+        <Routes>
+          <Route path="/a" element={<div data-testid="spot-a">Page A</div>} />
+        </Routes>
+        <Tour steps={FULL} open onClose={() => {}} onFinish={() => {}} />
+      </MemoryRouter>
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("tour-ring")).toBeInTheDocument();
+    });
+    expect(document.body.style.overflow).toBe("");
+    cleanup();
+  });
+
+  it("shows a running step counter", () => {
+    renderTour();
+    expect(screen.getByText("1 / 4")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
+    expect(screen.getByText("2 / 4")).toBeInTheDocument();
+    cleanup();
+  });
+
+  it("traps Tab focus inside the panel for blurred steps", () => {
+    renderTour();
+    // On step one Back is disabled, so the first focusable is the CTA.
+    const cta = screen.getByTestId("tour-cta");
+    const skip = screen.getByTestId("tour-skip");
+    // Tab at the last focusable wraps to the first…
+    skip.focus();
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: false });
+    expect(document.activeElement).toBe(cta);
+    // …and Shift+Tab at the first wraps to the last.
+    cta.focus();
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(skip);
+    cleanup();
   });
 });
