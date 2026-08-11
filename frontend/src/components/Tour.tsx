@@ -385,8 +385,9 @@ export default function Tour({
       {/* Backdrop — matches the app's modal veil (bg-black/50) but blurs the
           whole page, with a sharp window punched over the highlighted element
           (SVG mask) so only the target stays in crisp focus. Omitted for
-          `full` steps so the whole page stays visible and interactive. */}
-      {!full && (
+          `full` steps so the whole page stays visible and interactive. Also
+          omitted when allowInteraction is true to let users click buttons. */}
+      {!full && !allowInteraction && (
         <motion.div
           data-testid="tour-scrim"
           className="absolute inset-0 z-[10] bg-black/30"

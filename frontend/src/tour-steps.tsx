@@ -92,6 +92,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: "[data-testid='nl-input']",
     kind: "spotlight",
     full: true,
+    allowInteraction: true,
     cta: "Continue",
     demo: {
       input: "2 samose 50 upi and chai 20 cash",
@@ -113,6 +114,7 @@ export const TOUR_STEPS: TourStep[] = [
     kind: "hint",
     placement: "bottom",
     full: true,
+    allowInteraction: true,
     cta: "Next",
     title: "One line, every detail",
     body: (
@@ -130,6 +132,7 @@ export const TOUR_STEPS: TourStep[] = [
     kind: "hint",
     placement: "bottom",
     full: true,
+    allowInteraction: true,
     cta: "Got it",
     title: "One line, two items",
     body: (
