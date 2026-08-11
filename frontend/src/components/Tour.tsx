@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
@@ -36,9 +36,24 @@ export type TourStep = {
   /** Welcome step — a single, calm centred panel with the brand mark, a
    *  display headline and one primary action. No progress, no footer clutter. */
   hero?: boolean;
+  /** Live-demo fields: `input` is auto-typed into the step's target element
+   *  (via the `batua:tour-fill` CustomEvent the input components listen for);
+   *  once `waitFor` appears in the DOM, the step flips to a ✓ status and
+   *  advances on its own. Together they let the tour drive the real UI so the
+   *  new user interacts with the actual input instead of reading a mock. */
+  demo?: {
+    input?: string;
+    waitFor?: string;
+  };
+  /** Contextual step — activated when user clicks matching elements during tour */
+  contextual?: boolean;
+  /** Optional fallback step if target is not found */
+  fallback?: TourStep;
+  /** Allow user to interact with page during this step */
+  allowInteraction?: boolean;
 };
 
-type Rect = { left: number; top: number; width: number; height: number };
+type Rect = { left: number; top: number; width: number; height: number; bottom?: number };
 
 const SPOT_W = 420; // Type A panel max width
 const HINT_W = 320; // Type B card max width
@@ -125,6 +140,8 @@ export default function Tour({
   const [anchor, setAnchor] = useState<Rect | null>(null);
   const [panel, setPanel] = useState<{ x: number; y: number } | null>(null);
   const [panelRect, setPanelRect] = useState<Rect | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -139,8 +156,26 @@ export default function Tour({
   const kind: TourStepKind = step?.kind ?? "hint";
   const full = !!step?.full;
   const hero = !!step?.hero;
+  const allowInteraction = !!step?.allowInteraction;
   const total = steps.length;
   const isLast = index === total - 1;
+  const demo = step?.demo;
+  const [demoDone, setDemoDone] = useState(false);
+  // A ref mirror of `index` so demo timers can verify they still belong to the
+  // step they were fired for (guards the auto-advance against double-stepping).
+  const indexRef = useRef(index);
+  indexRef.current = index;
+
+  const goNext = useCallback(() => {
+    if (indexRef.current >= steps.length - 1) onFinish();
+    else setIndex(indexRef.current + 1);
+  }, [steps.length, onFinish]);
+  const goPrev = useCallback(() => {
+    if (indexRef.current > 0) setIndex(indexRef.current - 1);
+  }, []);
+
+  // Snap back to the "waiting" state whenever a fresh demo step becomes active.
+  useEffect(() => setDemoDone(false), [index]);
 
   /** Locate the step's target and record its screen rect. Whole-page targets
    *  (e.g. <main>) and missing selectors fall back to a centered card. */
@@ -154,7 +189,21 @@ export default function Tour({
       setPanel({ x: Math.round((vw - w) / 2), y: Math.round(window.innerHeight / 2 - 110) });
       setPanelRect(null);
     };
+    // Clear error state on refresh
+    setError(null);
+    setUsingFallback(false);
+    
     if (!el) {
+      // Try fallback if available
+      if (s.fallback) {
+        setUsingFallback(true);
+        const fallbackEl = s.fallback.target ? (document.querySelector(s.fallback.target) as HTMLElement | null) : null;
+        if (fallbackEl) {
+          const r = fallbackEl.getBoundingClientRect();
+          setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
+          return;
+        }
+      }
       center();
       return;
     }
@@ -260,18 +309,58 @@ export default function Tour({
   // Lock page scroll behind blurred steps; `full` steps stay scrollable so the
   // user can move through the page the step is explaining.
   useEffect(() => {
-    document.body.style.overflow = open && !full ? "hidden" : "";
+    document.body.style.overflow = open && !full && !allowInteraction ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open, full]);
+  }, [open, full, allowInteraction]);
+
+  // Live demo: auto-type `demo.input` into the step's real target input by
+  // firing the `batua:tour-fill` event the input listens for. Re-dispatch for
+  // a beat until the controlled value matches, then stop — so the fill never
+  // fights the user if they take over and start editing themselves.
+  useEffect(() => {
+    if (!open || !demo?.input || !step?.target) return;
+    const line = demo.input;
+    const sel = step.target;
+    let attempts = 0;
+    const fillTimer = window.setInterval(() => {
+      attempts += 1;
+      const el = document.querySelector(sel) as HTMLInputElement | null;
+      if (el) {
+        window.dispatchEvent(new CustomEvent("batua:tour-fill", { detail: line }));
+        if (el.value === line || attempts > 50) window.clearInterval(fillTimer);
+      } else if (attempts > 50) {
+        window.clearInterval(fillTimer);
+      }
+    }, 120);
+    return () => window.clearInterval(fillTimer);
+  }, [open, index, demo?.input, step?.target]);
+
+  // Live demo: once `demo.waitFor` appears (e.g. the parse preview the user
+  // just produced), mark the step ✓ and advance on our own — the tour "sees"
+  // the user finished, no click required.
+  useEffect(() => {
+    if (!open || !demo?.waitFor) return;
+    const waitFor = demo.waitFor;
+    const stepIndex = index;
+    const check = () => {
+      if (!document.querySelector(waitFor)) return;
+      window.clearInterval(poll);
+      setDemoDone(true);
+      window.setTimeout(() => {
+        if (indexRef.current === stepIndex) goNext();
+      }, 1100);
+    };
+    const poll = window.setInterval(check, 250);
+    check();
+    return () => window.clearInterval(poll);
+  }, [open, index, demo?.waitFor, goNext]);
 
   if (!open || !step) return null;
 
-  const next = () => (isLast ? onFinish() : setIndex(index + 1));
-  const prev = () => {
-    if (index > 0) setIndex(index - 1);
-  };
+  const next = goNext;
+  const prev = goPrev;
 
   const vw = window.innerWidth;
   const panelW = hero
@@ -283,7 +372,7 @@ export default function Tour({
 
   return (
     <motion.div
-      className="pointer-events-none fixed inset-0 z-[100]"
+      className={cn("fixed inset-0 z-[100]", allowInteraction && "pointer-events-auto")}
       role="dialog"
       aria-modal={!full}
       aria-label="Guided tour"
@@ -443,6 +532,25 @@ export default function Tour({
                 {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
               </Button>
             </div>
+
+            {demo?.waitFor && (
+              <div
+                data-testid="tour-demo-status"
+                className="mt-4 flex items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-muted/50 px-3 py-2 text-[11px] font-medium"
+              >
+                {demoDone ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                    <span className="text-primary">Parsed — here's what Batua understood</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+                    <span className="text-muted-foreground">Waiting for you to press Parse…</span>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="mt-3 flex items-center justify-between gap-3">
               <span
