@@ -8,14 +8,18 @@ import Tour, { TourStep } from "./Tour";
 // Steps are mounted as siblings of the Routes so they survive navigation —
 // exactly how Layout mounts the real tour.
 const STEPS: TourStep[] = [
-  // 0 — Type A hero: centered panel, no anchor → no connector/ring.
-  { title: "Step One", body: "Body one", kind: "spotlight", cta: "Show me around", chapter: { label: "Start" } },
-  // 1 — Type A with a real anchor → connector draws to it.
-  { title: "Step Two", body: "Body two", kind: "spotlight", route: "/b", target: "[data-testid='spot-b']", cta: "Got it" },
-  // 2 — Type B anchored hint → breathing ring around the element.
-  { title: "Step Three", body: "Body three", kind: "hint", route: "/a", target: "[data-testid='spot-a']" },
-  // 3 — Type B with no anchor → centered card, no ring.
-  { title: "Step Four", body: "Body four", cta: "Done" },
+  // 0 — Type A anchored spotlight → connector + ring.
+  { title: "Step One", body: "Body one", kind: "spotlight", route: "/b", target: "[data-testid='spot-b']", cta: "Next" },
+  // 1 — Type B anchored hint → breathing ring around the element.
+  { title: "Step Two", body: "Body two", kind: "hint", route: "/a", target: "[data-testid='spot-a']" },
+  // 2 — no anchor → centered card, no ring.
+  { title: "Step Three", body: "Body three", cta: "Done" },
+];
+
+const HERO: TourStep[] = [{ title: "Welcome to Batua", body: "Body", hero: true, cta: "Start tour" }];
+
+const FULL: TourStep[] = [
+  { title: "Full Page", body: "Body", kind: "hint", route: "/a", target: "[data-testid='spot-a']", full: true },
 ];
 
 function renderTour({ open = true, onClose, onFinish } = {}) {
@@ -35,31 +39,39 @@ function renderTour({ open = true, onClose, onFinish } = {}) {
   );
 }
 
+function renderHero() {
+  return render(
+    <MemoryRouter initialEntries={["/a"]}>
+      <Routes>
+        <Route path="/a" element={<div data-testid="spot-a">Page A</div>} />
+      </Routes>
+      <Tour steps={HERO} open onClose={() => {}} onFinish={() => {}} />
+    </MemoryRouter>
+  );
+}
+
 describe("Tour", () => {
   it("renders nothing when closed", () => {
     renderTour({ open: false });
     expect(screen.queryByTestId("tour-panel")).not.toBeInTheDocument();
   });
 
-  it("renders a Type A hero panel (centered, no connector)", () => {
-    renderTour();
-    expect(screen.getByTestId("tour-overlay")).toBeInTheDocument();
-    expect(screen.getByTestId("tour-scrim")).toBeInTheDocument();
+  it("renders the welcome hero as a calm, centred card", () => {
+    renderHero();
     const panel = screen.getByTestId("tour-panel");
     expect(panel).toBeInTheDocument();
-    expect(screen.getByText("Step One")).toBeInTheDocument();
-    expect(screen.getByText("Body one")).toBeInTheDocument();
-    // Chapter eyebrow gives the tour a visible narrative structure.
-    expect(screen.getByText("Start")).toBeInTheDocument();
-    expect(screen.getByTestId("tour-cta")).toHaveTextContent("Show me around");
-    // Hero has no anchor: no ring, no connector.
+    expect(screen.getByText("Welcome to Batua")).toBeInTheDocument();
+    expect(screen.getByTestId("tour-cta")).toHaveTextContent("Start tour");
+    expect(screen.getByTestId("tour-skip")).toHaveTextContent("Skip for now");
+    // Hero has no anchor, no progress, no back button — just one action.
     expect(screen.queryByTestId("tour-ring")).not.toBeInTheDocument();
     expect(screen.queryByTestId("tour-connector")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tour-prev")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tour-progress")).not.toBeInTheDocument();
   });
 
   it("draws a connector to the spotlighted element (Type A)", async () => {
     renderTour();
-    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two on /b
     await waitFor(() => {
       expect(screen.getByTestId("spot-b")).toBeInTheDocument();
     });
@@ -70,16 +82,12 @@ describe("Tour", () => {
     await waitFor(() => {
       expect(screen.getByTestId("tour-ring")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("tour-cta")).toHaveTextContent("Got it");
+    expect(screen.getByTestId("tour-cta")).toHaveTextContent("Next");
   });
 
   it("shows a breathing ring around the anchored element (Type B)", async () => {
     renderTour();
-    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
-    await waitFor(() => {
-      expect(screen.getByTestId("tour-connector")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Three on /a
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two on /a
     await waitFor(() => {
       expect(screen.getByTestId("spot-a")).toBeInTheDocument();
     });
@@ -91,9 +99,6 @@ describe("Tour", () => {
   });
 
   it("full steps show the page without blur but still frame the target", async () => {
-    const FULL: TourStep[] = [
-      { title: "Full Page", body: "Body", kind: "hint", route: "/a", target: "[data-testid='spot-a']", full: true },
-    ];
     render(
       <MemoryRouter initialEntries={["/a"]}>
         <Routes>
@@ -105,22 +110,20 @@ describe("Tour", () => {
     await waitFor(() => {
       expect(screen.getByTestId("tour-ring")).toBeInTheDocument();
     });
-    // No blurred/veiled backdrop, but the panel is still there.
+    // No blurred/veiled backdrop, but the panel is still there — and it says
+    // the page is freely explorable.
     expect(screen.queryByTestId("tour-scrim")).not.toBeInTheDocument();
     expect(screen.getByTestId("tour-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("tour-full-hint")).toBeInTheDocument();
   });
 
   it("falls back to a centered card when there is no target", async () => {
     renderTour();
-    fireEvent.click(screen.getByTestId("tour-cta")); // 2
-    await waitFor(() => {
-      expect(screen.getByTestId("tour-connector")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("tour-cta")); // 3
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
     await waitFor(() => {
       expect(screen.getByTestId("tour-ring")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Four (no target)
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Three (no target)
     await waitFor(() => {
       expect(screen.queryByTestId("tour-ring")).not.toBeInTheDocument();
     });
@@ -132,23 +135,23 @@ describe("Tour", () => {
     renderTour();
     expect(screen.getByTestId("tour-prev")).toBeDisabled();
     fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
-    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Three
-    fireEvent.click(screen.getByTestId("tour-prev")); // back to Step Two
-    expect(screen.getByText("Step Two")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tour-prev")); // back to Step One
+    expect(screen.getByText("Step One")).toBeInTheDocument();
   });
 
-  it("jumps between steps via the progress dots", () => {
+  it("shows a step counter and progress for anchored steps", () => {
     renderTour();
-    fireEvent.click(screen.getAllByTestId("tour-dot")[3]);
-    expect(screen.getByText("Step Four")).toBeInTheDocument();
+    expect(screen.getByTestId("tour-progress")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
   });
 
   it("finishes on the last step's Done button", () => {
     const onFinish = vi.fn();
     renderTour({ onFinish });
-    fireEvent.click(screen.getByTestId("tour-cta")); // → 2
-    fireEvent.click(screen.getByTestId("tour-cta")); // → 3
-    fireEvent.click(screen.getByTestId("tour-cta")); // → 4 (button now reads Done)
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Three (button now reads Done)
     expect(screen.getByTestId("tour-cta")).toHaveTextContent("Done");
     fireEvent.click(screen.getByTestId("tour-cta")); // press Done
     expect(onFinish).toHaveBeenCalledTimes(1);
@@ -172,9 +175,6 @@ describe("Tour", () => {
   });
 
   it("keeps the page scrollable on full steps", async () => {
-    const FULL: TourStep[] = [
-      { title: "Full Page", body: "Body", kind: "hint", route: "/a", target: "[data-testid='spot-a']", full: true },
-    ];
     render(
       <MemoryRouter initialEntries={["/a"]}>
         <Routes>
@@ -187,14 +187,6 @@ describe("Tour", () => {
       expect(screen.getByTestId("tour-ring")).toBeInTheDocument();
     });
     expect(document.body.style.overflow).toBe("");
-    cleanup();
-  });
-
-  it("shows a running step counter", () => {
-    renderTour();
-    expect(screen.getByText("1 / 4")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
-    expect(screen.getByText("2 / 4")).toBeInTheDocument();
     cleanup();
   });
 

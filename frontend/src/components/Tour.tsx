@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
 export type TourPlacement = "left" | "right" | "top" | "bottom";
@@ -24,9 +25,6 @@ export type TourStep = {
   target?: string;
   title: string;
   body: React.ReactNode;
-  /** Short chapter label shown as an eyebrow above the title — gives the tour
-   *  a visible narrative structure (e.g. "Add your money"). */
-  chapter?: { label: string };
   /** Preferred dock side for Type B cards (falls back to best fit). */
   placement?: TourPlacement;
   kind?: TourStepKind;
@@ -35,12 +33,16 @@ export type TourStep = {
   /** Show the full page with no blur/veil — use when the whole page IS the
    *  content (e.g. Analytics charts). The emerald ring + card still show. */
   full?: boolean;
+  /** Welcome step — a single, calm centred panel with the brand mark, a
+   *  display headline and one primary action. No progress, no footer clutter. */
+  hero?: boolean;
 };
 
 type Rect = { left: number; top: number; width: number; height: number };
 
 const SPOT_W = 420; // Type A panel max width
 const HINT_W = 320; // Type B card max width
+const HERO_W = 460; // welcome hero card max width
 const GAP = 12; // gap between a hint card and its anchor
 
 /* Hand-drawn-style connector: a cubic bezier with perpendicular control
@@ -136,6 +138,7 @@ export default function Tour({
   const step = steps[Math.min(index, steps.length - 1)];
   const kind: TourStepKind = step?.kind ?? "hint";
   const full = !!step?.full;
+  const hero = !!step?.hero;
   const total = steps.length;
   const isLast = index === total - 1;
 
@@ -146,7 +149,7 @@ export default function Tour({
     const el = s.target ? (document.querySelector(s.target) as HTMLElement | null) : null;
     const center = () => {
       const vw = window.innerWidth;
-      const w = Math.min(kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
+      const w = Math.min(s.hero ? HERO_W : kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
       setAnchor(null);
       setPanel({ x: Math.round((vw - w) / 2), y: Math.round(window.innerHeight / 2 - 110) });
       setPanelRect(null);
@@ -271,26 +274,12 @@ export default function Tour({
   };
 
   const vw = window.innerWidth;
-  const panelW = Math.min(kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
+  const panelW = hero
+    ? Math.min(HERO_W, vw - 32)
+    : Math.min(kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
   const label = step.cta || (isLast ? "Got it" : "Next");
   const mask = anchor ? cutoutMask(anchor.left, anchor.top, anchor.width, anchor.height) : null;
   const anchorC = anchor ? { x: anchor.left + anchor.width / 2, y: anchor.top + anchor.height / 2 } : null;
-
-  // Segmented progress bar — a single modern strip (vs. 13 cramped dots).
-  // Each segment is clickable to jump ahead, and the fill shows chapter flow.
-  const progressSegments = steps.map((_, i) => (
-    <button
-      key={i}
-      type="button"
-      aria-label={`Go to step ${i + 1}`}
-      data-testid="tour-dot"
-      onClick={() => setIndex(i)}
-      className={cn(
-        "h-1.5 flex-1 rounded-full transition-colors duration-300",
-        i === index ? "bg-primary" : i < index ? "bg-primary/45" : "bg-foreground/15 hover:bg-foreground/30"
-      )}
-    />
-  ));
 
   return (
     <motion.div
@@ -311,15 +300,15 @@ export default function Tour({
       {!full && (
         <motion.div
           data-testid="tour-scrim"
-          className="absolute inset-0 z-[10] bg-black/50"
+          className="absolute inset-0 z-[10] bg-black/30"
           style={{
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             ...(mask ? { WebkitMaskImage: mask, maskImage: mask } : {}),
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: reduce ? 0 : 0.35, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: reduce ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
         />
       )}
 
@@ -358,8 +347,8 @@ export default function Tour({
         </svg>
       )}
 
-      {/* Message panel — the app's own glass card, anchored by a primary accent
-          bar and eyebrow chip so every step reads as one cohesive system. */}
+      {/* Message panel — hero and tooltip share the app's glass + theme tokens,
+          so blurred and full-page steps always read as one system. */}
       <motion.div
         ref={panelRef}
         data-testid="tour-panel"
@@ -367,91 +356,120 @@ export default function Tour({
         aria-labelledby="tour-headline"
         aria-describedby="tour-body"
         className={cn(
-          "pointer-events-auto absolute z-[12] overflow-hidden rounded-2xl border border-border bg-card/95 p-5 shadow-elevated ring-1 ring-primary/15 backdrop-blur-xl",
-          kind === "spotlight" && "text-center"
+          "pointer-events-auto absolute z-[12] rounded-2xl border border-border/70 bg-card/95 shadow-elevated backdrop-blur-xl",
+          hero ? "rounded-3xl p-8 text-center" : "p-5"
         )}
         style={{ left: panel?.x, top: panel?.y, width: panelW }}
-        initial={{ opacity: 0, y: reduce ? 0 : 10, scale: reduce ? 1 : 0.98 }}
+        initial={{ opacity: 0, y: reduce ? 0 : 14, scale: reduce ? 1 : 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 28 }}
+        transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 300, damping: 26 }}
       >
-        {/* Theme-contrast accent strip across the top of every panel. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-primary via-primary/85 to-accent-foreground"
-        />
+        {hero ? (
+          /* Welcome — a calm, single-action moment: brand, display headline,
+             one call-to-action. No progress, no footer clutter. */
+          <>
+            <Logo className="mx-auto h-12 w-12" aria-hidden="true" />
+            <h2
+              id="tour-headline"
+              className="mt-4 text-[26px] font-bold leading-tight tracking-tight text-foreground"
+            >
+              {step.title}
+            </h2>
+            <div
+              id="tour-body"
+              className="mx-auto mt-2.5 max-w-[380px] text-[15px] leading-relaxed text-muted-foreground"
+            >
+              {step.body}
+            </div>
+            <div className="mt-7 flex items-center justify-center gap-3">
+              <Button
+                size="lg"
+                onClick={next}
+                data-testid="tour-cta"
+                className="h-11 rounded-xl px-7 text-[15px]"
+              >
+                {label}
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <button
+                type="button"
+                data-testid="tour-skip"
+                onClick={onClose}
+                className="h-11 px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Skip for now
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Anchored step — a small tooltip card with a hairline progress bar,
+             one step forward/back, and a quiet skip. */
+          <>
+            <div
+              data-testid="tour-progress"
+              aria-hidden="true"
+              className="h-1 w-full overflow-hidden rounded-full bg-foreground/10"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                style={{ width: `${((index + 1) / total) * 100}%` }}
+              />
+            </div>
 
-        {step.chapter && (
-          <span
-            className={cn(
-              "mb-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary",
-              kind === "spotlight" && "mx-auto block w-fit"
-            )}
-          >
-            {step.chapter.label}
-          </span>
-        )}
+            <h2
+              id="tour-headline"
+              className="mt-3.5 text-base font-semibold leading-snug tracking-tight text-foreground"
+            >
+              {step.title}
+            </h2>
+            <div id="tour-body" className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+              {step.body}
+            </div>
 
-        <h2
-          id="tour-headline"
-          className={cn("font-bold leading-snug text-foreground", kind === "spotlight" ? "text-lg" : "text-base")}
-        >
-          {step.title}
-        </h2>
-        <div
-          id="tour-body"
-          className={cn(
-            "mt-1.5 leading-relaxed text-muted-foreground",
-            kind === "spotlight" ? "text-[15px]" : "text-sm"
-          )}
-        >
-          {step.body}
-        </div>
+            <div className={cn("mt-5 flex items-center gap-2", kind === "spotlight" && "justify-center")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={prev}
+                disabled={index === 0}
+                aria-label="Previous step"
+                data-testid="tour-prev"
+                className="h-8 shrink-0 px-2.5"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="sm" onClick={next} data-testid="tour-cta" className="h-8 flex-1">
+                {label}
+                {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
 
-        <div className={cn("mt-5 flex items-center gap-2", kind === "spotlight" && "justify-center")}>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={prev}
-            disabled={index === 0}
-            aria-label="Previous step"
-            data-testid="tour-prev"
-            className="shrink-0 px-3"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            Back
-          </Button>
-          <Button size="sm" onClick={next} data-testid="tour-cta" className="flex-1">
-            {label}
-            {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
-          </Button>
-        </div>
-
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex flex-1 items-center gap-1">{progressSegments}</div>
-          <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground" aria-hidden="true">
-            {index + 1} / {total}
-          </span>
-          <button
-            type="button"
-            data-testid="tour-skip"
-            onClick={onClose}
-            className="shrink-0 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Skip
-          </button>
-        </div>
-
-        {/* On `full` steps the page is intentionally interactive — say so, so the
-            missing blur reads as a deliberate mode, not an inconsistency. */}
-        {full && (
-          <p
-            className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground"
-            data-testid="tour-full-hint"
-          >
-            <MousePointerClick className="h-3 w-3 shrink-0" aria-hidden="true" />
-            Full page — explore freely, then continue
-          </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span
+                className="text-[11px] font-medium tabular-nums text-muted-foreground"
+                aria-hidden="true"
+              >
+                {index + 1} / {total}
+              </span>
+              {full && (
+                <span
+                  className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground"
+                  data-testid="tour-full-hint"
+                >
+                  <MousePointerClick className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  Explore freely, then continue
+                </span>
+              )}
+              <button
+                type="button"
+                data-testid="tour-skip"
+                onClick={onClose}
+                className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Skip
+              </button>
+            </div>
+          </>
         )}
       </motion.div>
     </motion.div>
