@@ -44,6 +44,7 @@ export default function AnimatedGlowBorder({
     // the Card's visible border draws. The canvas is inset by the border widths
     // so its top-left lands on the border-box corner (padding-box + border),
     // making the star's curve coincide with the border at the corners too.
+    const PAD = 20; // Extra canvas padding so shadowBlur (14px) and glowing orb are never clipped
     const resize = () => {
       const cw = parent.clientWidth;              // padding box (content + padding)
       const ch = parent.clientHeight;
@@ -56,16 +57,15 @@ export default function AnimatedGlowBorder({
       W = Math.max(0, fullW);
       H = Math.max(0, fullH);
       R = Math.max(2, Math.min(radius, W / 2, H / 2));
-      canvas.width = W * dpr;
-      canvas.height = H * dpr;
-      canvas.style.width = `${W}px`;
-      canvas.style.height = `${H}px`;
-      // Shift the canvas up-left so its origin sits on the border-box corner,
-      // not the padding-box corner. Then path coords (0..W, 0..H) are the
-      // border outline — exactly the track the star should ride.
-      canvas.style.left = `${-bwL}px`;
-      canvas.style.top = `${-bwT}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const totalW = W + PAD * 2;
+      const totalH = H + PAD * 2;
+      canvas.width = totalW * dpr;
+      canvas.height = totalH * dpr;
+      canvas.style.width = `${totalW}px`;
+      canvas.style.height = `${totalH}px`;
+      canvas.style.left = `${-bwL - PAD}px`;
+      canvas.style.top = `${-bwT - PAD}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, PAD * dpr, PAD * dpr);
     };
 
     // Rounded-rectangle perimeter: 4 straight edges + 4 quarter-arcs. We walk

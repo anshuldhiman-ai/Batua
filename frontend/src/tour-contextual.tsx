@@ -1,15 +1,11 @@
 import type { TourStep } from "@/components/Tour";
 import { TOUR_STEPS } from "./tour-steps";
-
-/**
- * Route-based contextual tour steps
- * Maps routes to specific step groups for dynamic tour adaptation
- */
+import { FEATURE_REGISTRY, findFeatureStepForSelector } from "./tour-registry";
 
 export interface RouteTourMap {
   [route: string]: {
     steps: TourStep[];
-    priority: number; // Higher priority = shown first when navigating to this route
+    priority: number;
   };
 }
 
@@ -20,107 +16,58 @@ export const MAIN_TOUR_FLOW = TOUR_STEPS;
 
 /**
  * Contextual tour steps per route
- * These are shown when users navigate to specific pages during or after the tour
  */
 export const ROUTE_CONTEXTUAL_STEPS: RouteTourMap = {
   "/dashboard": {
     steps: [
-      {
-        route: "/dashboard",
-        target: "[data-testid='kpi-net']",
-        kind: "hint",
-        placement: "right",
-        title: "Quick overview",
-        body: "Your net balance and spending summary at a glance.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='kpi-net']"],
+      FEATURE_REGISTRY["[data-testid='dashboard-timeline']"],
+    ].filter(Boolean),
     priority: 1,
   },
   "/transactions": {
     steps: [
-      {
-        route: "/transactions",
-        target: "[data-testid='nl-input']",
-        kind: "hint",
-        placement: "right",
-        title: "Add transactions fast",
-        body: "Type in plain English to add transactions quickly.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='nl-card']"],
+      FEATURE_REGISTRY["[data-testid='nl-input']"],
+      FEATURE_REGISTRY["[data-testid='fragment-split']"],
+    ].filter(Boolean),
     priority: 2,
   },
   "/analytics": {
     steps: [
-      {
-        route: "/analytics",
-        target: "[data-testid='comparison-toggle-btn']",
-        kind: "hint",
-        placement: "bottom",
-        full: true,
-        allowInteraction: true,
-        title: "Explore analytics",
-        body: "Charts and insights to understand your spending patterns.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='comparison-toggle-btn']"],
+      FEATURE_REGISTRY["[data-testid='category-chart']"],
+      FEATURE_REGISTRY["[data-testid='trend-chart']"],
+    ].filter(Boolean),
     priority: 3,
   },
   "/budgets": {
     steps: [
-      {
-        route: "/budgets",
-        target: "[data-testid='budget-add-btn']",
-        kind: "hint",
-        placement: "right",
-        title: "Set budgets",
-        body: "Create monthly budgets to control your spending.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='budget-add-btn']"],
+      FEATURE_REGISTRY["[data-testid='budget-progress']"],
+      FEATURE_REGISTRY["[data-testid='budget-health']"],
+    ].filter(Boolean),
     priority: 4,
   },
   "/goals": {
     steps: [
-      {
-        route: "/goals",
-        target: "[data-testid='goal-add-btn']",
-        kind: "hint",
-        placement: "right",
-        title: "Track goals",
-        body: "Set savings goals and track your progress.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='goal-add-btn']"],
+      FEATURE_REGISTRY["[data-testid='goal-progress']"],
+    ].filter(Boolean),
     priority: 5,
   },
   "/people": {
     steps: [
-      {
-        route: "/people",
-        target: "[data-testid='person-add-btn']",
-        kind: "hint",
-        placement: "right",
-        title: "Manage people",
-        body: "Track shared expenses with friends and family.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='person-add-btn']"],
+      FEATURE_REGISTRY["[data-testid='person-list']"],
+    ].filter(Boolean),
     priority: 6,
   },
   "/ml-insights": {
     steps: [
-      {
-        route: "/ml-insights",
-        target: "[data-testid='qa-chat-fab']",
-        kind: "hint",
-        placement: "left",
-        title: "Ask questions",
-        body: "Get insights from your data using natural language.",
-        contextual: true,
-      },
-    ],
+      FEATURE_REGISTRY["[data-testid='qa-chat-fab']"],
+      FEATURE_REGISTRY["[data-testid='qa-chat-input']"],
+    ].filter(Boolean),
     priority: 7,
   },
   "/settings": {
@@ -150,7 +97,7 @@ export function getContextualSteps(route: string): TourStep[] {
  * Check if a route has contextual tour steps available
  */
 export function hasContextualSteps(route: string): boolean {
-  return ROUTE_CONTEXTUAL_STEPS[route]?.steps.length > 0;
+  return (ROUTE_CONTEXTUAL_STEPS[route]?.steps.length ?? 0) > 0;
 }
 
 /**
@@ -160,4 +107,26 @@ export function getRoutesWithContextualSteps(): string[] {
   return Object.entries(ROUTE_CONTEXTUAL_STEPS)
     .sort(([, a], [, b]) => b.priority - a.priority)
     .map(([route]) => route);
+}
+
+/**
+ * Inspect an HTML element and its parent tree to find if it corresponds to a registered feature
+ */
+export function findFeatureStepForElement(el: HTMLElement | null): TourStep | null {
+  if (!el) return null;
+  let curr: HTMLElement | null = el;
+  while (curr && curr !== document.body) {
+    const testId = curr.getAttribute("data-testid");
+    if (testId) {
+      const match = findFeatureStepForSelector(`[data-testid='${testId}']`);
+      if (match) return match;
+    }
+    const featureAttr = curr.getAttribute("data-tour-feature");
+    if (featureAttr) {
+      const match = findFeatureStepForSelector(featureAttr);
+      if (match) return match;
+    }
+    curr = curr.parentElement;
+  }
+  return null;
 }

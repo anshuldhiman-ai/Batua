@@ -1,21 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Check, ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, MousePointerClick, RotateCcw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
+import { findFeatureStepForElement } from "@/tour-contextual";
 
 export type TourPlacement = "left" | "right" | "top" | "bottom";
 
-/** Two coach-mark types sharing the app's own visual language:
- *  - "spotlight"  Type A — hero moment: a connector draws from a centred
- *    glass panel to the highlighted element.
- *  - "hint"       Type B — quiet: a small card docks next to the element.
- *  Both blur out the rest of the page (sharp window over the target) and
- *  ring the element with the app's primary border + breathing glow.
- */
 export type TourStepKind = "spotlight" | "hint";
 
 export type TourStep = {
@@ -30,17 +24,11 @@ export type TourStep = {
   kind?: TourStepKind;
   /** Verb-first button label; defaults to "Next" / "Got it". */
   cta?: string;
-  /** Show the full page with no blur/veil — use when the whole page IS the
-   *  content (e.g. Analytics charts). The emerald ring + card still show. */
+  /** Show the full page with no blur/veil — use when the whole page IS the content. */
   full?: boolean;
-  /** Welcome step — a single, calm centred panel with the brand mark, a
-   *  display headline and one primary action. No progress, no footer clutter. */
+  /** Welcome step — a single, calm centred panel. */
   hero?: boolean;
-  /** Live-demo fields: `input` is auto-typed into the step's target element
-   *  (via the `batua:tour-fill` CustomEvent the input components listen for);
-   *  once `waitFor` appears in the DOM, the step flips to a ✓ status and
-   *  advances on its own. Together they let the tour drive the real UI so the
-   *  new user interacts with the actual input instead of reading a mock. */
+  /** Live-demo fields. */
   demo?: {
     input?: string;
     waitFor?: string;
@@ -60,8 +48,6 @@ const HINT_W = 320; // Type B card max width
 const HERO_W = 460; // welcome hero card max width
 const GAP = 12; // gap between a hint card and its anchor
 
-/* Hand-drawn-style connector: a cubic bezier with perpendicular control
- * offsets that read as a slight natural wobble, not a ruler-straight line. */
 function connectorPath(from: { x: number; y: number }, to: { x: number; y: number }) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -74,8 +60,6 @@ function connectorPath(from: { x: number; y: number }, to: { x: number; y: numbe
   return `M ${from.x} ${from.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${to.x} ${to.y}`;
 }
 
-/** The point on the panel's edge closest to the anchor — where the connector
- *  should start, so the curve always leaves the card toward the element. */
 function panelEdge(panel: Rect, to: { x: number; y: number }) {
   const cx = panel.left + panel.width / 2;
   const cy = panel.top + panel.height / 2;
@@ -85,15 +69,13 @@ function panelEdge(panel: Rect, to: { x: number; y: number }) {
   return { x: cx, y: to.y >= cy ? panel.top + panel.height : panel.top };
 }
 
-/** Dock a Type B card next to its anchor without overlap, preferring the
- *  requested side then the most spacious alternative; clamp to the viewport. */
 function fitHint(anchor: Rect, placement: TourPlacement, w: number, h: number) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const cand: Record<TourPlacement, { x: number; y: number }> = {
     right: { x: anchor.left + anchor.width + GAP, y: anchor.top + anchor.height / 2 - h / 2 },
     left: { x: anchor.left - w - GAP, y: anchor.top + anchor.height / 2 - h / 2 },
-    bottom: { x: anchor.left + anchor.width / 2 - w / 2, y: anchor.bottom + GAP },
+    bottom: { x: anchor.left + anchor.width / 2 - w / 2, y: (anchor.bottom ?? anchor.top + anchor.height) + GAP },
     top: { x: anchor.left + anchor.width / 2 - w / 2, y: anchor.top - h - GAP },
   };
   const order: TourPlacement[] = [placement, "right", "bottom", "top", "left"];
@@ -108,8 +90,6 @@ function fitHint(anchor: Rect, placement: TourPlacement, w: number, h: number) {
   };
 }
 
-/** An SVG mask that blurs the page everywhere except a sharp rounded window
- *  over the highlighted element — the "spotlight" effect. */
 function cutoutMask(x: number, y: number, w: number, h: number) {
   const pad = 6;
   const x0 = Math.max(0, Math.round(x - pad));
@@ -137,11 +117,13 @@ export default function Tour({
   onFinish: () => void;
 }) {
   const [index, setIndex] = useState(0);
+  const [contextualStep, setContextualStep] = useState<TourStep | null>(null);
+  const [idleTimeLeft, setIdleTimeLeft] = useState<number>(0);
   const [anchor, setAnchor] = useState<Rect | null>(null);
   const [panel, setPanel] = useState<{ x: number; y: number } | null>(null);
   const [panelRect, setPanelRect] = useState<Rect | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [usingFallback, setUsingFallback] = useState(false);
+  const [, setError] = useState<string | null>(null);
+  const [, setUsingFallback] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,39 +131,97 @@ export default function Tour({
 
   // Reset to step 0 each time the tour is (re)opened.
   useEffect(() => {
-    if (open) setIndex(0);
+    if (open) {
+      setIndex(0);
+      setContextualStep(null);
+      setIdleTimeLeft(0);
+    }
   }, [open]);
 
-  const step = steps[Math.min(index, steps.length - 1)];
-  const kind: TourStepKind = step?.kind ?? "hint";
-  const full = !!step?.full;
-  const hero = !!step?.hero;
-  const allowInteraction = !!step?.allowInteraction;
+  // Active step is either the user-clicked contextual feature or the main sequential step
+  const activeStep = contextualStep || steps[Math.min(index, steps.length - 1)];
+
+  const kind: TourStepKind = activeStep?.kind ?? "hint";
+  const full = !!activeStep?.full;
+  const hero = !!activeStep?.hero;
+  const allowInteraction = !!activeStep?.allowInteraction || !!contextualStep;
   const total = steps.length;
   const isLast = index === total - 1;
-  const demo = step?.demo;
+  const demo = activeStep?.demo;
   const [demoDone, setDemoDone] = useState(false);
-  // A ref mirror of `index` so demo timers can verify they still belong to the
-  // step they were fired for (guards the auto-advance against double-stepping).
+
   const indexRef = useRef(index);
   indexRef.current = index;
 
-  const goNext = useCallback(() => {
-    if (indexRef.current >= steps.length - 1) onFinish();
-    else setIndex(indexRef.current + 1);
-  }, [steps.length, onFinish]);
-  const goPrev = useCallback(() => {
-    if (indexRef.current > 0) setIndex(indexRef.current - 1);
+  const resumeMainTour = useCallback(() => {
+    setContextualStep(null);
+    setIdleTimeLeft(0);
   }, []);
 
-  // Snap back to the "waiting" state whenever a fresh demo step becomes active.
-  useEffect(() => setDemoDone(false), [index]);
+  const goNext = useCallback(() => {
+    if (contextualStep) {
+      resumeMainTour();
+      return;
+    }
+    if (indexRef.current >= steps.length - 1) onFinish();
+    else setIndex(indexRef.current + 1);
+  }, [steps.length, onFinish, contextualStep, resumeMainTour]);
 
-  /** Locate the step's target and record its screen rect. Whole-page targets
-   *  (e.g. <main>) and missing selectors fall back to a centered card. */
+  const goPrev = useCallback(() => {
+    if (contextualStep) {
+      resumeMainTour();
+      return;
+    }
+    if (indexRef.current > 0) setIndex(indexRef.current - 1);
+  }, [contextualStep, resumeMainTour]);
+
+  // Snap back to the "waiting" state whenever a fresh demo step becomes active.
+  useEffect(() => setDemoDone(false), [index, contextualStep]);
+
+  // Global click detector: if the user clicks any feature anywhere during the tour,
+  // explain that feature as a contextual step and start the 5s auto-resume timer.
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      const targetEl = e.target as HTMLElement | null;
+      if (!targetEl) return;
+
+      // Ignore clicks inside the tour panel itself
+      if (panelRef.current?.contains(targetEl)) return;
+
+      const match = findFeatureStepForElement(targetEl);
+      if (match) {
+        setContextualStep(match);
+        setIdleTimeLeft(5); // 5-second countdown to return to main tour
+      }
+    };
+
+    document.addEventListener("click", handleClick, { capture: true });
+    return () => document.removeEventListener("click", handleClick, { capture: true });
+  }, [open]);
+
+  // Idle countdown timer for contextual steps
+  useEffect(() => {
+    if (!contextualStep || idleTimeLeft <= 0) return;
+
+    const timer = window.setInterval(() => {
+      setIdleTimeLeft((prev) => {
+        if (prev <= 1) {
+          setContextualStep(null); // Resume main tour
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [contextualStep, idleTimeLeft]);
+
+  /** Locate the active step's target safely with fallbacks to avoid crashes. */
   const refresh = useCallback(() => {
-    const s = steps[index] || steps[0];
-    const el = s.target ? (document.querySelector(s.target) as HTMLElement | null) : null;
+    const s = activeStep || steps[0];
+    if (!s) return;
+
     const center = () => {
       const vw = window.innerWidth;
       const w = Math.min(s.hero ? HERO_W : kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
@@ -189,53 +229,55 @@ export default function Tour({
       setPanel({ x: Math.round((vw - w) / 2), y: Math.round(window.innerHeight / 2 - 110) });
       setPanelRect(null);
     };
-    // Clear error state on refresh
+
     setError(null);
     setUsingFallback(false);
-    
-    if (!el) {
-      // Try fallback if available
-      if (s.fallback) {
-        setUsingFallback(true);
-        const fallbackEl = s.fallback.target ? (document.querySelector(s.fallback.target) as HTMLElement | null) : null;
-        if (fallbackEl) {
-          const r = fallbackEl.getBoundingClientRect();
-          setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
-          return;
-        }
-      }
-      center();
-      return;
-    }
-    const r = el.getBoundingClientRect();
-    const isPage =
-      el.tagName === "MAIN" || (r.width > window.innerWidth * 0.6 && r.height > window.innerHeight * 0.6);
-    if (isPage) {
-      center();
-      return;
-    }
-    // Only recentre the page on blurred steps — `full` steps must stay freely
-    // scrollable, and this runs on every scroll, so calling scrollIntoView here
-    // would yank the page back toward the target and fight the user.
-    if (!s.full && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center", behavior: "auto" });
-    setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
-  }, [index, steps, kind]);
 
-  // Navigate to the step's route, then wait for the lazy-loaded page before
-  // positioning. Re-run whenever the route settles.
+    try {
+      const el = s.target ? (document.querySelector(s.target) as HTMLElement | null) : null;
+      if (!el) {
+        if (s.fallback?.target) {
+          setUsingFallback(true);
+          const fallbackEl = document.querySelector(s.fallback.target) as HTMLElement | null;
+          if (fallbackEl) {
+            const r = fallbackEl.getBoundingClientRect();
+            setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
+            return;
+          }
+        }
+        center();
+        return;
+      }
+
+      const r = el.getBoundingClientRect();
+      const isPage =
+        el.tagName === "MAIN" || (r.width > window.innerWidth * 0.6 && r.height > window.innerHeight * 0.6);
+      if (isPage) {
+        center();
+        return;
+      }
+
+      if (!s.full && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ block: "center", behavior: "auto" });
+      }
+      setAnchor({ left: r.left, top: r.top, width: r.width, height: r.height });
+    } catch {
+      center();
+    }
+  }, [activeStep, steps, kind]);
+
+  // Route sync
   useEffect(() => {
-    if (!open) return;
-    const s = steps[index] || steps[0];
-    if (s.route && s.route !== location.pathname) {
-      navigate(s.route);
+    if (!open || !activeStep) return;
+    if (activeStep.route && activeStep.route !== location.pathname) {
+      navigate(activeStep.route);
       return;
     }
     const timers = [30, 300, 700].map((ms) => window.setTimeout(refresh, ms));
     return () => timers.forEach(clearTimeout);
-  }, [open, index, location.pathname, steps, navigate, refresh]);
+  }, [open, activeStep, location.pathname, navigate, refresh]);
 
-  // Measure the rendered panel and pin it in place — Type B cards hug their
-  // anchor; spotlight panels float centered. Also feeds the connector geometry.
+  // Position panel
   useEffect(() => {
     if (!open) return;
     const t = window.setTimeout(() => {
@@ -244,7 +286,7 @@ export default function Tour({
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       if (anchor && kind === "hint") {
-        const p = fitHint(anchor, step?.placement || "right", w, h);
+        const p = fitHint(anchor, activeStep?.placement || "right", w, h);
         setPanel({ x: p.x, y: p.y });
         setPanelRect({ left: p.x, top: p.y, width: w, height: h });
       } else {
@@ -255,9 +297,8 @@ export default function Tour({
       }
     }, 40);
     return () => window.clearTimeout(t);
-  }, [open, anchor, index, steps, kind, step?.placement]);
+  }, [open, anchor, activeStep, kind]);
 
-  // Keep the spotlight and cards glued to their elements while scrolling/resizing.
   useEffect(() => {
     if (!open) return;
     window.addEventListener("resize", refresh);
@@ -268,8 +309,6 @@ export default function Tour({
     };
   }, [open, refresh]);
 
-  // Esc dismisses the tour. Tab is trapped inside the panel for blurred
-  // (modal) steps, but left free on `full` steps where the page is the content.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -277,37 +316,15 @@ export default function Tour({
         onClose();
         return;
       }
-      if (e.key === "Tab" && !full) {
-        const el = panelRef.current;
-        if (!el) return;
-        const focusables = Array.from(
-          el.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter((n) => !n.hasAttribute("disabled"));
-        if (!focusables.length) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, full, onClose]);
+  }, [open, onClose]);
 
-  // Move focus into the panel whenever the step changes.
   useEffect(() => {
     if (open && panel) panelRef.current?.focus?.();
-  }, [open, panel, index]);
+  }, [open, panel, index, contextualStep]);
 
-  // Lock page scroll behind blurred steps; `full` steps stay scrollable so the
-  // user can move through the page the step is explaining.
   useEffect(() => {
     document.body.style.overflow = open && !full && !allowInteraction ? "hidden" : "";
     return () => {
@@ -315,14 +332,11 @@ export default function Tour({
     };
   }, [open, full, allowInteraction]);
 
-  // Live demo: auto-type `demo.input` into the step's real target input by
-  // firing the `batua:tour-fill` event the input listens for. Re-dispatch for
-  // a beat until the controlled value matches, then stop — so the fill never
-  // fights the user if they take over and start editing themselves.
+  // Demo auto-type
   useEffect(() => {
-    if (!open || !demo?.input || !step?.target) return;
+    if (!open || !demo?.input || !activeStep?.target) return;
     const line = demo.input;
-    const sel = step.target;
+    const sel = activeStep.target;
     let attempts = 0;
     const fillTimer = window.setInterval(() => {
       attempts += 1;
@@ -335,11 +349,9 @@ export default function Tour({
       }
     }, 120);
     return () => window.clearInterval(fillTimer);
-  }, [open, index, demo?.input, step?.target]);
+  }, [open, index, contextualStep, demo?.input, activeStep?.target]);
 
-  // Live demo: once `demo.waitFor` appears (e.g. the parse preview the user
-  // just produced), mark the step ✓ and advance on our own — the tour "sees"
-  // the user finished, no click required.
+  // Demo auto-advance
   useEffect(() => {
     if (!open || !demo?.waitFor) return;
     const waitFor = demo.waitFor;
@@ -355,9 +367,9 @@ export default function Tour({
     const poll = window.setInterval(check, 250);
     check();
     return () => window.clearInterval(poll);
-  }, [open, index, demo?.waitFor, goNext]);
+  }, [open, index, contextualStep, demo?.waitFor, goNext]);
 
-  if (!open || !step) return null;
+  if (!open || !activeStep) return null;
 
   const next = goNext;
   const prev = goPrev;
@@ -366,7 +378,7 @@ export default function Tour({
   const panelW = hero
     ? Math.min(HERO_W, vw - 32)
     : Math.min(kind === "spotlight" ? SPOT_W : HINT_W, vw - 24);
-  const label = step.cta || (isLast ? "Got it" : "Next");
+  const label = activeStep.cta || (contextualStep ? "Resume Tour" : isLast ? "Got it" : "Next");
   const mask = anchor ? cutoutMask(anchor.left, anchor.top, anchor.width, anchor.height) : null;
   const anchorC = anchor ? { x: anchor.left + anchor.width / 2, y: anchor.top + anchor.height / 2 } : null;
 
@@ -382,11 +394,6 @@ export default function Tour({
       exit={{ opacity: 0 }}
       transition={reduce ? { duration: 0 } : { duration: 0.25, ease: "easeOut" }}
     >
-      {/* Backdrop — matches the app's modal veil (bg-black/50) but blurs the
-          whole page, with a sharp window punched over the highlighted element
-          (SVG mask) so only the target stays in crisp focus. Omitted for
-          `full` steps so the whole page stays visible and interactive. Also
-          omitted when allowInteraction is true to let users click buttons. */}
       {!full && !allowInteraction && (
         <motion.div
           data-testid="tour-scrim"
@@ -402,8 +409,6 @@ export default function Tour({
         />
       )}
 
-      {/* Theme ring — the app's primary border + breathing glow around the
-          element. Shown for both step kinds. */}
       {anchor && (
         <motion.div
           data-testid="tour-ring"
@@ -415,7 +420,6 @@ export default function Tour({
         />
       )}
 
-      {/* Type A — connector drawing from panel to the highlighted element. */}
       {kind === "spotlight" && anchor && panelRect && anchorC && (
         <svg
           data-testid="tour-connector"
@@ -437,8 +441,6 @@ export default function Tour({
         </svg>
       )}
 
-      {/* Message panel — hero and tooltip share the app's glass + theme tokens,
-          so blurred and full-page steps always read as one system. */}
       <motion.div
         ref={panelRef}
         data-testid="tour-panel"
@@ -455,21 +457,19 @@ export default function Tour({
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 300, damping: 26 }}
       >
         {hero ? (
-          /* Welcome — a calm, single-action moment: brand, display headline,
-             one call-to-action. No progress, no footer clutter. */
           <>
             <Logo className="mx-auto h-12 w-12" aria-hidden="true" />
             <h2
               id="tour-headline"
               className="mt-4 text-[26px] font-bold leading-tight tracking-tight text-foreground"
             >
-              {step.title}
+              {activeStep.title}
             </h2>
             <div
               id="tour-body"
               className="mx-auto mt-2.5 max-w-[380px] text-[15px] leading-relaxed text-muted-foreground"
             >
-              {step.body}
+              {activeStep.body}
             </div>
             <div className="mt-7 flex items-center justify-center gap-3">
               <Button
@@ -492,9 +492,22 @@ export default function Tour({
             </div>
           </>
         ) : (
-          /* Anchored step — a small tooltip card with a hairline progress bar,
-             one step forward/back, and a quiet skip. */
           <>
+            {/* Contextual exploration badge */}
+            {contextualStep && (
+              <div className="mb-3 flex items-center justify-between rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                <span>Exploring Feature</span>
+                <button
+                  type="button"
+                  onClick={resumeMainTour}
+                  className="flex items-center gap-1 hover:underline"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Resume Tour ({idleTimeLeft}s)
+                </button>
+              </div>
+            )}
+
             <div
               data-testid="tour-progress"
               aria-hidden="true"
@@ -510,10 +523,10 @@ export default function Tour({
               id="tour-headline"
               className="mt-3.5 text-base font-semibold leading-snug tracking-tight text-foreground"
             >
-              {step.title}
+              {activeStep.title}
             </h2>
             <div id="tour-body" className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-              {step.body}
+              {activeStep.body}
             </div>
 
             <div className={cn("mt-5 flex items-center gap-2", kind === "spotlight" && "justify-center")}>
@@ -521,7 +534,7 @@ export default function Tour({
                 variant="outline"
                 size="sm"
                 onClick={prev}
-                disabled={index === 0}
+                disabled={index === 0 && !contextualStep}
                 aria-label="Previous step"
                 data-testid="tour-prev"
                 className="h-8 shrink-0 px-2.5"
@@ -530,7 +543,7 @@ export default function Tour({
               </Button>
               <Button size="sm" onClick={next} data-testid="tour-cta" className="h-8 flex-1">
                 {label}
-                {!isLast && <ChevronRight className="h-3.5 w-3.5" />}
+                {!isLast && !contextualStep && <ChevronRight className="h-3.5 w-3.5" />}
               </Button>
             </div>
 
@@ -558,7 +571,7 @@ export default function Tour({
                 className="text-[11px] font-medium tabular-nums text-muted-foreground"
                 aria-hidden="true"
               >
-                {index + 1} / {total}
+                {contextualStep ? "Contextual" : `${index + 1} / ${total}`}
               </span>
               {full && (
                 <span

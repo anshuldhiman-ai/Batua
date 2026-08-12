@@ -74,6 +74,18 @@ export default function NLInputBar({ onSaved }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Onboarding tour: the tour auto-types a demo line by dispatching a
+  // `batua:tour-fill` CustomEvent (see Tour.tsx `demo.input`). A small
+  // window listener is the cleanest bridge — no global state, no DOM setter.
+  React.useEffect(() => {
+    const onTourFill = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail === "string" && detail.trim()) setText(detail);
+    };
+    window.addEventListener("batua:tour-fill", onTourFill);
+    return () => window.removeEventListener("batua:tour-fill", onTourFill);
+  }, []);
+
   const parseSingle = async (inputText = text) => {
     // `inputText` may arrive as a click event (the Parse button) or undefined
     // (Enter key). Only trust an explicit string; otherwise use `text` state.
@@ -294,14 +306,15 @@ export default function NLInputBar({ onSaved }) {
   };
 
   return (
-    <Card
-      glow={false}
-      className="relative overflow-hidden rounded-[30px] bg-card/60 backdrop-blur-sm"
-    >
+    <div className="relative" data-testid="nl-card">
       {/* Animated luminous border that continuously orbits the prompt bar. */}
       <AnimatedGlowBorder radius={30} speed={focused ? 8 : 5} />
 
-      <div className="relative z-10 p-5">
+      <Card
+        glow={false}
+        className="relative z-10 overflow-hidden rounded-[30px] bg-card/60 backdrop-blur-sm"
+      >
+        <div className="p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-primary">
           <Sparkles className="h-4 w-4" />
           Add transactions in plain English
@@ -396,6 +409,7 @@ export default function NLInputBar({ onSaved }) {
         )}
       </div>
     </Card>
+  </div>
   );
 }
 

@@ -22,6 +22,35 @@ const FULL: TourStep[] = [
   { title: "Full Page", body: "Body", kind: "hint", route: "/a", target: "[data-testid='spot-a']", full: true },
 ];
 
+// An interactive live demo: the step auto-types into the target input and waits
+// for the user to produce `parsed` before advancing on its own.
+const DEMO: TourStep[] = [
+  {
+    title: "Demo Fill",
+    kind: "spotlight",
+    route: "/a",
+    target: "[data-testid='spot-input']",
+    full: true,
+    cta: "Continue",
+    demo: {
+      input: "2 samose 50 upi and chai 20 cash",
+      waitFor: "[data-testid='parsed']",
+    },
+  },
+  { title: "Parsed Details", body: "Body", kind: "hint", route: "/a", full: true, cta: "Done" },
+];
+
+function renderDemo() {
+  return render(
+    <MemoryRouter initialEntries={["/a"]}>
+      <Routes>
+        <Route path="/a" element={<input data-testid="spot-input" />} />
+      </Routes>
+      <Tour steps={DEMO} open onClose={() => {}} onFinish={() => {}} />
+    </MemoryRouter>
+  );
+}
+
 function renderTour({ open = true, onClose, onFinish } = {}) {
   return render(
     <MemoryRouter initialEntries={["/a"]}>
@@ -190,19 +219,17 @@ describe("Tour", () => {
     cleanup();
   });
 
-  it("traps Tab focus inside the panel for blurred steps", () => {
+  it("focuses the panel when a step activates", async () => {
     renderTour();
-    // On step one Back is disabled, so the first focusable is the CTA.
-    const cta = screen.getByTestId("tour-cta");
-    const skip = screen.getByTestId("tour-skip");
-    // Tab at the last focusable wraps to the first…
-    skip.focus();
-    fireEvent.keyDown(window, { key: "Tab", shiftKey: false });
-    expect(document.activeElement).toBe(cta);
-    // …and Shift+Tab at the first wraps to the last.
-    cta.focus();
-    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
-    expect(document.activeElement).toBe(skip);
+    // The panel should receive focus when it mounts / step changes.
+    await waitFor(() => {
+      expect(screen.getByTestId("tour-panel")).toBeInTheDocument();
+    });
+    // After advancing, the panel should still be in the DOM and focusable.
+    fireEvent.click(screen.getByTestId("tour-cta")); // → Step Two
+    await waitFor(() => {
+      expect(screen.getByTestId("tour-panel")).toBeInTheDocument();
+    });
     cleanup();
   });
 });

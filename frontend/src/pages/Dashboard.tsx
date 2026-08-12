@@ -260,7 +260,7 @@ export default function Dashboard() {
           ════════════════════════════════════════════════════════════ */}
       <motion.section variants={fadeUp} className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Trend chart — the hero visualization */}
-        <Card className="shadow-elevated lg:col-span-7">
+        <Card data-testid="dashboard-timeline" className="shadow-elevated lg:col-span-7">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>

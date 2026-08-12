@@ -162,14 +162,16 @@ export default function Analytics() {
       />
 
       {/* Main chart */}
-      <AnalyticsGraph
-        data={series}
-        comparisonData={showComparison ? comparisonSeries?.data : null}
-        view={view}
-        loading={loading}
-        height={view === "daily" ? 400 : 360}
-        periodLabel={range.label}
-      />
+      <div data-testid="trend-chart">
+        <AnalyticsGraph
+          data={series}
+          comparisonData={showComparison ? comparisonSeries?.data : null}
+          view={view}
+          loading={loading}
+          height={view === "daily" ? 400 : 360}
+          periodLabel={range.label}
+        />
+      </div>
 
       {/* Insight panels row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -184,7 +186,7 @@ export default function Analytics() {
 
       {/* Category row — donut (proportion) + compact ranked list, same 5/7
           split as the Dashboard's breakdown section */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12" data-testid="category-chart">
         <CategoryDonutPanel data={categories} loading={loading} className="lg:col-span-5" />
         <CategoryBreakdown data={categories} loading={loading} className="lg:col-span-7" />
       </div>

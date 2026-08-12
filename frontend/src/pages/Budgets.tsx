@@ -92,7 +92,7 @@ export default function Budgets() {
 
       <div className="text-sm text-muted-foreground">Showing spend for <span className="font-medium text-foreground">{month}</span></div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="budget-progress">
         {rows === null ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-36" />)
         ) : rows.length === 0 ? (

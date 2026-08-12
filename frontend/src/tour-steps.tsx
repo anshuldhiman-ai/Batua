@@ -212,6 +212,12 @@ export const TOUR_STEPS: TourStep[] = [
     full: true,
     allowInteraction: true,
     cta: "Next",
+    fallback: {
+      route: "/budgets",
+      target: "[data-testid='budget-add-btn']",
+      title: "Track your progress",
+      body: "Create your first category budget to see real-time color-coded progress bars.",
+    },
     title: "Track your progress",
     body: (
       <>
@@ -226,6 +232,12 @@ export const TOUR_STEPS: TourStep[] = [
     kind: "hint",
     placement: "left",
     cta: "Next",
+    fallback: {
+      route: "/budgets",
+      target: "[data-testid='budget-add-btn']",
+      title: "Budget health score",
+      body: "Overall financial discipline score computed from your active budgets.",
+    },
     title: "Budget health score",
     body: (
       <>
@@ -270,7 +282,7 @@ export const TOUR_STEPS: TourStep[] = [
   // ── Track goals ───────────────────────────────────────────────────
   {
     route: "/goals",
-    target: "[data-testid='goal-add-btn']",
+    target: "[data-testid='add-goal-btn']",
     kind: "hint",
     placement: "right",
     cta: "Next",
@@ -285,6 +297,12 @@ export const TOUR_STEPS: TourStep[] = [
     full: true,
     allowInteraction: true,
     cta: "Next",
+    fallback: {
+      route: "/goals",
+      target: "[data-testid='add-goal-btn']",
+      title: "Track your progress",
+      body: "Add a savings goal to track your percentage completed and target date.",
+    },
     title: "Track your progress",
     body: (
       <>
@@ -297,7 +315,7 @@ export const TOUR_STEPS: TourStep[] = [
   // ── Manage people ─────────────────────────────────────────────────
   {
     route: "/people",
-    target: "[data-testid='person-add-btn']",
+    target: "[data-testid='add-entry-btn']",
     kind: "hint",
     placement: "right",
     cta: "Next",
@@ -312,6 +330,12 @@ export const TOUR_STEPS: TourStep[] = [
     full: true,
     allowInteraction: true,
     cta: "Next",
+    fallback: {
+      route: "/people",
+      target: "[data-testid='add-entry-btn']",
+      title: "People overview",
+      body: "Add a person to track shared balances and settle up debts.",
+    },
     title: "People overview",
     body: (
       <>

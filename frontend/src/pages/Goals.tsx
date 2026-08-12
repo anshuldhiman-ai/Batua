@@ -157,7 +157,7 @@ export default function Goals() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="goal-progress">
           {goals.map((goal) => {
             const progress = calculateProgress(goal);
             const daysRemaining = calculateDaysRemaining(goal.target_date);
