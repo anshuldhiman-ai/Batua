@@ -282,6 +282,20 @@ export default function Transactions() {
     let pollHandle = null;
     const startedAt = Date.now();
     try {
+      // Replacing transactions is destructive, so create a downloadable recovery copy first.
+      setUploadMessage("Creating a safety backup before replacement...");
+      const { data: backup } = await api.get("/backup", { timeout: 30000 });
+      const backupBlob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const backupUrl = window.URL.createObjectURL(backupBlob);
+      const backupLink = document.createElement("a");
+      backupLink.href = backupUrl;
+      backupLink.download = `batua-backup-before-import-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(backupLink);
+      backupLink.click();
+      backupLink.remove();
+      window.URL.revokeObjectURL(backupUrl);
+
+      setUploadMessage("Uploading your file...");
       // Kick off the staged background job.
       const { data: start } = await api.post(
         `/upload-excel/start?replace=true&use_ai=${aiCategorize ? "true" : "false"}`,
