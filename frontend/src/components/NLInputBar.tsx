@@ -307,14 +307,11 @@ export default function NLInputBar({ onSaved }) {
 
   return (
     <div className="relative" data-testid="nl-card">
-      {/* Animated luminous border that continuously orbits the prompt bar. */}
-      <AnimatedGlowBorder radius={30} speed={focused ? 8 : 5} />
-
       <Card
         glow={false}
-        className="relative z-10 overflow-hidden rounded-[30px] bg-card/60 backdrop-blur-sm"
+        className={cn("overflow-hidden rounded-2xl bg-card/70 shadow-sm backdrop-blur-sm", focused && "shadow-[0_0_28px_hsl(var(--primary)/0.16)]")}
       >
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium text-primary">
           <Sparkles className="h-4 w-4" />
           Add transactions in plain English
@@ -870,59 +867,63 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
 
   return (
    <>
-    <div className="flex flex-col gap-2 sm:flex-row">
-      <div className="relative flex-1">
-        <Input
-          data-testid="nl-input"
-          value={recording && interim ? interim : value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onKeyDown={(e) => e.key === "Enter" && onParse()}
-          placeholder={recording ? recordingPlaceholder : placeholder}
-          className={cn(
-            "h-12 text-base pr-12",
-            recording && "border-destructive/50 ring-1 ring-destructive/30"
-          )}
-        />
-        {supported && (
-          <button
-            type="button"
-            onClick={toggleRecording}
-            aria-pressed={recording}
-            aria-label={recording ? "Stop voice input" : "Start voice input"}
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-full p-[2px] shadow-[0_0_18px_hsl(var(--primary)/0.22)] transition-shadow",
+        recording && "shadow-[0_0_22px_hsl(var(--destructive)/0.28)]"
+      )}
+      data-testid="nl-prompt-bar"
+    >
+      <AnimatedGlowBorder radius={999} speed={recording ? 9 : 6} trailLength={0.17} />
+      <div className="relative z-10 flex min-h-14 items-center gap-2 rounded-full bg-background/95 px-2.5 py-2 backdrop-blur-xl">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <Wand2 className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="relative min-w-0 flex-1">
+          <Input
+            data-testid="nl-input"
+            value={recording && interim ? interim : value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onKeyDown={(e) => e.key === "Enter" && onParse()}
+            placeholder={recording ? recordingPlaceholder : placeholder}
             className={cn(
-              "absolute right-3 top-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-75",
-              recording
-                ? "bg-destructive text-destructive-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              "h-10 border-0 bg-transparent px-1 pr-10 text-base shadow-none focus-visible:ring-0",
+              recording && "text-destructive placeholder:text-destructive/70"
             )}
-            style={{
-              transform: `translateY(-50%) scale(${recording ? 1 + (micVolume / 280) : 1})`,
-              boxShadow: recording ? `0 0 ${8 + (micVolume / 3)}px hsl(var(--destructive) / ${0.5 + (micVolume / 100)})` : undefined
-            }}
-            title={
-              recording
-                ? "Tap to stop"
-                : isBackend
-                ? "Tap to speak (offline voice)"
-                : "Tap to speak"
-            }
-          >
-            <Mic className="h-4 w-4" />
-          </button>
-        )}
+          />
+          {supported && (
+            <button
+              type="button"
+              onClick={toggleRecording}
+              aria-pressed={recording}
+              aria-label={recording ? "Stop voice input" : "Start voice input"}
+              className={cn(
+                "absolute right-1 top-1/2 flex h-8 w-8 items-center justify-center rounded-full transition-all duration-75",
+                recording ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              style={{
+                transform: `translateY(-50%) scale(${recording ? 1 + (micVolume / 280) : 1})`,
+                boxShadow: recording ? `0 0 ${8 + (micVolume / 3)}px hsl(var(--destructive) / ${0.5 + (micVolume / 100)})` : undefined
+              }}
+              title={recording ? "Tap to stop" : isBackend ? "Tap to speak (offline voice)" : "Tap to speak"}
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <Button
+          data-testid="nl-parse-btn"
+          onClick={() => onParse()}
+          disabled={parsing || !value.trim()}
+          size="lg"
+          className="h-10 shrink-0 rounded-full px-4 text-sm sm:px-5"
+        >
+          {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+          <span>Parse</span>
+        </Button>
       </div>
-      <Button
-        data-testid="nl-parse-btn"
-        onClick={() => onParse()}
-        disabled={parsing || !value.trim()}
-        size="lg"
-        className="shrink-0"
-      >
-        {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-        Parse
-      </Button>
     </div>
     {supported && (
       <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -968,6 +969,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
   const isDebit = (draft.amount || 0) < 0;
   const fragments = Array.isArray(draft.fragments) ? draft.fragments : null;
   const fragmentCount = fragments?.length ?? 0;
+  const [priceEditing, setPriceEditing] = React.useState(false);
 
   return (
     <div className="mt-4 rounded-lg border border-border bg-background/60 p-4 animate-fade-up" data-testid="nl-preview">
@@ -1042,7 +1044,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               type="text"
               inputMode="decimal"
               placeholder="e.g. 10, 12+15+48, 15*2"
-              value={draft.price_text || String(draft.price ?? round2(Math.abs(draft.amount || 0) / qty))}
+              value={priceEditing ? (draft.price_text ?? "") : (draft.price_text || String(draft.price ?? round2(Math.abs(draft.amount || 0) / qty)))}
               onChange={(e) => {
                 const raw = e.target.value;
                 // A single number is a per-item price → total = price × qty.
@@ -1050,9 +1052,11 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
                 const bd = priceBreakdown(raw, qty);
                 if (bd === null) {
                   // Mid-typing / invalid — remember exactly what was typed.
+                  setPriceEditing(true);
                   updateDraft("price_text", raw);
                   return;
                 }
+                setPriceEditing(false);
                 updateDraft("price", bd.price);
                 updateDraft("price_text", bd.isBare ? "" : raw);
                 updateDraft("amount", (isDebit ? -1 : 1) * bd.mag);

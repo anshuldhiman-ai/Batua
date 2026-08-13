@@ -1,7 +1,7 @@
 """Pydantic models for Batua backend."""
 import uuid
-from datetime import datetime, timezone
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from datetime import datetime, timezone, date
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator
 
 
 class Transaction(BaseModel):
@@ -10,10 +10,10 @@ class Transaction(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     date: str  # YYYY-MM-DD
     description: str
-    amount: float  # negative = expense, positive = income
+    amount: float = Field(..., allow_inf_nan=False)  # negative = expense, positive = income
     category: str = "Other"
     payment_method: str = ""
-    quantity: int = 1  # quantity of items purchased/credited
+    quantity: int = Field(1, ge=1, le=100000)  # quantity of items purchased/credited
     price: float = 0.0  # per-item price (₹); quantity × price = |amount|
     price_text: str = ""  # verbatim price cell from the source file (e.g. "120+240")
     txn_type: str = ""  # "credit" (money in) | "debit" (money out) — derived from amount
@@ -97,13 +97,13 @@ class Budget(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     category: str
-    limit: float
+    limit: float = Field(..., gt=0, allow_inf_nan=False)
 
 
 class BudgetCreate(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    category: str
-    limit: float
+    category: str = Field(..., min_length=1, max_length=80)
+    limit: float = Field(..., gt=0, allow_inf_nan=False)
 
 
 class Goal(BaseModel):
@@ -111,17 +111,25 @@ class Goal(BaseModel):
 
     id: str = Field(default_factory=lambda: f"goal_{uuid.uuid4().hex[:12]}")
     name: str
-    target_amount: float
-    current_amount: float = 0.0
+    target_amount: float = Field(..., gt=0, allow_inf_nan=False)
+    current_amount: float = Field(0.0, ge=0, allow_inf_nan=False)
     target_date: str
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class GoalCreate(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    name: str
-    target_amount: float
-    current_amount: float = 0.0
+    @field_validator("target_date")
+    @classmethod
+    def validate_target_date(cls, value):
+        try:
+            date.fromisoformat(value)
+        except (TypeError, ValueError):
+            raise ValueError("target_date must be YYYY-MM-DD") from None
+        return value
+    name: str = Field(..., min_length=1, max_length=120)
+    target_amount: float = Field(..., gt=0, allow_inf_nan=False)
+    current_amount: float = Field(0.0, ge=0, allow_inf_nan=False)
     target_date: str
 
 

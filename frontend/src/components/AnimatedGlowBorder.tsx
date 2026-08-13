@@ -1,226 +1,178 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
+type GlowColor = { h: number; s: number; l: number };
+
+type AnimatedGlowBorderProps = {
+  radius?: number;
+  speed?: number;
+  color?: string;
+  className?: string;
+  trailLength?: number;
+};
+
+function readThemeColor(): GlowColor {
+  const value =
+    getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() ||
+    "158 84% 39%";
+  const match = value.match(/([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+  if (!match) return { h: 158, s: 84, l: 39 };
+  return {
+    h: Number(match[1]),
+    s: Number(match[2]),
+    l: Number(match[3]),
+  };
+}
+
+function brighten(color: GlowColor): GlowColor {
+  return {
+    h: color.h,
+    s: Math.min(100, color.s + 10),
+    l: Math.min(92, color.l + 34),
+  };
+}
+
+function hsl(color: GlowColor, alpha: number) {
+  return `hsl(${color.h} ${color.s}% ${color.l}% / ${alpha})`;
+}
+
 /**
- * A shooting star that orbits the border of its parent — a broad tapering tail
- * led by a small round glowing head (no arrowhead). Rendered on a <canvas> so
- * the motion stays buttery without re-rendering React.
- *
- * The tail is a crisp core streak wrapped in a soft glowing body; the head is a
- * layered orb (halo → mid glow → bright core) with a shine. Colours follow the
- * active accent theme (`--primary`) live, so switching the accent in Settings
- * recolours the orbit instantly.
- *
- * The parent MUST be `position: relative` and `overflow-hidden`; this canvas
- * fills it (inset-0). Honours prefers-reduced-motion (draws one static frame
- * and stops).
- *
- * @param radius  corner radius in px — match the parent's border-radius
- * @param speed   1–10, laps get faster as this rises
- * @param color   optional CSS colour override; defaults to the theme accent
+ * Soft moving glow for prompt bars. The canvas is clipped by its parent and
+ * draws only inside that shape, so the animation stays lively without spilling
+ * into the surrounding card or page.
  */
 export default function AnimatedGlowBorder({
-  radius = 12,
+  radius = 999,
   speed = 5,
   color,
   className,
-}: any) {
-  const canvasRef = React.useRef(null);
+  trailLength = 0.17,
+}: AnimatedGlowBorderProps) {
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const rafRef = React.useRef(0);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const parent = canvas.parentElement;
-    if (!parent) return;
-    const ctx = canvas.getContext("2d");
+    const parent = canvas?.parentElement;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !parent || !ctx) return;
+
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-    let W = 0;
-    let H = 0;
-    let R = radius;
-    // The orbit path runs exactly along the parent's BORDER box — the same line
-    // the Card's visible border draws. The canvas is inset by the border widths
-    // so its top-left lands on the border-box corner (padding-box + border),
-    // making the star's curve coincide with the border at the corners too.
-    const PAD = 20; // Extra canvas padding so shadowBlur (14px) and glowing orb are never clipped
-    const resize = () => {
-      const cw = parent.clientWidth;              // padding box (content + padding)
-      const ch = parent.clientHeight;
-      const bwL = parseFloat(getComputedStyle(parent).borderLeftWidth) || 0;
-      const bwT = parseFloat(getComputedStyle(parent).borderTopWidth) || 0;
-      const bwR = parseFloat(getComputedStyle(parent).borderRightWidth) || 0;
-      const bwB = parseFloat(getComputedStyle(parent).borderBottomWidth) || 0;
-      const fullW = cw + bwL + bwR;               // border box
-      const fullH = ch + bwT + bwB;
-      W = Math.max(0, fullW);
-      H = Math.max(0, fullH);
-      R = Math.max(2, Math.min(radius, W / 2, H / 2));
-      const totalW = W + PAD * 2;
-      const totalH = H + PAD * 2;
-      canvas.width = totalW * dpr;
-      canvas.height = totalH * dpr;
-      canvas.style.width = `${totalW}px`;
-      canvas.style.height = `${totalH}px`;
-      canvas.style.left = `${-bwL - PAD}px`;
-      canvas.style.top = `${-bwT - PAD}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, PAD * dpr, PAD * dpr);
-    };
-
-    // Rounded-rectangle perimeter: 4 straight edges + 4 quarter-arcs. We walk
-    // it clockwise from the top-left corner and map a 0..1 fraction to an (x,y).
-    const geom = () => {
-      const sx = Math.max(0, W - 2 * R); // horizontal straight run
-      const sy = Math.max(0, H - 2 * R); // vertical straight run
-      const arc = (Math.PI / 2) * R; // one quarter-arc length
-      return { sx, sy, arc, perim: 2 * sx + 2 * sy + 4 * arc };
-    };
-
-    const pointOnPath = (frac) => {
-      const { sx, sy, arc, perim } = geom();
-      let d = ((((frac % 1) + 1) % 1)) * perim;
-      // top edge (L→R)
-      if (d < sx) return { x: R + d, y: 0 };
-      d -= sx;
-      // top-right arc
-      if (d < arc) {
-        const a = -Math.PI / 2 + d / R;
-        return { x: W - R + Math.cos(a) * R, y: R + Math.sin(a) * R };
-      }
-      d -= arc;
-      // right edge (T→B)
-      if (d < sy) return { x: W, y: R + d };
-      d -= sy;
-      // bottom-right arc
-      if (d < arc) {
-        const a = d / R;
-        return { x: W - R + Math.cos(a) * R, y: H - R + Math.sin(a) * R };
-      }
-      d -= arc;
-      // bottom edge (R→L)
-      if (d < sx) return { x: W - R - d, y: H };
-      d -= sx;
-      // bottom-left arc
-      if (d < arc) {
-        const a = Math.PI / 2 + d / R;
-        return { x: R + Math.cos(a) * R, y: H - R + Math.sin(a) * R };
-      }
-      d -= arc;
-      // left edge (B→T)
-      if (d < sy) return { x: 0, y: H - R - d };
-      d -= sy;
-      // top-left arc
-      const a = Math.PI + d / R;
-      return { x: R + Math.cos(a) * R, y: R + Math.sin(a) * R };
-    };
-
-    /** Current accent colour as an "H S% L%" triplet, read live from the theme. */
-    const themeTriplet = () => {
-      if (color) return null; // explicit colour override wins
-      const v = getComputedStyle(document.documentElement)
-        .getPropertyValue("--primary")
-        .trim();
-      return v || "158 84% 39%";
-    };
-    const strokeColor = (alpha) => {
-      const t = themeTriplet();
-      return t ? `hsl(${t} / ${alpha})` : color;
-    };
-
-    // Shooting-star shape: a round glowing head with a broad tail that tapers and
-// fades behind it — no arrowhead triangle.
-const LINE_W = 3.0;        // crisp core of the tail (broader streak)
-const HEAD_R = 4.5;        // small round glowing head
-const TAIL_MAX_W = 11;     // tail width right behind the head (broad, tapers off)
-const TAIL_FRAC = 0.3;     // how far back the tail reaches along the orbit
-
+    let width = 0;
+    let height = 0;
+    let r = 0;
     let t = 0;
     let last = 0;
 
+    const resize = () => {
+      const rect = parent.getBoundingClientRect();
+      width = Math.max(1, rect.width);
+      height = Math.max(1, rect.height);
+      r = Math.max(2, Math.min(radius, height / 2, width / 2));
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const perimeter = () => {
+      const straight = Math.max(0, width - 2 * r);
+      const vertical = Math.max(0, height - 2 * r);
+      const arc = (Math.PI / 2) * r;
+      return 2 * straight + 2 * vertical + 4 * arc;
+    };
+
+    const pointOnPath = (frac: number) => {
+      const straight = Math.max(0, width - 2 * r);
+      const vertical = Math.max(0, height - 2 * r);
+      const arc = (Math.PI / 2) * r;
+      let d = (((frac % 1) + 1) % 1) * perimeter();
+
+      if (d < straight) return { x: r + d, y: 0 };
+      d -= straight;
+      if (d < arc) {
+        const a = -Math.PI / 2 + d / r;
+        return { x: width - r + Math.cos(a) * r, y: r + Math.sin(a) * r };
+      }
+      d -= arc;
+      if (d < vertical) return { x: width, y: r + d };
+      d -= vertical;
+      if (d < arc) {
+        const a = d / r;
+        return { x: width - r + Math.cos(a) * r, y: height - r + Math.sin(a) * r };
+      }
+      d -= arc;
+      if (d < straight) return { x: width - r - d, y: height };
+      d -= straight;
+      if (d < arc) {
+        const a = Math.PI / 2 + d / r;
+        return { x: r + Math.cos(a) * r, y: height - r + Math.sin(a) * r };
+      }
+      d -= arc;
+      if (d < vertical) return { x: 0, y: height - r - d };
+
+      const a = Math.PI + (d - vertical) / r;
+      return { x: r + Math.cos(a) * r, y: r + Math.sin(a) * r };
+    };
+
+    const drawDot = (
+      x: number,
+      y: number,
+      size: number,
+      alpha: number,
+      c1: GlowColor,
+      c2: GlowColor,
+      mix: number
+    ) => {
+      const c = {
+        h: c1.h + (c2.h - c1.h) * mix,
+        s: c1.s + (c2.s - c1.s) * mix,
+        l: c1.l + (c2.l - c1.l) * mix,
+      };
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+      gradient.addColorStop(0, color || hsl(c, alpha));
+      gradient.addColorStop(1, color ? "transparent" : hsl(c, 0));
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    };
+
     const draw = () => {
-      ctx.clearRect(0, 0, W, H);
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const primary = readThemeColor();
+      const secondary = brighten(primary);
+      const steps = 76;
+
+      for (let i = 0; i <= steps; i += 1) {
+        const frac = i / steps;
+        const point = pointOnPath(t - trailLength * frac);
+        drawDot(point.x, point.y, (1 - frac) * 6.5 + 1.5, (1 - frac) * 1, primary, secondary, frac);
+      }
 
       const head = pointOnPath(t);
-
-      // Sample the path backward from the head to build the tail.
-      const S = 12;
-      const tail = [];
-      for (let i = 0; i <= S; i++) {
-        const f = i / S;
-        const p = pointOnPath(t - TAIL_FRAC * f);
-        const q = pointOnPath(t - TAIL_FRAC * f - 0.0008);
-        const ang = Math.atan2(p.y - q.y, p.x - q.x);
-        const perp = ang + Math.PI / 2;
-        tail.push({ x: p.x, y: p.y, perp, w: Math.max(0, TAIL_MAX_W * (1 - f)) });
-      }
-
-      ctx.lineCap = "round";
-      // Crisp core streak, narrowing+fading away from the head.
-      ctx.lineWidth = LINE_W;
-      let prev = head;
-      for (let i = 1; i <= S; i++) {
-        const p = tail[i];
-        ctx.beginPath();
-        ctx.moveTo(prev.x, prev.y);
-        ctx.lineTo(p.x, p.y);
-        ctx.strokeStyle = strokeColor(Math.max(0, 0.85 * (1 - i / S)));
-        ctx.stroke();
-        prev = p;
-      }
-
-      // Broad glowing tail body (the "shooting star" streak), with a soft
-      // shadow so it shines. Widths widen toward the head and fade to nothing.
-      ctx.save();
-      ctx.shadowColor = strokeColor(0.7);
-      ctx.shadowBlur = 9;
-      ctx.beginPath();
-      ctx.moveTo(head.x, head.y);
-      for (let i = 0; i <= S; i++) {
-        const p = tail[i];
-        ctx.lineTo(p.x + Math.cos(p.perp) * p.w * 0.5, p.y + Math.sin(p.perp) * p.w * 0.5);
-      }
-      for (let i = S; i >= 0; i--) {
-        const p = tail[i];
-        ctx.lineTo(p.x - Math.cos(p.perp) * p.w * 0.5, p.y - Math.sin(p.perp) * p.w * 0.5);
-      }
-      ctx.closePath();
-      ctx.fillStyle = strokeColor(0.2);
-      ctx.fill();
-      ctx.restore();
-
-      // Glowing round head — layered orbs: wide halo → mid glow → bright core.
-      ctx.save();
-      ctx.shadowColor = strokeColor(1);
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = strokeColor(0.35);
-      ctx.beginPath();
-      ctx.arc(head.x, head.y, HEAD_R * 1.9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = strokeColor(0.75);
-      ctx.beginPath();
-      ctx.arc(head.x, head.y, HEAD_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = strokeColor(1);
-      ctx.beginPath();
-      ctx.arc(head.x, head.y, HEAD_R * 0.5, 0, Math.PI * 2);
-      ctx.fill();
+      drawDot(head.x, head.y, 16, 1, primary, secondary, 0);
+      drawDot(head.x, head.y, 4, 1, secondary, secondary, 0);
       ctx.restore();
     };
 
-    const loop = (ts) => {
+    const loop = (ts: number) => {
       if (!last) last = ts;
       const dt = (ts - last) / 1000;
       last = ts;
-      t = (t + (speed / 10) * dt * 0.55) % 1;
+      t = (t + (Math.max(1, Math.min(speed, 10)) / 10) * dt * 0.6) % 1;
       draw();
       rafRef.current = requestAnimationFrame(loop);
     };
 
     resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(parent);
+    const observer = new ResizeObserver(resize);
+    observer.observe(parent);
 
     if (reduce) {
       draw();
@@ -230,15 +182,15 @@ const TAIL_FRAC = 0.3;     // how far back the tail reaches along the orbit
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      ro.disconnect();
+      observer.disconnect();
     };
-  }, [radius, speed, color]);
+  }, [radius, speed, color, trailLength]);
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className={cn("pointer-events-none absolute z-0", className)}
+      className={cn("pointer-events-none absolute inset-0 z-0", className)}
     />
   );
 }

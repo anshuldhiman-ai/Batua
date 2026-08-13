@@ -23,6 +23,8 @@ export default function Goals() {
   const [loading, setLoading] = React.useState(true);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingGoal, setEditingGoal] = React.useState(null);
+  const [loadError, setLoadError] = React.useState("");
+  const [deleteTarget, setDeleteTarget] = React.useState(null);
   const [form, setForm] = React.useState({
     name: "",
     target_amount: "",
@@ -41,7 +43,8 @@ export default function Goals() {
       setGoals(data.goals || []);
     } catch (e) {
       console.error("Failed to load goals", e);
-      toast.error("Failed to load goals");
+      setGoals([]);
+      setLoadError("Could not load goals. Please retry.");
     } finally {
       setLoading(false);
     }
@@ -49,16 +52,22 @@ export default function Goals() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.target_amount || !form.target_date) {
+    const targetAmount = Number(form.target_amount);
+    const currentAmount = Number(form.current_amount || 0);
+    if (!form.name.trim() || !Number.isFinite(targetAmount) || targetAmount <= 0 || !form.target_date) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+    if (!Number.isFinite(currentAmount) || currentAmount < 0 || currentAmount > targetAmount) {
+      toast.error("Current amount must be between 0 and the target amount");
       return;
     }
 
     const goalData = {
-      name: form.name,
-      target_amount: parseFloat(form.target_amount),
+      name: form.name.trim(),
+      target_amount: targetAmount,
       target_date: form.target_date,
-      current_amount: parseFloat(form.current_amount) || 0,
+      current_amount: currentAmount,
     };
 
     try {
@@ -89,10 +98,14 @@ export default function Goals() {
     setDialogOpen(true);
   };
 
-  const deleteGoal = async (id) => {
+  const deleteGoal = (goal) => setDeleteTarget(goal);
+
+  const confirmDeleteGoal = async () => {
+    if (!deleteTarget) return;
     try {
-      await api.delete(`/goals/${id}`);
+      await api.delete(`/goals/${deleteTarget.id}`);
       toast.success("Goal deleted");
+      setDeleteTarget(null);
       await loadGoals();
     } catch (e) {
       toast.error("Failed to delete goal");
@@ -143,6 +156,15 @@ export default function Goals() {
         ]}
       />
 
+      {loadError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-center justify-between gap-3 p-4 text-sm text-destructive">
+            <span>{loadError}</span>
+            <Button variant="outline" size="sm" onClick={loadGoals}>Retry</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {goals.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -180,8 +202,8 @@ export default function Goals() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => deleteGoal(goal.id)}
-                        data-testid={`delete-goal-${goal.id}`}
+                        onClick={() => deleteGoal(goal)}
+                        aria-label={`Delete ${goal.name}`} title={`Delete ${goal.name}`} data-testid={`delete-goal-${goal.id}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -301,6 +323,20 @@ export default function Goals() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent onClose={() => setDeleteTarget(null)}>
+          <DialogHeader>
+            <DialogTitle>Delete this goal?</DialogTitle>
+            <DialogDescription>
+              Delete <strong>{deleteTarget?.name}</strong> and its progress history. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDeleteGoal} data-testid="confirm-delete-goal-btn">Delete goal</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

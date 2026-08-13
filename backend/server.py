@@ -168,8 +168,10 @@ async def _security_headers(request, call_next):
     return response
 
 
-_origins = os.environ.get("CORS_ORIGINS", "*")
+_origins = os.environ.get("CORS_ORIGINS", "")
 _allow_all = _origins.strip() == "*"
+if not _origins.strip() or _allow_all:
+    logger.warning("CORS_ORIGINS is wildcard/empty; set an explicit frontend origin before production.")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if _allow_all else [o.strip() for o in _origins.split(",")],

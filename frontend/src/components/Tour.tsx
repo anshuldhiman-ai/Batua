@@ -384,7 +384,7 @@ export default function Tour({
 
   return (
     <motion.div
-      className={cn("fixed inset-0 z-[100]", allowInteraction && "pointer-events-auto")}
+      className="pointer-events-none fixed inset-0 z-[100]"
       role="dialog"
       aria-modal={!full}
       aria-label="Guided tour"
@@ -397,7 +397,7 @@ export default function Tour({
       {!full && !allowInteraction && (
         <motion.div
           data-testid="tour-scrim"
-          className="absolute inset-0 z-[10] bg-black/30"
+          className="pointer-events-auto absolute inset-0 z-[10] bg-black/30"
           style={{
             backdropFilter: "blur(6px)",
             WebkitBackdropFilter: "blur(6px)",

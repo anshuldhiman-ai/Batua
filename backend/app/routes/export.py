@@ -34,6 +34,11 @@ def _price_cell(t) -> str | float:
     return round(float(price), 2)
 
 
+def _safe_cell(value):
+    """Prevent spreadsheet formula injection in exported text cells."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+
 async def get_all_txns():
     """Helper to get all transactions."""
     storage = get_storage()
@@ -97,8 +102,8 @@ async def export_csv(
         qty = t.get("quantity", 1) or 1
         price = t.get("price", 0) or round(abs(t.get("amount", 0)) / qty, 2)
         writer.writerow([
-            t.get("date", ""), t.get("description", ""), qty, price, t.get("amount", 0),
-            t.get("category", ""), t.get("payment_method", ""), t.get("notes", ""),
+            t.get("date", ""), _safe_cell(t.get("description", "")), qty, price, t.get("amount", 0),
+            _safe_cell(t.get("category", "")), _safe_cell(t.get("payment_method", "")), _safe_cell(t.get("notes", "")),
         ])
     buf.seek(0)
     return StreamingResponse(

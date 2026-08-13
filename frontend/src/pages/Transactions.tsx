@@ -91,6 +91,7 @@ export default function Transactions() {
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [form, setForm] = React.useState(EMPTY);
+  const [priceEditing, setPriceEditing] = React.useState(false);
   const [receiptModalOpen, setReceiptModalOpen] = React.useState(false);
   const [scanningReceipt, setScanningReceipt] = React.useState(false);
   const receiptInputRef = React.useRef(null);
@@ -116,6 +117,7 @@ export default function Transactions() {
     description = lines[0] || '';
     
     setEditing(null);
+    setPriceEditing(false);
     setForm({
       ...EMPTY,
       date: new Date().toISOString().slice(0, 10),
@@ -392,11 +394,13 @@ export default function Transactions() {
 
   const openAdd = () => {
     setEditing(null);
+    setPriceEditing(false);
     setForm({ ...EMPTY, date: new Date().toISOString().slice(0, 10) });
     setModalOpen(true);
   };
   const openEdit = (txn) => {
     setEditing(txn);
+    setPriceEditing(false);
     setForm({ ...txn, price: Number(unitPrice(txn).toFixed(2)) });
     setModalOpen(true);
   };
@@ -891,7 +895,7 @@ export default function Transactions() {
                 type="text"
                 inputMode="decimal"
                 placeholder="e.g. 10, 12+15+48, 15*2"
-                value={form.price_text || String(form.price ?? 0)}
+                value={priceEditing ? (form.price_text ?? "") : (form.price_text || String(form.price ?? 0))}
                 onChange={(e) => {
                   const raw = e.target.value;
                   const qty = form.quantity > 0 ? form.quantity : 1;
@@ -903,9 +907,11 @@ export default function Transactions() {
                   if (bd === null) {
                     // Mid-typing an expression (e.g. "10+") won't evaluate yet
                     // — keep showing exactly what was typed.
+                    setPriceEditing(true);
                     setForm({ ...form, price_text: raw });
                     return;
                   }
+                  setPriceEditing(false);
                   setForm({
                     ...form,
                     price: bd.price,

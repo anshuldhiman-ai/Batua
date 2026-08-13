@@ -1,5 +1,5 @@
 """Goals routes - savings goal tracking."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.models import Goal, GoalCreate
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
@@ -49,7 +49,7 @@ async def delete_goal(goal_id: str):
 
 
 @router.post("/{goal_id}/contribute")
-async def contribute_to_goal(goal_id: str, amount: float):
+async def contribute_to_goal(goal_id: str, amount: float = Query(..., gt=0)):
     """Add a contribution to a goal (increase current_amount)."""
     storage = get_storage()
     existing = await storage.all("goals", {"id": goal_id})
@@ -58,6 +58,8 @@ async def contribute_to_goal(goal_id: str, amount: float):
     
     goal = existing[0]
     new_amount = round(goal.get("current_amount", 0.0) + amount, 2)
+    if new_amount > float(goal.get("target_amount", 0)):
+        raise HTTPException(400, "Contribution exceeds the goal target")
     updated = await storage.update("goals", goal_id, {"current_amount": new_amount})
     invalidate_analytics_cache()
     return updated

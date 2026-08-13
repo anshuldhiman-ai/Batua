@@ -74,20 +74,35 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         raise HTTPException(400, "No valid rows found in this backup file")
 
     storage = get_storage()
-    if replace:
-        await storage.clear("transactions")
-        await storage.clear("budgets")
-        await storage.clear("goals")
-        
-    if txns:
-        await storage.insert_many("transactions", txns)
-    if budgets:
-        await storage.insert_many("budgets", budgets)
-    if goals:
-        await storage.insert_many("goals", goals)
-        
-    invalidate_analytics_cache()
+    # Snapshot current data in memory so a failed replacement can be restored.
+    # This does not write to the live store unless the restore operation fails.
+    previous = {
+        "transactions": await storage.all("transactions"),
+        "budgets": await storage.all("budgets"),
+        "goals": await storage.all("goals"),
+    }
+    try:
+        if replace:
+            await storage.clear("transactions")
+            await storage.clear("budgets")
+            await storage.clear("goals")
 
+        if txns:
+            await storage.insert_many("transactions", txns)
+        if budgets:
+            await storage.insert_many("budgets", budgets)
+        if goals:
+            await storage.insert_many("goals", goals)
+    except Exception as exc:
+        if replace:
+            # Best-effort rollback to the exact snapshot taken above.
+            for collection in ("transactions", "budgets", "goals"):
+                await storage.clear(collection)
+                if previous[collection]:
+                    await storage.insert_many(collection, previous[collection])
+        raise HTTPException(500, "Restore failed; previous data was preserved") from exc
+
+    invalidate_analytics_cache()
     return {
         "transactions": len(txns),
         "budgets": len(budgets),
