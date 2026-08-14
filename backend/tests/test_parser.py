@@ -498,3 +498,11 @@ def test_credit_card_payment_method_detected():
     """Payment method 'Credit Card' should still be detected."""
     result = parse_transaction("amazon 1500 credit card", datetime(2026, 6, 19))
     assert result["payment_method"] == "Credit Card"
+
+
+def test_trailing_currency_marker_is_removed_from_description():
+    today = datetime(2026, 6, 19)
+    for text in ("mad angle 20 rs", "mad angle 20 rupees", "mad angle rs 20"):
+        result = parse_transaction(text, today)
+        assert result["description"] == "Mad Angle"
+        assert result["amount"] == -20

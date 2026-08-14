@@ -150,7 +150,7 @@ WEEKDAYS = {
 MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
 MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 
-FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in"}
+FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in", "rs", "inr", "rupees", "rupee", "rupaye", "rupiya"}
 
 # Container / counting units used to detect quantity, e.g. "2 packet", "3 plate".
 # The leading number is captured as the quantity; the unit word stays in the
@@ -521,7 +521,7 @@ def _detect_amount(text: str) -> tuple[float | None, bool, str]:
             return val, am.group(1) == "+", text
     # Explicit sign first, e.g. +85000, -250, +5k
     m = re.search(
-        r"([+-])\s?(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?\b", text, re.IGNORECASE
+        r"([+-])\s?(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b", text, re.IGNORECASE
     )
     if m:
         sign = m.group(1)
@@ -530,7 +530,7 @@ def _detect_amount(text: str) -> tuple[float | None, bool, str]:
         return num, sign == "+", text
     # Plain number, optionally with currency prefix and k/l/cr suffix (not part of a date like 10/05 or 5th)
     for m in re.finditer(
-        r"(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?\b", text, re.IGNORECASE
+        r"(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b", text, re.IGNORECASE
     ):
         s, e = m.start(), m.end()
         # Skip if part of a dd/mm date (before or after /)
