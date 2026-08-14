@@ -150,7 +150,7 @@ WEEKDAYS = {
 MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
 MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 
-FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in", "rs", "inr", "rupees", "rupee", "rupaye", "rupiya"}
+FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in", "rs", "inr", "rupees", "rupee", "rupaye", "rupiya", "i", "we", "my"}
 
 # Container / counting units used to detect quantity, e.g. "2 packet", "3 plate".
 # The leading number is captured as the quantity; the unit word stays in the

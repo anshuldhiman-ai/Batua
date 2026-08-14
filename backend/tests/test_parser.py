@@ -506,3 +506,10 @@ def test_trailing_currency_marker_is_removed_from_description():
         result = parse_transaction(text, today)
         assert result["description"] == "Mad Angle"
         assert result["amount"] == -20
+
+
+def test_conversational_trading_description_is_clean():
+    result = parse_transaction("today i spent 500 rs on trading", datetime(2026, 6, 19))
+    assert result["description"] == "Trading"
+    assert result["category"] == "Investments"
+    assert result["amount"] == -500
