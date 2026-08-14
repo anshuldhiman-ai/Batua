@@ -58,6 +58,16 @@ def test_keyword_or_ml_classification(classifier, description, expected):
     assert cat == expected, f"{description!r} -> {cat}, expected {expected}"
 
 
+
+def test_trading_language_maps_to_investments(classifier):
+    descriptions = [
+        "zerodha intraday order", "groww options trading", "upstox futures order",
+        "angel one sell order", "nse stock purchase", "ipo application upi", "brokerage charge",
+    ]
+    for description in descriptions:
+        category, confidence, source = classifier.predict_category_with_confidence(description)
+        assert category == "Investments", f"{description!r} -> {category} ({source}, {confidence:.2f})"
+
 def test_classify_many_batch(classifier):
     descriptions = [
         "swiggy order",

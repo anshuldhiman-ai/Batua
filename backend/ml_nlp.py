@@ -288,7 +288,7 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
         "ppf", "nps", "elss", "fd", "fixed deposit", "rd", "recurring deposit",
         "nsc", "kvp", "scss", "sukanya", "sssy", "pomis", "post office",
         "gold bond", "sovereign gold bond", "sgb", "etf", "bond", "bonds",
-        "demat", "trading account", "demat account",
+        "demat", "trading account", "demat account", "trading", "trading fee", "brokerage", "brokerage charge", "brokerage fee", "intraday", "day trading", "futures", "options trading", "call option", "put option", "option buy", "option sell", "margin pledge", "ipo application", "ipo allotment", "buy order", "sell order", "stock order",
         "zerodha", "groww", "upstox", "angel one", "angel broking",
         "5paisa", "paytm money", "kuvera", "coin", "coin by zerodha",
         "etmoney", "mfc", "motilal oswal", "hdfc securities", "icici direct",

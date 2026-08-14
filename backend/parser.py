@@ -98,7 +98,7 @@ CATEGORIES: dict[str, list[str]] = {
         "sip", "mutual fund", "mutual funds", "mf", "stocks", "stock", "shares",
         "equity", "investment", "invested", "ppf", "nps", "elss", "fd",
         "fixed deposit", "recurring deposit", "rd", "zerodha", "groww", "upstox",
-        "etf", "bonds", "gold bond", "sgb", "demat", "index fund",
+        "etf", "bonds", "gold bond", "sgb", "demat", "index fund", "trading", "brokerage", "intraday", "futures", "options", "ipo", "buy order", "sell order",
     ],
     "Transportation": [
         "ola", "uber", "auto", "rickshaw", "metro", "bus", "train", "irctc",

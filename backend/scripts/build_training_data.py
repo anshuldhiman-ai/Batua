@@ -203,7 +203,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "health insurance policy premium", "lic premium payment",
         "gold etf purchase", "silver etf buy", "epf contribution",
         "fd account deposit", "rd account monthly", "sgb investment",
-        "cryptocurrency bitcoin buy", "ethereum eth purchase", "trading account funded",
+        "cryptocurrency bitcoin buy", "ethereum eth purchase", "trading account funded", "zerodha intraday order", "zerodha delivery trade", "zerodha brokerage charge", "groww stock order", "groww options trading", "upstox intraday buy", "upstox futures order", "angel one sell order", "angel one option buy", "5paisa ipo application", "hdfc securities brokerage fee", "icici direct buy order", "kotak securities intraday", "sharekhan stock trade", "motilal oswal futures", "nse stock purchase", "bse equity order", "stock market brokerage", "demat annual maintenance charge", "trading account margin", "margin pledge fee", "call option premium paid", "put option premium", "futures contract buy", "ipo application upi", "ipo allotment payment", "buy shares online", "sell shares proceeds", "equity delivery order", "day trading charge",
     ],
     "Housing/Rent": [
         "house rent january", "flat rent upi", "pg rent monthly", "hostel fees semester",
