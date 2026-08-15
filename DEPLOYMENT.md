@@ -107,7 +107,7 @@ Both hosts auto-deploy on every `git push` to `main`:
 
 | Symptom | Cause / fix |
 |---------|-------------|
-| Frontend loads but every call fails ("Network Error") | `REACT_APP_BACKEND_URL` wrong, or `CORS_ORIGINS` doesn't exactly match the Vercel URL. |
+| Frontend loads but every call fails ("Network Error") | `VITE_BACKEND_URL` wrong/missing, or `CORS_ORIGINS` doesn't exactly match the Vercel URL. |
 | `/api/` shows `"storage":"sqlite"` | `MONGO_URL` missing/incorrect — data won't persist. Fix the Atlas string + IP allowlist. |
 | First request very slow | Render free tier waking from sleep — normal. |
 | Build fails on Render | Check the build log; ensure `PYTHON_VERSION` is 3.11.x (set in `render.yaml`). |

@@ -192,5 +192,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8001"))
     # Auto-reload only during local development; keep it off in production
     # (e.g. `PORT=8000 BATUA_DEV=0 python server.py` or a `gunicorn` wrapper).
-    reload = os.environ.get("BATUA_DEV", "1") == "1"
+    # Default reload OFF in production-like environments; local dev opts in
+    # with BATUA_DEV=1 (or just `uvicorn server:app --reload` from the CLI).
+    reload = os.environ.get("BATUA_DEV", "0") == "1"
     uvicorn.run("server:app", host="0.0.0.0", port=port, reload=reload)
