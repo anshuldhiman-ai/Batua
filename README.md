@@ -84,6 +84,8 @@
 
 ### Experience
 - **Polished, theme-aware UI** — light/dark modes with switchable accent themes, cursor-tracking card glows, an animated comet border on the input bar, and semantic chart colours (income always emerald, expense always red — matching the KPI indicators) so charts read consistently at a glance.
+- **Responsive design** — mobile-first layout with adaptive navigation, safe area insets for notched devices, and comprehensive responsive testing across all breakpoints.
+- **Interactive onboarding tour** — guided walkthrough with live demos, contextual step adaptation, crash prevention with fallbacks, and comprehensive coverage across all pages (Dashboard, Analytics, Budgets, Goals, People, ML Insights).
 
 ---
 
@@ -283,7 +285,7 @@ Every push is linted and tested via GitHub Actions (`.github/workflows/ci.yml`).
 
 **Backend** — 13 test modules covering the NL parser, storage abstraction (both MongoDB and SQLite backends), chat engine, ML features & NLP, Excel loader, upload progress, route helpers, server integration, and an insights regression suite.
 
-**Frontend** — Vitest + Testing Library component tests for KPICard, BudgetHealth, NLInputBar, ErrorBoundary, plus unit tests for utility helpers, analytics utils, and theme functions.
+**Frontend** — Vitest + Testing Library component tests for KPICard, BudgetHealth, NLInputBar, ErrorBoundary, Layout (responsive behavior), Tour (interactive walkthrough), plus unit tests for utility helpers, analytics utils, and theme functions.
 
 ```bash
 # Backend
