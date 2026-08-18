@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, formatINR, formatDate } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import CountUp from "@/components/CountUp";
 
 // "I gave X to Rahul" — they owe me
 // "I took X from Mom" — I owe her
@@ -226,7 +227,7 @@ export default function People() {
                   To receive
                 </p>
                 <p className="text-2xl font-bold mt-1 text-emerald-600 dark:text-emerald-400">
-                  {formatINR(totals.to_receive)}
+                  <CountUp value={totals.to_receive} format={formatINR} />
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Others owe you</p>
               </div>
@@ -245,7 +246,7 @@ export default function People() {
                   To give
                 </p>
                 <p className="text-2xl font-bold mt-1 text-rose-600 dark:text-rose-400">
-                  {formatINR(totals.to_give)}
+                  <CountUp value={totals.to_give} format={formatINR} />
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">You owe others</p>
               </div>
@@ -263,7 +264,7 @@ export default function People() {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Net</p>
                 <p className={cn("text-2xl font-bold mt-1", netToneClass(totals.net))}>
                   {totals.net >= 0 ? "+" : "−"}
-                  {formatINR(Math.abs(totals.net))}
+                  <CountUp value={Math.abs(totals.net)} format={formatINR} />
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {totals.net > 0 ? "In your favour" : totals.net < 0 ? "Against you" : "All square"}
@@ -328,7 +329,8 @@ export default function People() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <Badge variant={netBadgeVariant(p.net)} className="text-xs">
-                          {netLabel(p.net)}
+                          {p.net > 0 ? "Owes you " : p.net < 0 ? "You owe " : "Settled"}
+                          {p.net !== 0 && <CountUp value={Math.abs(p.net)} format={formatINR} />}
                         </Badge>
                         {isOpen ? (
                           <ChevronUp className="h-4 w-4 text-muted-foreground" />
