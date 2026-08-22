@@ -265,14 +265,17 @@ batua/
 │   └── src/
 │       ├── main.tsx         # React root
 │       ├── App.tsx          # Router + providers
-│       ├── components/      # Layout, NL input bar, charts, chat widget, ui/ primitives, analytics panels
+│       ├── components/      # Layout, NL input bar, Tour, charts, chat widget, ui/ primitives, analytics panels
 │       ├── pages/           # Dashboard · Analytics · Budgets · Transactions · MLInsights · Settings · People · Goals
 │       ├── hooks/           # useLocalStorage, useDebounce, useAnalyticsData
-│       └── lib/             # Finance utils, analytics helpers, themes, utility functions
+│       ├── lib/             # Finance utils, analytics helpers, themes, utility functions
+│       ├── tour-steps.tsx   # Comprehensive onboarding tour with live demos (20+ steps)
+│       └── tour-contextual.tsx  # Route-based contextual step system
 ├── scratch/                 # Android spike artifacts (gitignored)
 ├── render.yaml              # Render blueprint (backend)
 ├── DEPLOYMENT.md            # Full deploy walkthrough (Render + Vercel)
 ├── AGENTS.md                # Agent working instructions for this repo
+├── SCREENSHOT_CAPTURE_PROMPT.md  # Comprehensive screenshot capture guide
 ├── docs/                    # API.md (endpoint reference) · DEVELOPMENT.md (build guide)
 └── SKILLS.md                # Engineering competencies demonstrated
 ```

@@ -35,12 +35,15 @@ backend/                  # FastAPI app (Python 3.11+, async, uvicorn)
   tests/                  # pytest suite
 frontend/                 React 19 + TS + Vite 6 + Tailwind 3 SPA
   src/pages/              Dashboard · Analytics · Budgets · Transactions · MLInsights · Settings · People · Goals
-  src/components/         Layout, NLInputBar, charts, chat widget, ui/, analytics/
+  src/components/         Layout, NLInputBar, Tour, charts, chat widget, ui/, analytics/
   src/lib/utils-finance.ts  # centralized axios API client (single VITE_BACKEND_URL)
+  tour-steps.tsx          # comprehensive onboarding tour with live demos (20+ steps)
+  tour-contextual.tsx     # route-based contextual step system
 render.yaml               # Render blueprint for the backend
 DEPLOYMENT.md             # Render + Vercel deploy walkthrough
 docs/API.md               # full REST reference, every endpoint grouped by domain
 docs/DEVELOPMENT.md       # build guide: architecture, request flow, adding endpoints
+SCREENSHOT_CAPTURE_PROMPT.md  # comprehensive screenshot capture guide
 ```
 
 ---
@@ -69,6 +72,8 @@ cd frontend && yarn build && yarn test
   dependency must never crash a request.
 - **Frontend HTTP goes through one axios instance** in `src/lib/utils-finance.ts`, not
   ad-hoc fetch calls scattered around.
+- **Tour system is responsive and crash-safe** — Tour steps support fallback targets,
+  `allowInteraction` for user clicks, and contextual adaptation based on route.
 
 ---
 
@@ -81,6 +86,33 @@ cd frontend && yarn build && yarn test
   conversion, and don't add new heavy mandatory deps.
 - There's a **full audit** in `CLAUDE.md` → *Known Issues* (critical/high/medium/low).
   Check it before editing the flagged files.
+- **Backend dependencies** — pytest is pinned to 8.3.4 (not 9.x) due to pytest-asyncio
+  compatibility requirements. Don't upgrade without checking compatibility.
+- **Tour component** — When adding new tour steps, ensure targets exist with proper
+  `data-testid` attributes. Use `allowInteraction: true` for steps requiring user clicks.
+
+---
+
+## Recent Feature Additions (2026-08)
+
+### Tour System Enhancement
+- **Comprehensive onboarding tour** with 20+ steps covering all pages
+- **Live demo functionality** — auto-types input, waits for user Parse, auto-advances
+- **Contextual step system** — route-based steps that adapt to user navigation
+- **Crash prevention** — fallback targets when elements not found
+- **Interactive steps** — `allowInteraction` flag allows user clicks during tour
+- **Responsive behavior** — works across mobile/desktop breakpoints
+
+### Responsive Design Improvements
+- **Layout component tests** — comprehensive responsive behavior testing
+- **Mobile-first navigation** — adaptive sidebar, safe area insets for notched devices
+- **Dynamic page titles** — browser tab titles update based on current route
+- **CSS responsive classes** — proper `lg:hidden`, `lg:flex` usage throughout
+
+### Testing Enhancements
+- **Frontend test coverage** — Layout.test.tsx with 12 responsive tests
+- **Tour component tests** — existing Tour.test.tsx maintained
+- **Backend dependency fix** — pytest downgraded to 8.3.4 for compatibility
 
 ---
 
