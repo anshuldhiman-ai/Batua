@@ -4,6 +4,7 @@ from app.models import Transaction, TransactionCreate, TransactionUpdate, BulkCr
 from app.helpers import _require_valid_date, _clamp_date, _kind, _with_kind, _txn_key
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
+import asyncio
 import calendar
 import ai
 
@@ -215,8 +216,10 @@ async def scan_receipt(file: UploadFile = File(...)):
     
     file_bytes = await file.read()
     content_type = file.content_type or "image/jpeg"
-    
-    parsed = ai.analyze_receipt(file_bytes, content_type)
+
+    # ai.analyze_receipt blocks on a synchronous HTTPS call (30s timeout).
+    # Run it off the event loop so one receipt scan can't stall the server.
+    parsed = await asyncio.to_thread(ai.analyze_receipt, file_bytes, content_type)
     if not parsed:
         raise HTTPException(500, "Failed to analyze receipt image.")
         

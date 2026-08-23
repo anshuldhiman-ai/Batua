@@ -34,7 +34,9 @@ async def upload_preview(file: UploadFile = File(...)):
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(400, f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB")
     try:
-        return excel_loader.detect_columns(content, file.filename or "")
+        # Column detection parses the sheet with pandas and may consult Gemini —
+        # both blocking. Keep them off the event loop.
+        return await asyncio.to_thread(excel_loader.detect_columns, content, file.filename or "")
     except Exception as exc:
         logger.warning("Could not read uploaded file %r: %s", file.filename, exc)
         raise HTTPException(
@@ -60,7 +62,12 @@ async def upload_excel(
         raise HTTPException(400, f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB")
 
     try:
-        rows = excel_loader.try_load_excel(content, file.filename or "", use_ai=use_ai)
+        # Parsing (pandas) plus the optional ML/Gemini categorisation pass is
+        # fully blocking, so it runs in a worker thread. The staged
+        # /upload-excel/start path already does this via run_in_executor.
+        rows = await asyncio.to_thread(
+            excel_loader.try_load_excel, content, file.filename or "", use_ai=use_ai
+        )
     except Exception as exc:
         logger.error("Error parsing Excel file %r: %s", file.filename, exc)
         raise HTTPException(

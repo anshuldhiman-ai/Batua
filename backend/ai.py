@@ -21,6 +21,16 @@ _MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
 
+def _auth_headers(key: str) -> dict[str, str]:
+    """Auth header for the Gemini REST API.
+
+    The key goes in ``x-goog-api-key``, never in the query string — a URL-embedded
+    key leaks into access logs, proxy logs, and any exception message that echoes
+    the request URL.
+    """
+    return {"x-goog-api-key": key}
+
+
 def is_enabled() -> bool:
     return bool(_API_KEY)
 
@@ -53,7 +63,9 @@ def validate_key(candidate: str | None = None) -> tuple[bool, str, str]:
     last: tuple[bool, str, str] | None = None
     for attempt in range(2):
         try:
-            resp = requests.get(f"{_API_BASE}/models/{_MODEL}?key={key}", timeout=15)
+            resp = requests.get(
+                f"{_API_BASE}/models/{_MODEL}", headers=_auth_headers(key), timeout=15
+            )
         except Exception as exc:
             logger.debug("Gemini validation network failure: %s", exc)
             last = (False, "network_error", "Could not reach Gemini — check your internet connection and try again.")
@@ -117,9 +129,9 @@ def _post(path: str, payload: dict) -> dict | None:
     """POST to the Gemini REST API and return the JSON response, or None."""
     if not _API_KEY:
         return None
-    url = f"{_API_BASE}/{path}?key={_API_KEY}"
+    url = f"{_API_BASE}/{path}"
     try:
-        resp = requests.post(url, json=payload, timeout=30)
+        resp = requests.post(url, json=payload, headers=_auth_headers(_API_KEY), timeout=30)
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:

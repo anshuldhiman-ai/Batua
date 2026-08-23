@@ -130,8 +130,11 @@ The Q&A engine computes verified figures from your transactions, wraps them in a
 ### 4 · Hybrid NLP parsing that fails soft
 A local regex + heuristic pipeline resolves the vast majority of entries instantly. Only genuinely ambiguous input falls through to Gemini — and if no key is configured, the rule-based parser still returns a best-effort result. Every external dependency in the app is *optional* and *degradable*.
 
-### 5 · Production hardening
-Security headers on every response, environment-gated API docs, sanitised error responses with correlation IDs, and content-fingerprint idempotency on imports. See [Security](#-security).
+### 5 · Non-blocking by construction
+Every synchronous hot spot — the NL parser, receipt scanning, Excel parsing, LLM calls — is offloaded to a worker thread (`asyncio.to_thread` / `run_in_executor`) instead of running inline in the `async def` handler. A single 30 s Gemini timeout therefore stalls one request, not the whole process. Regression tests assert both that the helper leaves the loop thread *and* that the loop keeps ticking while it works (`backend/tests/test_async_offload.py`).
+
+### 6 · Production hardening
+Security headers on every response, environment-gated API docs, sanitised error responses with correlation IDs, API credentials sent as headers (never URL query params), and content-fingerprint idempotency on imports. See [Security](#-security).
 
 ---
 
@@ -286,7 +289,7 @@ batua/
 
 Every push is linted and tested via GitHub Actions (`.github/workflows/ci.yml`).
 
-**Backend** — 13 test modules covering the NL parser, storage abstraction (both MongoDB and SQLite backends), chat engine, ML features & NLP, Excel loader, upload progress, route helpers, server integration, and an insights regression suite.
+**Backend** — 17 test modules covering the NL parser, storage abstraction (both MongoDB and SQLite backends), chat engine, ML features & NLP, Excel loader, upload progress, route helpers, server integration, an insights regression suite, event-loop offload guarantees, and Gemini credential handling.
 
 **Frontend** — Vitest + Testing Library component tests for KPICard, BudgetHealth, NLInputBar, ErrorBoundary, Layout (responsive behavior), Tour (interactive walkthrough), plus unit tests for utility helpers, analytics utils, and theme functions.
 
@@ -317,6 +320,7 @@ Batua is **designed for single-user local deployment** — it intentionally omit
 - **Sanitised errors** — internal failures return a generic message plus a `correlation_id`; stack traces and paths stay in server logs only.
 - **CORS discipline** — `CORS_ORIGINS` defaults to `*` for local use; set it to your exact frontend URL in production (credentials are only enabled for explicit origins).
 - **Import safety** — 25 MB upload cap and content-fingerprint idempotency.
+- **Credentials in headers, not URLs** — the Gemini key is sent via `x-goog-api-key`, so it never lands in access logs, proxy logs, or a traceback that echoes the request URL.
 
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the production checklist.
 
