@@ -1,4 +1,5 @@
 """Full-data backup and restore."""
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
@@ -8,8 +9,11 @@ from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
 from app.models import Budget, Transaction, Goal, PersonEntry
 
+logger = logging.getLogger("batua.backup")
+
 router = APIRouter()
 BACKUP_VERSION = 1
+COLLECTIONS = ("transactions", "budgets", "goals", "people", "custom_categories")
 
 
 class BackupPayload(BaseModel):
@@ -39,9 +43,9 @@ async def download_backup():
 
 @router.post("/restore")
 async def restore_backup(payload: BackupPayload, replace: bool = True):
-    """Restore validated data without silently losing omitted legacy collections."""
+    """Restore validated data, replacing only the collections the file carries."""
     supplied = payload.model_fields_set
-    if not any(getattr(payload, name) for name in ("transactions", "budgets", "goals", "people", "custom_categories")):
+    if not any(getattr(payload, name) for name in COLLECTIONS):
         raise HTTPException(400, "Backup contains no data")
 
     txns, budgets, goals, people, custom_categories = [], [], [], [], []
@@ -77,33 +81,51 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         raise HTTPException(400, "No valid rows found in this backup file")
 
     storage = get_storage()
-    previous = {
-        collection: await storage.all(collection)
-        for collection in ("transactions", "budgets", "goals", "people", "custom_categories")
+    previous = {collection: await storage.all(collection) for collection in COLLECTIONS}
+    rows_by_collection = {
+        "transactions": txns,
+        "budgets": budgets,
+        "goals": goals,
+        "people": people,
+        "custom_categories": custom_categories,
     }
-    replaceable = ("transactions", "budgets", "goals", "people", "custom_categories")
+
+    # Only collections the backup file actually carries may be replaced. A
+    # partial export (say people-only) must leave everything else alone —
+    # clearing an omitted collection would silently destroy data the file
+    # never claimed to represent.
+    touched: list[str] = []
     try:
         if replace:
-            # Old backups do not contain the two newer collections; preserve them.
-            for collection in replaceable:
-                if collection in supplied or collection in ("transactions", "budgets", "goals"):
+            for collection in COLLECTIONS:
+                if collection in supplied:
                     await storage.clear(collection)
-        rows_by_collection = {
-            "transactions": txns,
-            "budgets": budgets,
-            "goals": goals,
-            "people": people,
-            "custom_categories": custom_categories,
-        }
+                    touched.append(collection)
         for collection, rows in rows_by_collection.items():
             if rows:
                 await storage.insert_many(collection, rows)
+                if collection not in touched:
+                    touched.append(collection)
     except Exception as exc:
-        if replace:
-            for collection in replaceable:
+        logger.error("Restore failed; rolling back %s", touched or "nothing", exc_info=True)
+        # Roll back defensively: whatever broke the restore may well break the
+        # rollback too, and one bad collection must not abort the rest.
+        unrecovered = []
+        for collection in touched:
+            try:
                 await storage.clear(collection)
                 if previous[collection]:
                     await storage.insert_many(collection, previous[collection])
+            except Exception:
+                logger.critical("Rollback failed for %r — data may be lost", collection, exc_info=True)
+                unrecovered.append(collection)
+        invalidate_analytics_cache()
+        if unrecovered:
+            raise HTTPException(
+                500,
+                "Restore failed and these collections could not be rolled back: "
+                f"{', '.join(unrecovered)}. Re-import your most recent backup file.",
+            ) from exc
         raise HTTPException(500, "Restore failed; previous data was preserved") from exc
 
     invalidate_analytics_cache()
