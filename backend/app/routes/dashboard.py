@@ -1,7 +1,8 @@
 """Dashboard routes."""
 from fastapi import APIRouter
 from collections import defaultdict
-from app.helpers import month_key, _shift_month, _pct_change, _default_month
+from datetime import datetime
+from app.helpers import month_key, _shift_month, _pct_change
 from app.dependencies import get_storage
 from app.cache import get_cache, pre_bucket_transactions
 
@@ -34,7 +35,9 @@ async def dashboard_metrics():
         }
 
     months = sorted({month_key(t["date"]) for t in txns if t.get("date")})
-    current = _default_month(months)
+    # "This month" follows the calendar, even when there are no entries yet.
+    # Using the latest month with data makes old spending appear current.
+    current = datetime.now().strftime("%Y-%m")
     prev = _shift_month(current, -1) if current else ""
 
     # Use pre-bucketed data for efficiency

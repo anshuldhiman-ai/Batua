@@ -1,6 +1,7 @@
 import pytest
 import io
 import openpyxl
+from datetime import datetime
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
@@ -512,16 +513,17 @@ def test_budgets_crud(client):
     assert response.status_code == 404
 
 def test_dashboard_metrics_and_analytics(client):
-    # Insert test data:
-    # Current month: 2026-06
-    # Previous month: 2026-05
-    client.post("/api/transactions", json={"date": "2026-06-10", "description": "Salary", "amount": 10000.0, "category": "Income"})
-    client.post("/api/transactions", json={"date": "2026-06-11", "description": "Rent", "amount": -2000.0, "category": "Housing/Rent"})
-    client.post("/api/transactions", json={"date": "2026-06-12", "description": "Swiggy", "amount": -500.0, "category": "Food & Dining"})
+    # Keep this regression test aligned with the actual calendar month.
+    from app.helpers import _shift_month
+    current_month = datetime.now().strftime("%Y-%m")
+    previous_month = _shift_month(current_month, -1)
+    client.post("/api/transactions", json={"date": f"{current_month}-10", "description": "Salary", "amount": 10000.0, "category": "Income"})
+    client.post("/api/transactions", json={"date": f"{current_month}-11", "description": "Rent", "amount": -2000.0, "category": "Housing/Rent"})
+    client.post("/api/transactions", json={"date": f"{current_month}-12", "description": "Swiggy", "amount": -500.0, "category": "Food & Dining"})
     
     # Prev Month
-    client.post("/api/transactions", json={"date": "2026-05-10", "description": "Salary", "amount": 8000.0, "category": "Income"})
-    client.post("/api/transactions", json={"date": "2026-05-12", "description": "Swiggy", "amount": -400.0, "category": "Food & Dining"})
+    client.post("/api/transactions", json={"date": f"{previous_month}-10", "description": "Salary", "amount": 8000.0, "category": "Income"})
+    client.post("/api/transactions", json={"date": f"{previous_month}-12", "description": "Swiggy", "amount": -400.0, "category": "Food & Dining"})
 
     # Dashboard Metrics
     response = client.get("/api/dashboard/metrics")
@@ -531,7 +533,7 @@ def test_dashboard_metrics_and_analytics(client):
     assert metrics["expense"] == 2500.0
     assert metrics["net"] == 7500.0
     assert metrics["savings_rate"] == 75.0
-    assert metrics["current_month"] == "2026-06"
+    assert metrics["current_month"] == current_month
     # Percentage changes:
     # Income: 10000 vs 8000 (+25%)
     # Expense: 2500 vs 400 (+525%)
@@ -543,13 +545,13 @@ def test_dashboard_metrics_and_analytics(client):
     assert response.status_code == 200
     series = response.json()["series"]
     assert len(series) == 2
-    assert series[0]["month"] == "2026-05"
+    assert series[0]["month"] == previous_month
     assert series[0]["income"] == 8000.0
-    assert series[1]["month"] == "2026-06"
+    assert series[1]["month"] == current_month
     assert series[1]["income"] == 10000.0
 
     # Category Breakdown
-    response = client.get("/api/analytics/category-breakdown", params={"month": "2026-06"})
+    response = client.get("/api/analytics/category-breakdown", params={"month": current_month})
     assert response.status_code == 200
     cats = response.json()["data"]
     # Should have Housing/Rent and Food & Dining
@@ -588,7 +590,7 @@ def test_dashboard_metrics_and_analytics(client):
 
     # Budget Status
     client.post("/api/budgets", json={"category": "Food & Dining", "limit": 1000.0})
-    response = client.get("/api/budgets/status", params={"month": "2026-06"})
+    response = client.get("/api/budgets/status", params={"month": current_month})
     assert response.status_code == 200
     status_rows = response.json()["rows"]
     assert len(status_rows) == 1
