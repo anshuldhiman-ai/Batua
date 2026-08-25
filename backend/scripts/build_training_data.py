@@ -41,7 +41,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "gst refund received", "upi collect request payment", "rent received from tenant",
         "olx sale proceeds", "flipkart sale payment", "gift received birthday",
         "diwali bonus received", "performance bonus payout", "commission earned affiliate",
-        "blog income google adsense", "content writing payment", "referral bonus cred",
+        "blog income google adsense", "content writing payment", "referral bonus cred", "salry credit", "sallery received", "cashbak amazon", "bonas credited",
     ],
     "Food Delivery": [
         "swiggy instamart groceries", "swiggy one membership order", "zomato pro order",
@@ -51,7 +51,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "starbucks delivery swiggy", "third wave delivery", "chaayos delivery",
         "momo zone delivery", "wow momo delivery", "haldiram delivery swiggy",
         "paradise biryani delivery", "biryani by kilo", "lunch box delivery",
-        "tiffin service monthly", "homemade food delivery", "cloud kitchen order",
+        "tiffin service monthly", "homemade food delivery", "cloud kitchen order", "swigy order", "swiggyy dinner", "zomatoo order", "zomatto lunch", "food panda order",
     ],
     "Food & Dining": [
         "barbeque nation buffet", "mainland china restaurant", "punjabi by nature",
@@ -106,7 +106,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "local kirana monthly", "vegetable vendor",
         "onions potatoes tomatoes", "atta rice dal oil", "monthly ration stock",
         "amul butter milk eggs", "mother dairy products", "organic vegetables box",
-        "farm fresh basket", "milkbasket subscription", "country delight milk",
+        "farm fresh basket", "milkbasket subscription", "country delight milk", "bigbaskt order", "blinkit grocerys", "zepto groceris", "vegitable market",
     ],
     "Fuel": [
         "hp petrol pump sector 18", "iocl diesel fill", "bpcl petrol noida",
@@ -114,7 +114,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "bike petrol fill", "car diesel tank full", "cng fill station",
         "auto lpg refill", "highway toll petrol", "interstate fuel stop",
         "ev charging station", "tata power ev charging", "scooty petrol",
-        "jio bp petrol", "cng refill pump",
+        "jio bp petrol", "cng refill pump", "petorl pump", "petrol pum", "diesal fill", "gasoline pump",
     ],
     "Transportation": [
         "ola outstation trip", "uber intercity", "rapido bike ride", "rapido auto fare",
@@ -124,7 +124,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "spicejet ticket", "air india domestic", "fastag recharge paytm",
         "highway toll plaza", "parking mall select city", "valet parking charge",
         "zoomcar rental", "revv self drive", "bounce scooter ride", "yulu bike rent",
-        "meru cab airport", "mega cab", "savaari outstation", "blusmart ev cab",
+        "meru cab airport", "mega cab", "savaari outstation", "blusmart ev cab", "uberr ride", "olaa cab", "rapidoo bike", "mettro ticket",
     ],
     "Shopping": [
         "amazon great indian sale", "amazon pay shopping", "flipkart big billion days",
@@ -151,7 +151,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "pollution certificate fee", "lpg cylinder booking indane",
         "bses electricity bill", "adani electricity bill", "torrent power bill",
         "jio fiber broadband", "airtel broadband bill", "act fibernet recharge",
-        "broadband wifi recharge", "corporation water tax",
+        "broadband wifi recharge", "corporation water tax", "elecricity bill", "elektricity bill", "airtel bil", "rechrge phone",
     ],
     "Subscriptions": [
         "netflix monthly plan", "spotify premium india", "amazon prime annual",
@@ -203,7 +203,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "health insurance policy premium", "lic premium payment",
         "gold etf purchase", "silver etf buy", "epf contribution",
         "fd account deposit", "rd account monthly", "sgb investment",
-        "cryptocurrency bitcoin buy", "ethereum eth purchase", "trading account funded", "zerodha intraday order", "zerodha delivery trade", "zerodha brokerage charge", "groww stock order", "groww options trading", "upstox intraday buy", "upstox futures order", "angel one sell order", "angel one option buy", "5paisa ipo application", "hdfc securities brokerage fee", "icici direct buy order", "kotak securities intraday", "sharekhan stock trade", "motilal oswal futures", "nse stock purchase", "bse equity order", "stock market brokerage", "demat annual maintenance charge", "trading account margin", "margin pledge fee", "call option premium paid", "put option premium", "futures contract buy", "ipo application upi", "ipo allotment payment", "buy shares online", "sell shares proceeds", "equity delivery order", "day trading charge",
+        "cryptocurrency bitcoin buy", "ethereum eth purchase", "trading account funded", "zerodah sip", "groww investmnt", "upstx equity buy", "mutul fund sip", "tradng account", "intrady order", "zerodha intraday order", "zerodha delivery trade", "zerodha brokerage charge", "groww stock order", "groww options trading", "upstox intraday buy", "upstox futures order", "angel one sell order", "angel one option buy", "5paisa ipo application", "hdfc securities brokerage fee", "icici direct buy order", "kotak securities intraday", "sharekhan stock trade", "motilal oswal futures", "nse stock purchase", "bse equity order", "stock market brokerage", "demat annual maintenance charge", "trading account margin", "margin pledge fee", "call option premium paid", "put option premium", "futures contract buy", "ipo application upi", "ipo allotment payment", "buy shares online", "sell shares proceeds", "equity delivery order", "day trading charge",
     ],
     "Housing/Rent": [
         "house rent january", "flat rent upi", "pg rent monthly", "hostel fees semester",
@@ -221,7 +221,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "facial treatment salon", "manicure pedicure", "beauty parlour visit",
         "waxing salon", "perfume deodorant", "skincare products buy",
         "sunscreen lotion purchase", "face wash cream", "shampoo conditioner buy",
-        "cosmetics makeup items", "hair oil purchase", "shaving razor",
+        "cosmetics makeup items", "hair oil purchase", "shaving razor", "facewsh purchase", "facewashh", "shampu purchase", "moisturiser cream", "cosmetcs order",
     ],
     "Snacks": [
         "lay's chips packet", "kurkure masala munch", "haldiram namkeen",
@@ -229,7 +229,7 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
         "dairy milk silk", "kitkat break", "snickers bar", "munch chocolate",
         "maggi 2 minute", "yippee noodles", "chai tapri", "cutting chai",
         "ice cream corner", "kwality walls", "amul ice cream",
-        "samosa street vendor", "vada pav stall", "pani puri evening",
+        "samosa street vendor", "vada pav stall", "pani puri evening", "kurkuree packet", "layss chips", "samosaa",
     ],
     "Fruits": [
         "mango purchase", "ripe mangoes", "mango box", "banana bunch",

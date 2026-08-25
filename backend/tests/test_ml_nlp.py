@@ -92,3 +92,20 @@ def test_persisted_model_loads(classifier):
     assert classifier._initialized
     path = Path(__file__).resolve().parents[1] / "data" / "classifier.joblib"
     assert path.exists(), "Run backend/scripts/train_classifier.py"
+
+
+def test_common_typos_map_to_categories(classifier):
+    cases = {
+        "swigy order": "Food Delivery",
+        "bigbaskt order": "Groceries",
+        "petorl pump": "Fuel",
+        "uberr ride": "Transportation",
+        "elecricity bill": "Utilities",
+        "zerodah sip": "Investments",
+        "facewsh purchase": "Personal Care",
+        "kurkuree packet": "Snacks",
+        "salry credit": "Income",
+    }
+    for description, expected in cases.items():
+        category, confidence, source = classifier.predict_category_with_confidence(description)
+        assert category == expected, f"{description!r} -> {category} ({source}, {confidence:.2f})"
