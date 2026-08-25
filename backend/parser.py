@@ -168,17 +168,23 @@ _QUANTITY_RE = re.compile(
 # Item separators inside a spoken segment ("chai 10 aur samosa 15").
 _ITEM_SPLIT_RE = re.compile(r"\b(?:aur|and)\b", re.IGNORECASE)
 
-# A single priced unit in a spoken enumeration, e.g. "10 ka", "ek 10 ka"
+# A single priced unit in a spoken enumeration, e.g. "10 ka", "ek 10 ka", "20 each"
 # (after number-word normalisation "ek" -> "1", so "1 10 ka"). The optional
 # leading number is the count at that price; the second number is the price.
-_PRICE_UNIT = r"(?:\d+(?:\.\d+)?\s+)?\d+(?:\.\d+)?\s*(?:ka|ke|ki|wala|wale|wali)\b"
+_PRICE_UNIT = r"(?:\d+(?:\.\d+)?\s+)?\d+(?:\.\d+)?\s*(?:ka|ke|ki|wala|wale|wali|each)\b"
 _PRICE_UNIT_RE = re.compile(
-    r"(?:(\d+(?:\.\d+)?)\s+)?(\d+(?:\.\d+)?)\s*(?:ka|ke|ki|wala|wale|wali)\b",
+    r"(?:(\d+(?:\.\d+)?)\s+)?(\d+(?:\.\d+)?)\s*(?:ka|ke|ki|wala|wale|wali|each)\b",
     re.IGNORECASE,
 )
-# An enumeration is two or more priced units in a row: "ek 10 ka ek 20 ka".
+# An enumeration is two or more priced units in a row: "ek 10 ka ek 20 ka", "20 each 20 each".
 _PRICE_ENUM_RE = re.compile(
     _PRICE_UNIT + r"(?:\s*(?:aur|and|,)?\s*" + _PRICE_UNIT + r")+", re.IGNORECASE
+)
+# Pattern for "X of Y each" or "X each" in typed input
+# Matches: "2 packets of 20 rs each", "3 bottles of 50 each", "20 each", "2 of 20 each"
+_TYPED_EACH_RE = re.compile(
+    r"(?:\d+\s+(?:packets?|pieces?|items?|bottles?|boxes?|units?)?\s+of\s+(?:rs|₹)?\s*\d+(?:\.\d+)?\s*(?:rs|rupees?|rupaye|rupiya)?\s*each|\d+(?:\.\d+)?\s*(?:rs|rupees?|rupaye|rupiya)?\s*each)",
+    re.IGNORECASE
 )
 
 
@@ -667,6 +673,9 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
     original = text.strip()
     working = " " + original + " "
 
+    # Check for "X of Y each" or "X each" pattern first
+    working, each_enum = _extract_typed_each_pattern(working)
+
     method, working = _detect_payment(working)
     quantity, working = _detect_quantity(working)
     amount_abs, explicit_pos, working = _detect_amount(working)
@@ -694,6 +703,12 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
         "txn_type": "credit" if amount >= 0 else "debit",
     }
 
+    # Apply "X of Y each" enumeration if found
+    if each_enum:
+        result["quantity"] = each_enum["quantity"]
+        result["amount"] = -abs(each_enum["amount"]) if not is_income else abs(each_enum["amount"])
+        result["price_text"] = each_enum["breakdown"]
+
     # Local ML fallback when regex couldn't classify the category
     if category == "Other":
         ml_category = ml_nlp.classify_transaction(original)
@@ -703,7 +718,7 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
         ml_result = ml_nlp.parse_transaction_local(original)
         if ml_result:
             for key in ("description", "payment_method"):
-                if ml_result.get(key):
+                if ml_result.get(key) and (key != "description" or not each_enum):
                     result[key] = ml_result[key]
             if ml_result.get("category") and ml_result["category"] != "Other":
                 result["category"] = ml_result["category"]
@@ -712,18 +727,18 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
             # Only borrow the ML amount when the regex found none AND no counted
             # quantity was detected — otherwise the ML parser would mistake the
             # item count ("2 packet") for the price.
-            if amount_abs is None and quantity == 1 and ml_result.get("amount") not in (None, 0):
+            if amount_abs is None and quantity == 1 and not each_enum and ml_result.get("amount") not in (None, 0):
                 try:
                     result["amount"] = float(ml_result["amount"])
                 except (TypeError, ValueError):
                     pass
-    
+
     # Gemini fallback ONLY when local ML also couldn't classify the category
     if result["category"] == "Other" and ai.is_enabled():
         enriched = _gemini_parse(original, today)
         if enriched:
             for key in ("description", "category", "payment_method"):
-                if enriched.get(key):
+                if enriched.get(key) and (key != "description" or not each_enum):
                     result[key] = enriched[key]
             if enriched.get("date"):
                 result["date"] = enriched["date"]
@@ -1245,8 +1260,57 @@ def _extract_price_enumerations(text: str) -> tuple[str, list[dict]]:
             {"quantity": max(quantity, 1), "amount": total, "breakdown": ", ".join(parts)}
         )
         return f" ENUMTOKEN{idx} "
-
     return _PRICE_ENUM_RE.sub(repl, text), enums
+
+
+def _extract_typed_each_pattern(text: str) -> tuple[str, dict | None]:
+    """Extract 'X of Y each' or 'X each' patterns from typed input.
+
+    Examples:
+      "2 packets of 20 rs each" -> quantity=2, amount=40, breakdown="2×₹20"
+      "20 each" -> quantity=1, amount=20, breakdown="1×₹20"
+      "2 of 20 rs each" -> quantity=2, amount=40, breakdown="2×₹20"
+
+    quantity, amount, and breakdown, or None if no pattern found.
+    """
+    m = _TYPED_EACH_RE.search(text)
+    if not m:
+        return text, None
+
+    # The regex has two alternatives:
+    # Alternative 1: "2 packets of 20 each" -> group 1 (quantity), then extract price from match
+    # Alternative 2: "20 each" -> extract price from match, quantity=1
+
+    matched_text = m.group(0)
+
+    # Extract all numbers from the matched text
+    numbers = re.findall(r"\d+(?:\.\d+)?", matched_text)
+
+    if len(numbers) >= 2:
+        # "2 packets of 20 each" -> quantity=2, price=20
+        quantity = int(float(numbers[0]))
+        price = float(numbers[1])
+    elif len(numbers) == 1:
+        # "20 each" -> quantity=1, price=20
+        quantity = 1
+        price = float(numbers[0])
+    else:
+        return text, None
+
+    total = quantity * price
+    breakdown = f"{quantity:g}×₹{price:g}"
+
+    # Remove the pattern from text
+    text = text[:m.start()] + text[m.end():]
+    text = re.sub(r"\s{2,}", " ", text).strip()
+
+    enumeration = {
+        "quantity": max(quantity, 1),
+        "amount": total,
+        "breakdown": breakdown
+    }
+
+    return text, enumeration
 
 
 def _split_items(text: str) -> list[str]:

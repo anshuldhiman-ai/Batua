@@ -190,22 +190,22 @@ def test_detect_date():
     assert _detect_date("zomato today", today)[0] == "2026-06-19"
     assert _detect_date("zomato yesterday", today)[0] == "2026-06-18"
     assert _detect_date("zomato tomorrow", today)[0] == "2026-06-20"
-    
+
     # N days ago
     assert _detect_date("paid 5 days ago", today)[0] == "2026-06-14"
-    
+
     # Weekdays (last/this)
     # 2026-06-19 is Friday (weekday 4).
     # Last Monday (weekday 0) -> 2026-06-15
     assert _detect_date("last monday", today)[0] == "2026-06-15"
     # Coming Monday (weekday 0) -> 2026-06-22
     assert _detect_date("coming monday", today)[0] == "2026-06-22"
-    
+
     # dd/mm/yyyy
     assert _detect_date("on 15/06/2026", today)[0] == "2026-06-15"
     assert _detect_date("on 15/06/26", today)[0] == "2026-06-15"
     assert _detect_date("on 15/06", today)[0] == "2026-06-15"
-    
+
     # Nth month
     assert _detect_date("15th june", today)[0] == "2026-06-15"
     assert _detect_date("june 15th", today)[0] == "2026-06-15"
@@ -228,7 +228,7 @@ def test_clean_description():
 
 def test_parse_transaction():
     today = datetime(2026, 6, 19)
-    
+
     # Debit scenario
     result = parse_transaction("zomato 450 yesterday upi", today)
     assert result["description"] == "Zomato"
@@ -237,7 +237,7 @@ def test_parse_transaction():
     assert result["category"] == "Food Delivery"
     assert result["payment_method"] == "UPI"
     assert result["txn_type"] == "debit"
-    
+
     # Credit scenario
     result = parse_transaction("pocket money +5k today", today)
     assert result["description"] == "Pocket Money"
@@ -266,13 +266,13 @@ def test_parse_transaction_clamps_future_dates():
 @patch("ai.chat_json")
 def test_parse_transaction_gemini_fallback(mock_chat_json, mock_is_enabled):
     today = datetime(2026, 6, 19)
-    
+
     # Mock AI disabled
     mock_is_enabled.return_value = False
     result = parse_transaction("mysterious-merchant 999", today)
     assert result["category"] == "Other"
     mock_chat_json.assert_not_called()
-    
+
     # Mock AI enabled, fallback successful
     mock_is_enabled.return_value = True
     mock_chat_json.return_value = {
@@ -282,7 +282,7 @@ def test_parse_transaction_gemini_fallback(mock_chat_json, mock_is_enabled):
         "amount": -999.0,
         "date": "2026-06-18"
     }
-    
+
     result = parse_transaction("mysterious-merchant 999", today)
     assert result["description"] == "Premium Mysterious Merchant"
     assert result["category"] == "Entertainment"
@@ -418,24 +418,24 @@ def test_parse_voice_hindi_script_output():
 
 def test_parser_improvements():
     today = datetime(2026, 6, 19)
-    
+
     # 1. Date with year
     assert _detect_date("zomato on 15 june 2025", today)[0] == "2025-06-15"
     assert _detect_date("zomato on june 15 2025", today)[0] == "2025-06-15"
-    
+
     # 2. Currency prefixes
     res = parse_transaction("rs. 450 for zomato", today)
     assert res["amount"] == -450.0
     assert res["description"] == "Zomato"
-    
+
     res = parse_transaction("₹500 for petrol", today)
     assert res["amount"] == -500.0
     assert res["description"] == "Petrol"
-    
+
     # 3. New category keywords
     res = parse_transaction("driving license fee 300", today)
     assert res["category"] == "Utilities"
-    
+
     res = parse_transaction("bought facewash and soap 150", today)
     assert res["category"] == "Personal Care"
 
@@ -457,13 +457,13 @@ def test_local_ml_fallback_without_spacy_preserves_expense_sign():
 
 def test_parse_transaction_price_derivation():
     today = datetime(2026, 6, 19)
-    
+
     # Test that price is derived from amount/quantity
     result = parse_transaction("2 packet lays 40", today)
     assert result["quantity"] == 2
     assert result["amount"] == -40.0
     assert result["price"] == 20.0  # 40/2 = 20
-    
+
     # Test voice enumeration case where price = total ÷ quantity
     items = parse_voice_input("aaj maine lays k 2 packet liye ek 10 ka ek 20 ka", today)
     assert len(items) == 1
@@ -513,3 +513,17 @@ def test_conversational_trading_description_is_clean():
     assert result["description"] == "Trading"
     assert result["category"] == "Investments"
     assert result["amount"] == -500
+
+
+def test_typed_each_patterns_use_total_and_clean_description():
+    cases = [
+        ("madangles 2 packets of 20 rs each", "Madangles", 2, -40.0),
+        ("2 packets of 20 rs each", "Transaction", 2, -40.0),
+        ("20 each", "Transaction", 1, -20.0),
+        ("3 bottles of 50 each", "Transaction", 3, -150.0),
+    ]
+    for text, description, quantity, amount in cases:
+        result = parse_transaction(text, datetime(2026, 6, 19))
+        assert result["description"] == description
+        assert result["quantity"] == quantity
+        assert result["amount"] == amount
