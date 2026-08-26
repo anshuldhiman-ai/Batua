@@ -193,7 +193,7 @@ async def list_goals():
             if "created_at" in g:
                 goal_data["created_at"] = g["created_at"]
             enriched.append(goal_data)
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             enriched.append(g)
     return enriched
 

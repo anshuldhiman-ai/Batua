@@ -44,7 +44,7 @@ async def list_transactions(
             try:
                 dt = datetime.strptime((t.get("date") or "")[:10], "%Y-%m-%d")
                 hay += " " + dt.strftime("%d %b %Y %B %A").lower()
-            except Exception:
+            except (ValueError, TypeError):
                 pass
             return s in hay
 
@@ -124,7 +124,7 @@ async def create_recurring(payload: RecurringCreate):
             last = calendar.monthrange(y, m)[1]
             day = min(max(payload.day, 1), last)
             date_str = f"{y:04d}-{m:02d}-{day:02d}"
-        except Exception:
+        except (ValueError, TypeError, IndexError):
             invalid += 1
             continue
         txn = Transaction(

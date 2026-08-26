@@ -107,9 +107,11 @@ _MODEL_MAP = {
 }
 
 
-# --------------------------------------------------------------------------- #
-# Helper to convert between DB instances and standard dicts
-# --------------------------------------------------------------------------- #
+def _get_model_class(collection: str) -> Any:
+    if collection not in _MODEL_MAP:
+        raise ValueError(f"Unknown collection '{collection}'. Registered collections are: {list(_MODEL_MAP.keys())}")
+    return _MODEL_MAP[collection]
+
 
 def _to_dict(obj: Any, collection: str) -> Dict[str, Any]:
     if obj is None:
@@ -117,7 +119,7 @@ def _to_dict(obj: Any, collection: str) -> Dict[str, Any]:
     if collection in {"sessions", "chat_sessions"}:
         try:
             data_dict = json.loads(obj.data or "{}")
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             data_dict = {}
         return {"id": obj.id, **data_dict}
     
@@ -129,7 +131,7 @@ def _to_dict(obj: Any, collection: str) -> Dict[str, Any]:
 
 
 def _to_model(doc: Dict[str, Any], collection: str) -> Any:
-    model_class = _MODEL_MAP[collection]
+    model_class = _get_model_class(collection)
     clean_doc = {k: v for k, v in doc.items() if v is not None}
     
     if collection in {"sessions", "chat_sessions"}:
@@ -192,7 +194,7 @@ class SQLiteStorage:
 
     async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with AsyncSession(self._engine) as session:
             statement = select(model_class)
@@ -208,7 +210,7 @@ class SQLiteStorage:
 
     async def get(self, collection: str, _id: str) -> Optional[dict]:
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with AsyncSession(self._engine) as session:
             db_obj = await session.get(model_class, _id)
@@ -253,7 +255,7 @@ class SQLiteStorage:
         if not ids:
             return set()
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with AsyncSession(self._engine) as session:
             statement = select(model_class.id).where(model_class.id.in_(ids))
@@ -262,7 +264,7 @@ class SQLiteStorage:
 
     async def update(self, collection: str, _id: str, patch: dict) -> Optional[dict]:
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with self._lock:
             async with AsyncSession(self._engine) as session:
@@ -286,7 +288,7 @@ class SQLiteStorage:
 
     async def delete(self, collection: str, _id: str) -> bool:
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with self._lock:
             async with AsyncSession(self._engine) as session:
@@ -301,7 +303,7 @@ class SQLiteStorage:
         if not ids:
             return 0
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with self._lock:
             async with AsyncSession(self._engine) as session:
@@ -317,7 +319,7 @@ class SQLiteStorage:
 
     async def clear(self, collection: str) -> int:
         await self._ensure_db()
-        model_class = _MODEL_MAP[collection]
+        model_class = _get_model_class(collection)
         
         async with self._lock:
             async with AsyncSession(self._engine) as session:
@@ -351,6 +353,7 @@ class MongoStorage:
         """Create indexes for better query performance."""
         if self._indexes_created:
             return
+        import pymongo.errors
         
         try:
             # Create indexes for transactions collection
@@ -359,7 +362,7 @@ class MongoStorage:
             await self._db.transactions.create_index([("id", 1)], unique=True)
             self._indexes_created = True
             logger.info("MongoDB indexes created")
-        except Exception as exc:
+        except (pymongo.errors.OperationFailure, pymongo.errors.ServerSelectionTimeoutError) as exc:
             logger.warning(f"Failed to create MongoDB indexes: {exc}")
 
     async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
@@ -441,12 +444,13 @@ async def create_storage() -> tuple[object, str]:
     db_name = os.environ.get("DB_NAME", "batua")
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
+        import pymongo.errors
 
         client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=1500)
         await client.admin.command("ping")
         logger.info("Using MongoDB backend (%s / %s)", mongo_url, db_name)
         return MongoStorage(client, client[db_name]), "mongodb"
-    except Exception as exc:
+    except (pymongo.errors.PyMongoError, OSError, asyncio.TimeoutError) as exc:
         sqlite_path = Path(__file__).parent / "data" / "store.db"
         logger.warning(
             "MongoDB unavailable (%s). Falling back to SQLite SQLModel store at %s",

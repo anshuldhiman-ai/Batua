@@ -398,7 +398,7 @@ def _llama_insights(metrics: dict, timeline: list, cats: list) -> list[str] | No
             text = text[start : end + 1]
         parsed = json.loads(text)
         lines = parsed.get("insights")
-    except Exception as e:
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
         logger.warning(f"Failed to parse JSON from Llama response: {e}")
         # If JSON parsing fails, try to split by newlines and clean up
         lines = []
@@ -499,7 +499,7 @@ def _mixed_insights(metrics: dict, timeline: list, cats: list, rule_insights: li
             text = text[start : end + 1]
         parsed = json.loads(text)
         lines = parsed.get("insights")
-    except Exception as e:
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
         logger.warning(f"Mixed mode: Failed to parse JSON: {e}")
         # If JSON parsing fails, try to split by newlines
         lines = []
@@ -555,7 +555,7 @@ def _rule_based_insights(metrics: dict, cats: list, txns: list) -> list[str]:
             y, m = current_month.split("-")
             from datetime import datetime
             month_label = datetime(int(y), int(m), 1).strftime("%B %Y")
-        except Exception:
+        except (ValueError, TypeError):
             month_label = current_month
     else:
         # Fallback: calculate from actual transactions if current_month is missing
@@ -567,9 +567,9 @@ def _rule_based_insights(metrics: dict, cats: list, txns: list) -> list[str]:
                 y, m = current_month.split("-")
                 from datetime import datetime
                 month_label = datetime(int(y), int(m), 1).strftime("%B %Y")
-            except Exception:
+            except (ValueError, TypeError):
                 month_label = current_month
-    
+
     # Focus on 3 key insights: savings, top category, trend
     sr = metrics.get("savings_rate", 0)
     if sr >= 20:

@@ -2,17 +2,11 @@
 from fastapi import APIRouter
 from collections import defaultdict
 from datetime import datetime
-from app.helpers import month_key, _shift_month, _pct_change
+from app.helpers import month_key, _shift_month, _pct_change, get_all_txns
 from app.dependencies import get_storage
 from app.cache import get_cache, pre_bucket_transactions
 
 router = APIRouter()
-
-
-async def get_all_txns():
-    """Helper to get all transactions."""
-    storage = get_storage()
-    return await storage.all("transactions")
 
 
 @router.get("/metrics")

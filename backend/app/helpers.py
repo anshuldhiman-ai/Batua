@@ -9,10 +9,17 @@ def month_key(date_str: str) -> str:
     return (date_str or "")[:7]  # YYYY-MM
 
 
+async def get_all_txns() -> list[dict]:
+    """Shared helper to fetch all transactions using global storage dependency."""
+    from app.dependencies import get_storage
+    storage = get_storage()
+    return await storage.all("transactions")
+
+
 def _weekday_of(txn: dict) -> int:
     try:
         return datetime.strptime(txn["date"], "%Y-%m-%d").weekday()
-    except Exception:
+    except (ValueError, TypeError, KeyError):
         return 0
 
 
@@ -43,7 +50,7 @@ def _hour_of(txn: dict) -> int:
     if "T" in date_str or (len(date_str) > 10 and " " in date_str):
         try:
             return datetime.fromisoformat(date_str.replace("Z", "+00:00")).hour % 24
-        except Exception:
+        except (ValueError, TypeError):
             pass
 
     created = txn.get("created_at", "")
@@ -52,7 +59,7 @@ def _hour_of(txn: dict) -> int:
         td = datetime.strptime(date_str[:10], "%Y-%m-%d").date()
         if ca.date() == td:
             return ca.hour % 24
-    except Exception:
+    except (ValueError, TypeError):
         pass
 
     cat = txn.get("category", "Other")
@@ -86,7 +93,7 @@ def _valid_date(date_str: str) -> bool:
         datetime.strptime(date_str, "%Y-%m-%d")
         y = int(date_str[:4])
         return 1900 <= y <= 2100
-    except Exception:
+    except (ValueError, TypeError, IndexError):
         return False
 
 

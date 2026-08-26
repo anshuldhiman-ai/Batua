@@ -229,7 +229,7 @@ def _to_date(raw, default: datetime, dayfirst: bool = True) -> datetime | None:
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):
         try:
             return (pd.Timestamp("1899-12-30") + pd.to_timedelta(float(raw), "D")).to_pydatetime()
-        except Exception:
+        except (ValueError, TypeError, OverflowError):
             return None
 
     s = str(raw).strip()
@@ -238,7 +238,7 @@ def _to_date(raw, default: datetime, dayfirst: bool = True) -> datetime | None:
     if re.fullmatch(r"\d{5,6}(?:\.\d+)?", s):  # excel serial as text
         try:
             return (pd.Timestamp("1899-12-30") + pd.to_timedelta(float(s), "D")).to_pydatetime()
-        except Exception:
+        except (ValueError, TypeError, OverflowError):
             pass
 
     formats = _DATE_FORMATS if dayfirst else _DATE_FORMATS_MONTHFIRST
@@ -252,7 +252,7 @@ def _to_date(raw, default: datetime, dayfirst: bool = True) -> datetime | None:
             continue
     try:
         return dateparser.parse(s, dayfirst=dayfirst)
-    except Exception:
+    except (ValueError, TypeError, OverflowError):
         return None
 
 
@@ -294,7 +294,7 @@ def _filetype(content: bytes, filename: str) -> str:
     try:
         content[:4000].decode("utf-8")
         return "csv"
-    except Exception:
+    except (UnicodeDecodeError, AttributeError):
         return "xlsx"
 
 
@@ -588,7 +588,7 @@ def _parse_stacked(df: pd.DataFrame) -> list[dict]:
                         qty_val = int(m.group(0))
                         if qty_val > 0:
                             qty = qty_val
-            except Exception:
+            except (ValueError, TypeError, IndexError):
                 pass
 
         # Per-item price: taken exactly from the sheet's Price cell — a clean
@@ -721,7 +721,7 @@ def _parse_tabular(df: pd.DataFrame, use_ai: bool, custom_mapping: dict = None) 
                         qty_val = int(m.group(0))
                         if qty_val > 0:
                             qty = qty_val
-            except Exception:
+            except (ValueError, TypeError, IndexError):
                 pass
 
         unit_price = None

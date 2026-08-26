@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
+from pydantic import ValidationError
+
 from app.dependencies import get_storage
 from app.cache import invalidate_analytics_cache
 from app.models import Budget, Transaction, Goal, PersonEntry
@@ -53,23 +55,39 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
     for row in payload.transactions:
         try:
             txns.append(Transaction(**row).model_dump())
-        except Exception:
+        except ValidationError:
             skipped += 1
+            logger.warning("Backup row rejected for transactions: %s", row.get("id", "<no-id>"))
+        except (TypeError, ValueError) as exc:
+            skipped += 1
+            logger.warning("Backup row bad shape for transactions: %s", exc)
     for row in payload.budgets:
         try:
             budgets.append(Budget(**row).model_dump())
-        except Exception:
+        except ValidationError:
             skipped += 1
+            logger.warning("Backup row rejected for budgets: %s", row.get("id", "<no-id>"))
+        except (TypeError, ValueError) as exc:
+            skipped += 1
+            logger.warning("Backup row bad shape for budgets: %s", exc)
     for row in payload.goals:
         try:
             goals.append(Goal(**row).model_dump())
-        except Exception:
+        except ValidationError:
             skipped += 1
+            logger.warning("Backup row rejected for goals: %s", row.get("id", "<no-id>"))
+        except (TypeError, ValueError) as exc:
+            skipped += 1
+            logger.warning("Backup row bad shape for goals: %s", exc)
     for row in payload.people:
         try:
             people.append(PersonEntry(**row).model_dump())
-        except Exception:
+        except ValidationError:
             skipped += 1
+            logger.warning("Backup row rejected for people: %s", row.get("id", "<no-id>"))
+        except (TypeError, ValueError) as exc:
+            skipped += 1
+            logger.warning("Backup row bad shape for people: %s", exc)
     for row in payload.custom_categories:
         name = str(row.get("name", "")).strip() if isinstance(row, dict) else ""
         if name:
@@ -106,7 +124,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
                 await storage.insert_many(collection, rows)
                 if collection not in touched:
                     touched.append(collection)
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, KeyError) as exc:
         logger.error("Restore failed; rolling back %s", touched or "nothing", exc_info=True)
         # Roll back defensively: whatever broke the restore may well break the
         # rollback too, and one bad collection must not abort the rest.
@@ -116,7 +134,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
                 await storage.clear(collection)
                 if previous[collection]:
                     await storage.insert_many(collection, previous[collection])
-            except Exception:
+            except (RuntimeError, ValueError, TypeError, KeyError):
                 logger.critical("Rollback failed for %r — data may be lost", collection, exc_info=True)
                 unrecovered.append(collection)
         invalidate_analytics_cache()

@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from parser import CATEGORIES, PAYMENT_METHODS
 from app.dependencies import get_storage
+from app.helpers import get_all_txns
 from app.cache import invalidate_analytics_cache
 
 router = APIRouter()
@@ -24,12 +25,6 @@ class CategoryDelete(BaseModel):
     reassign_to: str
 
 
-async def get_all_txns():
-    """Helper to get all transactions."""
-    storage = get_storage()
-    return await storage.all("transactions")
-
-
 @router.get("/")
 async def categories():
     """Get all categories (default + custom + used)."""
@@ -42,7 +37,7 @@ async def categories():
     try:
         custom = await storage.all("custom_categories")
         custom_cats = [c.get("name") for c in custom if c.get("name")]
-    except Exception:
+    except (RuntimeError, ValueError, KeyError):
         pass
     
     allc = list(dict.fromkeys(DEFAULT_CATEGORIES + sorted(custom_cats) + sorted(used)))
@@ -76,7 +71,9 @@ async def add_category(payload: CategoryCreate):
         existing = await storage.all("custom_categories")
         if any(c.get("name") == name for c in existing):
             raise HTTPException(400, f"Category '{name}' already exists")
-    except Exception:
+    except HTTPException:
+        raise
+    except (RuntimeError, ValueError, KeyError):
         pass
     
     # Add custom category
@@ -113,11 +110,11 @@ async def rename_category(payload: CategoryRename):
         cat_to_update = next((c for c in custom if c.get("name") == old_name), None)
         if not cat_to_update:
             raise HTTPException(404, f"Custom category '{old_name}' not found")
-        
+
         await storage.update("custom_categories", cat_to_update["id"], {"name": new_name})
     except HTTPException:
         raise
-    except Exception:
+    except (RuntimeError, ValueError, KeyError):
         raise HTTPException(404, f"Custom category '{old_name}' not found")
     
     # Update all transactions with this category
@@ -155,11 +152,11 @@ async def delete_category(payload: CategoryDelete):
         cat_to_delete = next((c for c in custom if c.get("name") == name), None)
         if not cat_to_delete:
             raise HTTPException(404, f"Custom category '{name}' not found")
-        
+
         await storage.delete("custom_categories", cat_to_delete["id"])
     except HTTPException:
         raise
-    except Exception:
+    except (RuntimeError, ValueError, KeyError):
         raise HTTPException(404, f"Custom category '{name}' not found")
     
     # Reassign all transactions with this category
