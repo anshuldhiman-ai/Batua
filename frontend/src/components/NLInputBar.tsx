@@ -52,7 +52,6 @@ export default function NLInputBar({ onSaved }) {
   const [bulkText, setBulkText] = React.useState("");
   const [parsing, setParsing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [focused, setFocused] = React.useState(false);
   const [draft, setDraft] = React.useState(null);
   const [bulkDrafts, setBulkDrafts] = React.useState(null);
   const [categories, setCategories] = React.useState(FALLBACK_CATEGORIES);
@@ -324,8 +323,6 @@ export default function NLInputBar({ onSaved }) {
               onAudioResult={transcribeAudio}
               parsing={parsing}
               placeholder='e.g. "zomato 450 yesterday upi"'
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
             />
             <ExampleChips examples={SINGLE_EXAMPLES} onPick={setText} />
           </TabsContent>
@@ -339,8 +336,6 @@ export default function NLInputBar({ onSaved }) {
               onAudioResult={transcribeAudio}
               parsing={parsing}
               placeholder='e.g. "salary +5k on 1st every month"'
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
             />
             <ExampleChips examples={RECURRING_EXAMPLES} onPick={setText} />
             <p className="mt-2 text-xs text-muted-foreground">
@@ -353,8 +348,6 @@ export default function NLInputBar({ onSaved }) {
               data-testid="nl-bulk-input"
               value={bulkText}
               onChange={(e) => setBulkText(e.target.value)}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
               placeholder={BULK_PLACEHOLDER}
               rows={5}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -396,7 +389,7 @@ export default function NLInputBar({ onSaved }) {
   );
 }
 
-function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, parsing, placeholder, onFocus, onBlur }) {
+function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, parsing, placeholder, onFocus = () => {}, onBlur = () => {} }) {
   const [recording, setRecording] = React.useState(false);
   const [supported, setSupported] = React.useState(true);
   const [interim, setInterim] = React.useState("");
