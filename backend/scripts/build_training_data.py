@@ -546,42 +546,55 @@ EXTRA_SAMPLES: dict[str, list[str]] = {
 PREFIXES = ["", "upi ", "paid ", "payment ", "txn ", "debited ", "spent on ", "purchase "]
 SUFFIXES = ["", " bill", " payment", " order", " purchase", " via upi", " online"]
 
+# Pre-compute all prefix-suffix combinations to avoid nested loops
+PREFIX_SUFFIX_COMBOS = [(p, s) for p in PREFIXES for s in SUFFIXES]
+
 
 def _variants(phrase: str) -> list[str]:
     base = phrase.lower().strip()
-    out = {base}
-    for pre in PREFIXES:
-        for suf in SUFFIXES:
-            v = f"{pre}{base}{suf}".strip()
-            if len(v) >= 3:
-                out.add(v)
-    return list(out)
+    if not base:
+        return []
+    
+    # Use list comprehension with set for deduplication - faster than set conversion
+    seen = {base}
+    variants = [base]
+    
+    for pre, suf in PREFIX_SUFFIX_COMBOS:
+        v = f"{pre}{base}{suf}".strip()
+        if len(v) >= 3 and v not in seen:
+            seen.add(v)
+            variants.append(v)
+    
+    return variants
 
 
 def build() -> list[dict]:
     seen: set[str] = set()
     samples: list[dict] = []
+    by_cat: dict[str, int] = {}
 
-    def add(desc: str, category: str) -> None:
-        key = desc.lower().strip()
-        if not key or key in seen:
-            return
-        seen.add(key)
-        samples.append({"description": key, "category": category})
-
+    # Process TRAINING_DATA_FALLBACK
     for desc, cat in TRAINING_DATA_FALLBACK:
-        add(desc, cat)
+        key = desc.lower().strip()
+        if key and key not in seen:
+            seen.add(key)
+            samples.append({"description": key, "category": cat})
+            by_cat[cat] = by_cat.get(cat, 0) + 1
 
+    # Process EXTRA_SAMPLES with variants
     for category, phrases in EXTRA_SAMPLES.items():
         for phrase in phrases:
             for variant in _variants(phrase):
-                add(variant, category)
+                if variant not in seen:
+                    seen.add(variant)
+                    samples.append({"description": variant, "category": category})
+                    by_cat[category] = by_cat.get(category, 0) + 1
 
-    return samples
+    return samples, by_cat
 
 
 def main() -> None:
-    samples = build()
+    samples, by_cat = build()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "version": 2,
@@ -590,9 +603,6 @@ def main() -> None:
         "samples": samples,
     }
     OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    by_cat: dict[str, int] = {}
-    for s in samples:
-        by_cat[s["category"]] = by_cat.get(s["category"], 0) + 1
     print(f"Wrote {len(samples)} samples to {OUT}")
     for cat, n in sorted(by_cat.items(), key=lambda x: -x[1]):
         print(f"  {cat}: {n}")
