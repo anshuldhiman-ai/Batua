@@ -550,12 +550,11 @@ SUFFIXES = ["", " bill", " payment", " order", " purchase", " via upi", " online
 PREFIX_SUFFIX_COMBOS = [(p, s) for p in PREFIXES for s in SUFFIXES]
 
 
-def _variants(phrase: str) -> list[str]:
-    base = phrase.lower().strip()
+def _variants(base: str) -> list[str]:
+    """Generate variants from pre-lowercased/stripped base phrase."""
     if not base:
         return []
     
-    # Use list comprehension with set for deduplication - faster than set conversion
     seen = {base}
     variants = [base]
     
@@ -581,10 +580,11 @@ def build() -> list[dict]:
             samples.append({"description": key, "category": cat})
             by_cat[cat] = by_cat.get(cat, 0) + 1
 
-    # Process EXTRA_SAMPLES with variants
+    # Process EXTRA_SAMPLES with variants - pre-normalize phrases once
     for category, phrases in EXTRA_SAMPLES.items():
-        for phrase in phrases:
-            for variant in _variants(phrase):
+        normalized_phrases = [p.lower().strip() for p in phrases if p.strip()]
+        for base in normalized_phrases:
+            for variant in _variants(base):
                 if variant not in seen:
                     seen.add(variant)
                     samples.append({"description": variant, "category": category})
