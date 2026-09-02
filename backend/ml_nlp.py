@@ -1820,11 +1820,12 @@ class TransactionClassifier:
         merged: List[Tuple[str, str]] = []
 
         def add(desc: str, cat: str) -> None:
-            key = desc.lower().strip()
-            if not key or key in seen or cat == "Other":
+            if cat == "Other":
                 return
-            seen.add(key)
-            merged.append((key, cat))
+            key = desc.lower().strip()
+            if key and key not in seen:
+                seen.add(key)
+                merged.append((key, cat))
 
         for desc, cat in self._load_training_data_from_json():
             add(desc, cat)

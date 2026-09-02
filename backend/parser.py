@@ -336,6 +336,37 @@ _SPOKEN_AMPM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Pre-compiled regex patterns for performance optimization
+_INCOME_WORDS_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in INCOME_WORDS) + r")\b", re.IGNORECASE)
+
+_DATE_WORDS_RE = {
+    "today": re.compile(r"\btoday\b", re.IGNORECASE),
+    "yesterday": re.compile(r"\byesterday\b", re.IGNORECASE),
+    "tomorrow": re.compile(r"\btomorrow\b", re.IGNORECASE),
+}
+
+# Pre-sorted replacements for _normalise_spoken_text
+_SPOKEN_DEVANAGARI_REPLACEMENTS_SORTED = sorted(
+    _SPOKEN_DEVANAGARI_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True
+)
+
+_SPOKEN_NUMBER_WORDS_SORTED = sorted(
+    _SPOKEN_NUMBER_WORDS.items(), key=lambda item: len(item[0]), reverse=True
+)
+
+# Pre-compiled filler pattern
+_SPOKEN_FILLER_WORDS_SORTED = sorted(_SPOKEN_FILLER_WORDS, key=len, reverse=True)
+_FILLER_PATTERN = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _SPOKEN_FILLER_WORDS_SORTED) + r")\b",
+    re.IGNORECASE
+)
+
+# Pre-compiled payment method patterns
+_PAYMENT_METHOD_PATTERNS = {
+    method: [re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE) for kw in keywords]
+    for method, keywords in PAYMENT_METHODS.items()
+}
+
 
 def _remove(text: str, start: int, end: int) -> str:
     return (text[:start] + " " + text[end:])
@@ -349,9 +380,7 @@ def _normalise_spoken_text(text: str) -> str:
     an external transcription service.
     """
     out = text.strip()
-    for source, target in sorted(
-        _SPOKEN_DEVANAGARI_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True
-    ):
+    for source, target in _SPOKEN_DEVANAGARI_REPLACEMENTS_SORTED:
         out = out.replace(source, f" {target} ")
     out = out.lower()
     replacements = {
@@ -365,7 +394,7 @@ def _normalise_spoken_text(text: str) -> str:
     }
     for pattern, target in replacements.items():
         out = re.sub(pattern, target, out, flags=re.IGNORECASE)
-    for word, number in sorted(_SPOKEN_NUMBER_WORDS.items(), key=lambda item: len(item[0]), reverse=True):
+    for word, number in _SPOKEN_NUMBER_WORDS_SORTED:
         out = re.sub(r"\b" + re.escape(word) + r"\b", number, out, flags=re.IGNORECASE)
     # A comma between items ("chai 10, samosa 15") separates transactions, but a
     # comma inside a number ("50,000") does not. Convert only the former.
@@ -424,8 +453,7 @@ def _extract_spoken_time(text: str) -> tuple[str, list[str]]:
 def _strip_spoken_fillers(text: str) -> str:
     if not text:
         return text
-    filler_pattern = r"\b(?:" + "|".join(re.escape(w) for w in sorted(_SPOKEN_FILLER_WORDS, key=len, reverse=True)) + r")\b"
-    text = re.sub(filler_pattern, " ", text, flags=re.IGNORECASE)
+    text = _FILLER_PATTERN.sub(" ", text)
     text = re.sub(r"\b(?:ka|ke|ki)\s+(?=\d+\b)", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\s{2,}", " ", text)
     return text.strip()
@@ -433,10 +461,9 @@ def _strip_spoken_fillers(text: str) -> str:
 
 def _detect_payment(text: str) -> tuple[str, str]:
     lower = text.lower()
-    for method, keywords in PAYMENT_METHODS.items():
-        for kw in keywords:
-            pattern = r"\b" + re.escape(kw) + r"\b"
-            m = re.search(pattern, lower)
+    for method, patterns in _PAYMENT_METHOD_PATTERNS.items():
+        for pattern in patterns:
+            m = pattern.search(lower)
             if m:
                 text = _remove(text, m.start(), m.end())
                 return method, text
@@ -557,9 +584,9 @@ def _detect_date(text: str, today: datetime) -> tuple[str, str]:
     def fmt(d: datetime) -> str:
         return d.strftime("%Y-%m-%d")
 
-    # today / yesterday / tomorrow
+    # today / yesterday / tomorrow - use pre-compiled patterns
     for word, delta in (("today", 0), ("yesterday", -1), ("tomorrow", 1)):
-        m = re.search(r"\b" + word + r"\b", lower)
+        m = _DATE_WORDS_RE[word].search(lower)
         if m:
             return fmt(today + timedelta(days=delta)), _remove(text, m.start(), m.end())
 
@@ -685,9 +712,7 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
 
     # Sign logic: explicit + OR income signal word -> positive, else negative.
     lower = original.lower()
-    income_signal = any(
-        re.search(r"\b" + re.escape(w) + r"\b", lower) for w in INCOME_WORDS
-    )
+    income_signal = bool(_INCOME_WORDS_RE.search(lower))
     is_income = explicit_pos or income_signal or category == "Income"
 
     amount = 0.0 if amount_abs is None else amount_abs
