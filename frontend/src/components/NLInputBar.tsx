@@ -14,6 +14,62 @@ import { api, formatINR, upcomingMonths, currentYearMonth, priceBreakdown } from
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { cn } from "@/lib/utils";
 
+// Type declarations for browser APIs not in standard TypeScript lib
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message?: string;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: {
+      new (): SpeechRecognition;
+    };
+    webkitSpeechRecognition?: {
+      new (): SpeechRecognition;
+    };
+    AudioContext?: typeof AudioContext;
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 const SINGLE_EXAMPLES = [
   "zomato 450 yesterday upi",
   "salary +85000 5th may",
@@ -414,9 +470,10 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   const visualAnimationFrameRef = React.useRef(null);
   const visualStreamRef = React.useRef(null);
 
-  const startAudioAnalysis = (stream) => {
+  const startAudioAnalysis = (stream: MediaStream) => {
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
       const audioContext = new AudioContextClass();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -471,7 +528,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   const [whisperAvailable, setWhisperAvailable] = React.useState(false);
 
   React.useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
     const hasRecorder =
       typeof window.MediaRecorder !== "undefined" &&
       !!navigator.mediaDevices?.getUserMedia;
@@ -490,10 +547,10 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
         }
       }
       if (cancelled) return;
-      
+
       setWhisperAvailable(backendReady);
-      
-      if (SpeechRecognition) {
+
+      if (SpeechRecognitionClass) {
         setSttMode("browser");
         setSupported(true);
       } else if (backendReady) {
@@ -575,8 +632,12 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   };
 
   const beginRecognition = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionClass) {
+      toast.error("Speech recognition not supported in this browser");
+      return;
+    }
+    const recognition = new SpeechRecognitionClass();
     recognitionRef.current = recognition;
     // Continuous mode lets users speak a full voice note with multiple
     // transactions. maxAlternatives=1 keeps the audio round-trips minimal,
