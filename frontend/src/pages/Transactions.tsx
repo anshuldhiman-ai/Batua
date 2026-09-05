@@ -649,7 +649,7 @@ export default function Transactions() {
                 onChange={(e) => setCategory(e.target.value)}
                 className={selectClass}
               >
-                <option value="All">All categories</option>
+                <option value="All">ALL CATEGORIES</option>
                 {categories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -659,21 +659,21 @@ export default function Transactions() {
                 onChange={(e) => setTransactionTypeFilter(e.target.value)}
                 className={selectClass}
               >
-                <option value="All">All types</option>
-                <option value="credit">Credit</option>
-                <option value="debit">Debit</option>
+                <option value="All">ALL TYPES</option>
+                <option value="credit">CREDIT</option>
+                <option value="debit">DEBIT</option>
               </select>
               <select
                 value={paymentMethodFilter}
                 onChange={(e) => setPaymentMethodFilter(e.target.value)}
                 className={selectClass}
               >
-                <option value="All">All payment methods</option>
+                <option value="All">ALL PAYMENT METHODS</option>
                 <option value="UPI">UPI</option>
-                <option value="Cash">Cash</option>
-                <option value="Card">Card</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Other">Other</option>
+                <option value="Cash">CASH</option>
+                <option value="Card">CARD</option>
+                <option value="Bank Transfer">BANK TRANSFER</option>
+                <option value="Other">OTHER</option>
               </select>
             </div>
 

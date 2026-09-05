@@ -95,17 +95,22 @@
      vanishes against dark cards. color-scheme: dark makes the whole control
      (icon + popup calendar) follow the dark theme; the WebKit rule is a
      belt-and-braces inversion for engines that ignore color-scheme here. */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    filter: brightness(0.6);
+  }
   .dark input[type="date"] {
     color-scheme: dark;
   }
   .dark input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+    filter: invert(1) brightness(1.2);
     cursor: pointer;
     opacity: 0.8;
   }
   /* Ensure selected date in calendar picker is visible in dark mode */
   .dark ::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+    filter: invert(1) brightness(1.2);
   }
   /* Force the calendar popup to respect dark mode for selected date highlight */
   input[type="date"]::-webkit-datetime-edit {
