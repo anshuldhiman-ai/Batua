@@ -138,14 +138,6 @@ export default function MLInsights() {
     loadData();
   }, [loadData]);
 
-  // Refetch when the tab regains focus so transactions added on the
-  // Transactions page (or in another tab) show up without a manual reload.
-  useEffect(() => {
-    const onFocus = () => loadData();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [loadData]);
-
   if (loading) {
     return (
       <div className="space-y-6">
