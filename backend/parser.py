@@ -7,11 +7,15 @@ leftover becomes a clean description.
 import re
 import ast
 import calendar
+import time
+import logging
 from datetime import datetime, timedelta
 
 
 import ai
 import ml_nlp
+
+logger = logging.getLogger("batua.parser")
 
 # --------------------------------------------------------------------------- #
 # Keyword dictionaries
@@ -696,6 +700,7 @@ def _clean_description(text: str, fallback: str) -> str:
 
 def parse_transaction(text: str, today: datetime | None = None) -> dict:
     """Parse a natural-language string into a transaction dict."""
+    start_time = time.time()
     today = today or datetime.now()
     original = text.strip()
     working = " " + original + " "
@@ -736,9 +741,11 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
 
     # Local ML fallback when regex couldn't classify the category
     if category == "Other":
+        ml_start = time.time()
         ml_category = ml_nlp.classify_transaction(original)
         if ml_category and ml_category != "Other":
             result["category"] = ml_category
+        logger.debug("ML classification took %.3fs for: %s", time.time() - ml_start, original[:50])
 
         ml_result = ml_nlp.parse_transaction_local(original)
         if ml_result:
@@ -760,7 +767,9 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
 
     # Gemini fallback ONLY when local ML also couldn't classify the category
     if result["category"] == "Other" and ai.is_enabled():
+        gemini_start = time.time()
         enriched = _gemini_parse(original, today)
+        logger.debug("Gemini parse took %.3fs for: %s", time.time() - gemini_start, original[:50])
         if enriched:
             for key in ("description", "category", "payment_method"):
                 if enriched.get(key) and (key != "description" or not each_enum):
@@ -789,6 +798,13 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
 
     result["txn_type"] = "credit" if result["amount"] >= 0 else "debit"
     _set_unit_price(result)
+    
+    total_time = time.time() - start_time
+    if total_time > 1.0:
+        logger.warning("Slow parse (%.3fs) for: %s", total_time, original[:50])
+    elif total_time > 0.5:
+        logger.debug("Parse took %.3fs for: %s", total_time, original[:50])
+    
     return result
 
 
