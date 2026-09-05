@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Brain,
@@ -38,6 +38,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api, formatINR, formatMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+
+// Global cache to persist data across component unmounts/remounts
+const globalCache = {
+  patterns: null,
+  forecast: null,
+  recs: null,
+  loaded: false,
+};
 
 // Shared across every recharts component on this page. Animations are off so
 // charts render instantly and never "laggy"-replay on data refresh or tab
@@ -79,19 +87,25 @@ const CLUSTER_TIERS = [
 
 export default function MLInsights() {
   const [activeTab, setActiveTab] = useState("patterns");
+  const mountedRef = useRef(true);
 
-  // Data States
-  const [patterns, setPatterns] = useState(null);
-  const [forecast, setForecast] = useState(null);
-  const [recs, setRecs] = useState(null);
+  // Data States - initialize from global cache if available
+  const [patterns, setPatterns] = useState(globalCache.patterns);
+  const [forecast, setForecast] = useState(globalCache.forecast);
+  const [recs, setRecs] = useState(globalCache.recs);
 
   // Loading & Error States
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!globalCache.loaded);
   const [error, setError] = useState(null);
   const [endpointErrors, setEndpointErrors] = useState<any>({});
 
   // Fetch all ML analytics data on mount
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (force = false) => {
+    // If data is already loaded and not forcing a refresh, skip loading
+    if (!force && globalCache.loaded) {
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     setEndpointErrors({});
@@ -105,23 +119,30 @@ export default function MLInsights() {
       const nextErrors: any = {};
       if (patternsRes.status === "fulfilled") {
         setPatterns(patternsRes.value.data);
+        globalCache.patterns = patternsRes.value.data;
       } else {
         setPatterns(null);
+        globalCache.patterns = null;
         nextErrors.patterns = "Spending pattern analysis is unavailable right now.";
       }
       if (forecastRes.status === "fulfilled") {
         setForecast(forecastRes.value.data);
+        globalCache.forecast = forecastRes.value.data;
       } else {
         setForecast(null);
+        globalCache.forecast = null;
         nextErrors.forecast = "Cash-flow forecasting is unavailable right now.";
       }
       if (recsRes.status === "fulfilled") {
         setRecs(recsRes.value.data);
+        globalCache.recs = recsRes.value.data;
       } else {
         setRecs(null);
+        globalCache.recs = null;
         nextErrors.recommendations = "Smart recommendations are unavailable right now.";
       }
       setEndpointErrors(nextErrors);
+      globalCache.loaded = true;
 
       if (patternsRes.status === "rejected" && forecastRes.status === "rejected" && recsRes.status === "rejected") {
         setError("Failed to connect to ML analytics services. Please ensure the backend server is running.");
@@ -190,7 +211,7 @@ export default function MLInsights() {
         title="AI Insights"
         subtitle="Pattern analytics, cash-flow forecasting and saving tips — tap the chat bubble to ask questions about your money"
         actions={
-          <Button variant="outline" size="sm" onClick={loadData} disabled={loading} data-testid="ml-refresh-btn">
+          <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={loading} data-testid="ml-refresh-btn">
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /> Refresh
           </Button>
         }
