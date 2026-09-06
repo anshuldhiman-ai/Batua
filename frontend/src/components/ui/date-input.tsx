@@ -2,6 +2,20 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+interface DateInputProps extends React.ComponentPropsWithoutRef<typeof Input> {
+  value?: string;
+  onChange?: (value: string) => void;
+  max?: string;
+  min?: string;
+  placeholder?: string;
+  onBlur?: () => void;
+}
+
+interface DayInputProps extends React.ComponentPropsWithoutRef<typeof Input> {
+  value?: number;
+  onChange?: (value: number) => void;
+}
+
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Validate YYYY-MM-DD with real calendar bounds (1900–2100). */
@@ -29,50 +43,49 @@ function todayISO() {
  *
  * Dark mode is handled globally in index.css (`input[type="date"]`).
  */
-export const DateInput = React.forwardRef(function DateInput(
-  { className, value, onChange, max, min, placeholder, onBlur, ...props },
-  ref
-) {
-  return (
-    <Input
-      ref={ref}
-      type="date"
-      value={value || ""}
-      min={min || "1900-01-01"}
-      max={max || todayISO()}
-      onChange={(e) => onChange?.(e.target.value)}
-      onBlur={onBlur}
-      className={cn("appearance-none", className)}
-      {...props}
-    />
-  );
-});
+export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
+  function DateInput({ className, value, onChange, max, min, placeholder, onBlur, id, ...props }, ref) {
+    return (
+      <Input
+        ref={ref}
+        id={id}
+        type="date"
+        value={value || ""}
+        min={min || "1900-01-01"}
+        max={max || todayISO()}
+        onChange={(e) => onChange?.(e.target.value)}
+        onBlur={onBlur}
+        className={cn("appearance-none", className)}
+        {...props}
+      />
+    );
+  }
+);
 
 /** Day-of-month 1–31 only. */
-export const DayInput = React.forwardRef(function DayInput(
-  { className, value, onChange, ...props },
-  ref
-) {
-  const handleChange = (e) => {
-    const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
-    if (raw === "") {
-      onChange?.(1);
-      return;
-    }
-    const n = Math.min(31, Math.max(1, parseInt(raw, 10) || 1));
-    onChange?.(n);
-  };
+export const DayInput = React.forwardRef<HTMLInputElement, DayInputProps>(
+  function DayInput({ className, value, onChange, ...props }, ref) {
+    const handleChange = (e) => {
+      const raw = e.target.value.replace(/\D/g, "").slice(0, 2);
+      if (raw === "") {
+        onChange?.(1);
+        return;
+      }
+      const n = Math.min(31, Math.max(1, parseInt(raw, 10) || 1));
+      onChange?.(n);
+    };
 
-  return (
-    <Input
-      ref={ref}
-      type="text"
-      inputMode="numeric"
-      maxLength={2}
-      value={value ?? 1}
-      onChange={handleChange}
-      className={cn(className)}
-      {...props}
-    />
-  );
-});
+    return (
+      <Input
+        ref={ref}
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        value={value ?? 1}
+        onChange={handleChange}
+        className={cn(className)}
+        {...props}
+      />
+    );
+  }
+);
