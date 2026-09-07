@@ -11,6 +11,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -74,12 +75,13 @@ export default function People() {
   const [form, setForm] = React.useState(emptyForm);
   const [expanded, setExpanded] = React.useState({}); // person_name -> bool
   const [deleteTarget, setDeleteTarget] = React.useState(null);
+  const [showSettled, setShowSettled] = React.useState(false);
   const reduce = useReducedMotion();
 
   const reload = React.useCallback(async () => {
     try {
       const [sum, list] = await Promise.all([
-        api.get("/people/summary"),
+        api.get("/people/summary", { params: { include_settled: showSettled } }),
         api.get("/people/"),
       ]);
       setSummary(sum.data);
@@ -90,11 +92,11 @@ export default function People() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showSettled]);
 
   React.useEffect(() => {
     reload();
-  }, [reload]);
+  }, [reload, showSettled]);
 
   const openCreate = () => {
     setEditing(null);
@@ -211,9 +213,20 @@ export default function People() {
         title="People"
         subtitle="Track money you've lent or borrowed — keep tabs on who owes you, and whom you owe"
         actions={
-          <Button onClick={openCreate} data-testid="add-entry-btn">
-            <Plus className="h-4 w-4 mr-2" /> Add Entry
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettled(!showSettled)}
+              data-testid="toggle-settled-btn"
+            >
+              <History className="h-4 w-4 mr-2" />
+              {showSettled ? "Hide Settled" : "Show Settled"}
+            </Button>
+            <Button onClick={openCreate} data-testid="add-entry-btn">
+              <Plus className="h-4 w-4 mr-2" /> Add Entry
+            </Button>
+          </div>
         }
       />
 

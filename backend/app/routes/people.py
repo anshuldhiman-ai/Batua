@@ -97,7 +97,7 @@ async def create_entry(payload: PersonEntry):
 
 
 @router.get("/summary")
-async def summary():
+async def summary(include_settled: bool = False):
     """Aggregate per-person net balance.
 
     Per-person net = sum(gave) - sum(took) over OPEN entries only. Settling
@@ -113,12 +113,16 @@ async def summary():
     200 back) only contributes 300 to one side, never 500+200 spread
     across both.
 
+    Args:
+        include_settled: If True, include people whose every entry is settled.
+
     Returns:
         totals:  { to_receive, to_give, net } from per-person nets
         people:  list of { person_name, net, open_count, entries } for
-                 people with at least one OPEN entry. People whose every
-                 entry is settled disappear (but stay in `names` so the
-                 add-entry autocomplete can still suggest them).
+                 people with at least one OPEN entry (or all people if
+                 include_settled=True). People whose every entry is settled
+                 disappear (but stay in `names` so the add-entry autocomplete
+                 can still suggest them) unless include_settled=True.
         names:   sorted list of every person who ever appeared
     """
     storage = get_storage()
@@ -155,9 +159,10 @@ async def summary():
     people: list[dict] = []
     for name, b in by_person.items():
         net = round(b["gave"] - b["took"], 2)
-        if b["open"] == 0:
+        if b["open"] == 0 and not include_settled:
             # Every entry settled — user has explicitly closed this person.
-            # Keep on `names` (for autocomplete) but don't surface in the list.
+            # Keep on `names` (for autocomplete) but don't surface in the list
+            # unless include_settled is True.
             continue
         people.append(
             {
