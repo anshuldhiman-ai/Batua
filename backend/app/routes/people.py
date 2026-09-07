@@ -97,7 +97,7 @@ async def create_entry(payload: PersonEntry):
 
 
 @router.get("/summary")
-async def summary(include_settled: bool = False):
+async def summary():
     """Aggregate per-person net balance.
 
     Per-person net = sum(gave) - sum(took) over OPEN entries only. Settling
@@ -113,16 +113,12 @@ async def summary(include_settled: bool = False):
     200 back) only contributes 300 to one side, never 500+200 spread
     across both.
 
-    Args:
-        include_settled: If True, include people whose every entry is settled.
-
     Returns:
         totals:  { to_receive, to_give, net } from per-person nets
         people:  list of { person_name, net, open_count, entries } for
-                 people with at least one OPEN entry (or all people if
-                 include_settled=True). People whose every entry is settled
-                 disappear (but stay in `names` so the add-entry autocomplete
-                 can still suggest them) unless include_settled=True.
+                 people with at least one OPEN entry. People whose every
+                 entry is settled disappear (but stay in `names` so the
+                 add-entry autocomplete can still suggest them).
         names:   sorted list of every person who ever appeared
     """
     storage = get_storage()
@@ -159,10 +155,9 @@ async def summary(include_settled: bool = False):
     people: list[dict] = []
     for name, b in by_person.items():
         net = round(b["gave"] - b["took"], 2)
-        if b["open"] == 0 and not include_settled:
+        if b["open"] == 0:
             # Every entry settled — user has explicitly closed this person.
-            # Keep on `names` (for autocomplete) but don't surface in the list
-            # unless include_settled is True.
+            # Keep on `names` (for autocomplete) but don't surface in the list.
             continue
         people.append(
             {
@@ -235,3 +230,104 @@ async def delete_entry(entry_id: str):
     if not ok:
         raise HTTPException(404, "Entry not found")
     return {"deleted": 1}
+
+
+@router.get("/settled")
+async def get_settled():
+    """Return people whose every entry is settled, with full transaction history.
+
+    This endpoint is used for the dedicated Settled view. It returns:
+    - People with zero open entries (all settled)
+    - All their entries (both settled and would-be open)
+    - Settlement metadata (total settled amount, last settlement date)
+
+    Returns:
+        people:  list of { person_name, total_settled, last_settled_date, entries }
+    """
+    storage = get_storage()
+    entries = await storage.all("people")
+
+    by_person: dict[str, dict] = defaultdict(
+        lambda: {"gave": 0.0, "took": 0.0, "open": 0, "entries": [], "last_settled": None}
+    )
+
+    for e in entries:
+        name = (e.get("person_name") or "").strip()
+        if not name:
+            continue
+        direction = (e.get("direction") or "").strip().lower()
+        try:
+            amount = float(e.get("amount") or 0.0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        settled = bool(e.get("settled"))
+        date = e.get("date", "")
+        created_at = e.get("created_at", "")
+
+        bucket = by_person[name]
+        bucket["entries"].append(e)
+        if not settled:
+            bucket["open"] += 1
+        else:
+            # Track the most recent settlement date
+            if not bucket["last_settled"] or date > bucket["last_settled"]:
+                bucket["last_settled"] = date
+
+    settled_people: list[dict] = []
+    for name, b in by_person.items():
+        if b["open"] == 0 and len(b["entries"]) > 0:
+            # Only include people with at least one entry and all settled
+            total_settled = round(b["gave"] + b["took"], 2)
+            settled_people.append(
+                {
+                    "person_name": name,
+                    "total_settled": total_settled,
+                    "last_settled_date": b["last_settled"],
+                    "entries": sorted(
+                        b["entries"],
+                        key=lambda x: (x.get("date", ""), x.get("created_at", "")),
+                        reverse=True,
+                    ),
+                }
+            )
+
+    # Sort by most recent settlement first
+    settled_people.sort(key=lambda p: (p["last_settled_date"] or "", p["person_name"].lower()), reverse=True)
+
+    return {"people": settled_people}
+
+
+@router.post("/settled/{person_name}/restore")
+async def restore_settlement(person_name: str):
+    """Restore a settled person by unmarking all their entries as settled.
+
+    This action brings the person back to the active People view with their
+    original outstanding balance. No data is lost — only the settled flag
+    is toggled.
+
+    Args:
+        person_name: The name of the person to restore
+
+    Returns:
+        updated: Count of entries that were restored
+    """
+    storage = get_storage()
+    entries = await storage.all("people")
+
+    # Find all entries for this person that are settled
+    to_restore = []
+    for e in entries:
+        if (e.get("person_name") or "").strip().lower() == person_name.strip().lower():
+            if bool(e.get("settled")):
+                to_restore.append(e.get("id"))
+
+    if not to_restore:
+        raise HTTPException(404, "No settled entries found for this person")
+
+    # Unmark all settled entries
+    updated_count = 0
+    for entry_id in to_restore:
+        await storage.update("people", entry_id, {"settled": False})
+        updated_count += 1
+
+    return {"restored": updated_count}
