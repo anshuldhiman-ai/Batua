@@ -81,6 +81,8 @@ export default function People() {
   const [viewMode, setViewMode] = React.useState("active"); // "active" | "settled"
   const [settledPeople, setSettledPeople] = React.useState([]);
   const [restoreTarget, setRestoreTarget] = React.useState(null);
+  const [hoveredPerson, setHoveredPerson] = React.useState(null);
+  const [lockedPerson, setLockedPerson] = React.useState(null);
   const reduce = useReducedMotion();
 
   const reload = React.useCallback(async () => {
@@ -226,6 +228,22 @@ export default function People() {
 
   const togglePerson = (name) => {
     setExpanded((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
+
+  const handleSettledCardClick = (personName) => {
+    if (lockedPerson === personName) {
+      setLockedPerson(null);
+    } else {
+      setLockedPerson(personName);
+    }
+  };
+
+  const handleSettledCardHover = (personName) => {
+    setHoveredPerson(personName);
+  };
+
+  const handleSettledCardLeave = () => {
+    setHoveredPerson(null);
   };
 
   if (loading) {
@@ -538,41 +556,40 @@ export default function People() {
           ) : (
             <div className="space-y-3">
               {settledPeople.map((person) => {
-                const isOpen = !!expanded[person.person_name];
+                const isOpen = hoveredPerson === person.person_name || lockedPerson === person.person_name;
                 return (
-                  <Card key={person.person_name}>
-                    <button
-                      type="button"
-                      onClick={() => togglePerson(person.person_name)}
-                      className="w-full text-left"
-                      data-testid={`settled-toggle-${person.person_name}`}
-                    >
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-9 w-9 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-sm font-semibold shrink-0">
-                              {person.person_name.slice(0, 1).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <CardTitle className="text-base truncate">{person.person_name}</CardTitle>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {person.entries.length} {person.entries.length === 1 ? "entry" : "entries"} · Settled
-                              </p>
-                            </div>
+                  <Card
+                    key={person.person_name}
+                    onMouseEnter={() => handleSettledCardHover(person.person_name)}
+                    onMouseLeave={handleSettledCardLeave}
+                    onClick={() => handleSettledCardClick(person.person_name)}
+                    data-testid={`settled-card-${person.person_name}`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-9 w-9 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-sm font-semibold shrink-0">
+                            {person.person_name.slice(0, 1).toUpperCase()}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="secondary" className="text-xs">
-                              {formatINR(person.total_settled)}
-                            </Badge>
-                            {isOpen ? (
-                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            )}
+                          <div className="min-w-0">
+                            <CardTitle className="text-base truncate">{person.person_name}</CardTitle>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {person.entries.length} {person.entries.length === 1 ? "entry" : "entries"} · Settled
+                            </p>
                           </div>
                         </div>
-                      </CardHeader>
-                    </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="secondary" className="text-xs">
+                            {formatINR(person.total_settled)}
+                          </Badge>
+                          {isOpen ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
 
                     <AnimatePresence initial={false}>
                       {isOpen && (
@@ -635,7 +652,10 @@ export default function People() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setRestoreTarget(person)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRestoreTarget(person);
+                                }}
                                 data-testid={`restore-${person.person_name}`}
                               >
                                 <RotateCcw className="h-4 w-4 mr-2" />
