@@ -80,7 +80,6 @@ export default function People() {
   const [deleteTarget, setDeleteTarget] = React.useState(null);
   const [viewMode, setViewMode] = React.useState("active"); // "active" | "settled"
   const [settledPeople, setSettledPeople] = React.useState([]);
-  const [selectedSettledPerson, setSelectedSettledPerson] = React.useState(null);
   const [restoreTarget, setRestoreTarget] = React.useState(null);
   const reduce = useReducedMotion();
 
@@ -508,80 +507,6 @@ export default function People() {
             </div>
           )}
         </>
-      ) : selectedSettledPerson ? (
-        <>
-          <PageHeader
-            title={selectedSettledPerson.person_name}
-            subtitle="Settlement History"
-            actions={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedSettledPerson(null)}
-                data-testid="back-to-settled-btn"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Settled
-              </Button>
-            }
-          />
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Settlement History</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {selectedSettledPerson.entries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/50 px-3 py-2.5"
-                >
-                  <div
-                    className={cn(
-                      "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                      entry.direction === "gave"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-                    )}
-                  >
-                    <Check className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={cn(
-                          "font-semibold",
-                          entry.direction === "gave"
-                            ? "text-emerald-700 dark:text-emerald-300"
-                            : "text-rose-700 dark:text-rose-300",
-                        )}
-                      >
-                        {formatINR(entry.amount)}
-                      </span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(entry.date)}
-                      </span>
-                    </div>
-                    {entry.reason && (
-                      <p className="text-sm text-muted-foreground truncate">
-                        {entry.reason}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <div className="border-t border-border/40 pt-4 mt-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Total Settled</span>
-                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatINR(selectedSettledPerson.total_settled)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </>
       ) : (
         <>
           <PageHeader
@@ -612,52 +537,118 @@ export default function People() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {settledPeople.map((person) => (
-                <Card key={person.person_name}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-4">
-                      <div className="h-12 w-12 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-lg font-semibold shrink-0">
-                        {person.person_name.slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-base">{person.person_name}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">All payments settled</p>
-                        {person.last_settled_date && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Settled on {formatDate(person.last_settled_date)}
-                          </p>
-                        )}
-                        <div className="mt-3">
-                          <p className="text-xs text-muted-foreground mb-1">Total settled</p>
-                          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                            {formatINR(person.total_settled)}
-                          </p>
+              {settledPeople.map((person) => {
+                const isOpen = !!expanded[person.person_name];
+                return (
+                  <Card key={person.person_name}>
+                    <button
+                      type="button"
+                      onClick={() => togglePerson(person.person_name)}
+                      className="w-full text-left"
+                      data-testid={`settled-toggle-${person.person_name}`}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-9 w-9 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-sm font-semibold shrink-0">
+                              {person.person_name.slice(0, 1).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <CardTitle className="text-base truncate">{person.person_name}</CardTitle>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {person.entries.length} {person.entries.length === 1 ? "entry" : "entries"} · Settled
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge variant="secondary" className="text-xs">
+                              {formatINR(person.total_settled)}
+                            </Badge>
+                            {isOpen ? (
+                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedSettledPerson(person)}
-                            data-testid={`view-transactions-${person.person_name}`}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Transactions
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRestoreTarget(person)}
-                            data-testid={`restore-${person.person_name}`}
-                          >
-                            <RotateCcw className="h-4 w-4 mr-2" />
-                            Restore
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </CardHeader>
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          key="content"
+                          initial={reduce ? false : { height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={reduce ? undefined : { height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                          className="overflow-hidden"
+                        >
+                          <CardContent className="pt-0 space-y-2">
+                            {person.entries.map((entry) => (
+                              <div
+                                key={entry.id}
+                                className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/50 px-3 py-2.5 opacity-60"
+                              >
+                                <div
+                                  className={cn(
+                                    "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                                    entry.direction === "gave"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+                                  )}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className={cn(
+                                        "font-semibold",
+                                        entry.direction === "gave"
+                                          ? "text-emerald-700 dark:text-emerald-300"
+                                          : "text-rose-700 dark:text-rose-300",
+                                      )}
+                                    >
+                                      {formatINR(entry.amount)}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {formatDate(entry.date)}
+                                    </span>
+                                  </div>
+                                  {entry.reason && (
+                                    <p className="text-sm text-muted-foreground truncate">
+                                      {entry.reason}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40">
+                              <span className="text-xs text-muted-foreground">Total settled</span>
+                              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                                {formatINR(person.total_settled)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setRestoreTarget(person)}
+                                data-testid={`restore-${person.person_name}`}
+                              >
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Restore Settlement
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </>
