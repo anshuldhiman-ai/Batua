@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from collections import defaultdict
 from datetime import datetime
 from app.helpers import month_key, _shift_month, _pct_change, get_all_txns
-from app.dependencies import get_storage
 from app.cache import get_cache, pre_bucket_transactions
 
 router = APIRouter()
@@ -28,7 +27,6 @@ async def dashboard_metrics():
             "avg_monthly_expense": 0, "avg_savings_rate": 0, "month_count": 0,
         }
 
-    months = sorted({month_key(t["date"]) for t in txns if t.get("date")})
     # "This month" follows the calendar, even when there are no entries yet.
     # Using the latest month with data makes old spending appear current.
     current = datetime.now().strftime("%Y-%m")

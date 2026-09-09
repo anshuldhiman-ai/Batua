@@ -262,9 +262,12 @@ async def get_settled():
             amount = 0.0
         settled = bool(e.get("settled"))
         date = e.get("date", "")
-        created_at = e.get("created_at", "")
 
         bucket = by_person[name]
+        if direction == "gave":
+            bucket["gave"] += amount
+        elif direction == "took":
+            bucket["took"] += amount
         bucket["entries"].append(e)
         if not settled:
             bucket["open"] += 1

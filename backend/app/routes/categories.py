@@ -3,7 +3,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from parser import CATEGORIES, PAYMENT_METHODS
 from app.dependencies import get_storage
-from app.helpers import get_all_txns
 from app.cache import invalidate_analytics_cache
 
 router = APIRouter()
