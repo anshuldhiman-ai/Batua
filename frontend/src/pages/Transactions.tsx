@@ -87,6 +87,8 @@ export default function Transactions() {
   const [paymentMethodFilter, setPaymentMethodFilter] = React.useState("All");
   const [transactionTypeFilter, setTransactionTypeFilter] = React.useState("All");
   const [dateRange, setDateRange] = React.useState({ start: "", end: "" });
+  const [descriptionFocused, setDescriptionFocused] = React.useState(false);
+  const [activeDescriptionSuggestion, setActiveDescriptionSuggestion] = React.useState(0);
 
   const [modalOpen, setModalOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
@@ -168,6 +170,7 @@ export default function Transactions() {
   // Invalidate helper to clear React Query caches when transactions list changes
   const invalidateAll = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["transaction-description-titles"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard_metrics"] });
     queryClient.invalidateQueries({ queryKey: ["analytics_timeline"] });
     queryClient.invalidateQueries({ queryKey: ["category_breakdown"] });
@@ -213,6 +216,30 @@ export default function Transactions() {
 
   const data = transactionsQuery.data || { items: [], total: 0, pages: 1 };
   const loading = transactionsQuery.isLoading;
+  const titleHistoryQuery = useQuery({
+    queryKey: ["transaction-description-titles"],
+    queryFn: async () => {
+      const { data } = await api.get("/transactions/titles");
+      return data.titles || [];
+    },
+    enabled: modalOpen,
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const descriptionSuggestions = React.useMemo(() => {
+    const query = form.description.trim().toLocaleLowerCase();
+    if (!query) return [];
+    return (titleHistoryQuery.data || [])
+      .filter((title) => title.toLocaleLowerCase().includes(query) && title.toLocaleLowerCase() !== query)
+      .slice(0, 6);
+  }, [form.description, titleHistoryQuery.data]);
+
+  const selectDescriptionSuggestion = React.useCallback((description) => {
+    setForm((current) => ({ ...current, description }));
+    setDescriptionFocused(false);
+    setActiveDescriptionSuggestion(0);
+  }, []);
+
 
   React.useEffect(() => {
     api.get("/categories/").then((r) => setCategories(r.data.categories));
@@ -837,7 +864,62 @@ export default function Transactions() {
               <DateInput value={form.date} onChange={(v) => setForm({ ...form, date: v })} data-testid="form-date" />
             </Field>
             <Field label="Description" full>
-              <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} data-testid="form-description" />
+              <div className="relative">
+                <Input
+                  value={form.description}
+                  onChange={(e) => {
+                    setForm({ ...form, description: e.target.value });
+                    setActiveDescriptionSuggestion(0);
+                  }}
+                  onFocus={() => setDescriptionFocused(true)}
+                  onBlur={() => window.setTimeout(() => setDescriptionFocused(false), 100)}
+                  onKeyDown={(e) => {
+                    if (!descriptionSuggestions.length) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setActiveDescriptionSuggestion((index) => (index + 1) % descriptionSuggestions.length);
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setActiveDescriptionSuggestion((index) => (index - 1 + descriptionSuggestions.length) % descriptionSuggestions.length);
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      selectDescriptionSuggestion(descriptionSuggestions[activeDescriptionSuggestion]);
+                    } else if (e.key === "Escape") {
+                      setDescriptionFocused(false);
+                    }
+                  }}
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={descriptionFocused && descriptionSuggestions.length > 0}
+                  aria-controls="transaction-description-suggestions"
+                  data-testid="form-description"
+                />
+                {descriptionFocused && descriptionSuggestions.length > 0 && (
+                  <div
+                    id="transaction-description-suggestions"
+                    role="listbox"
+                    className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover p-1 shadow-lg"
+                  >
+                    {descriptionSuggestions.map((title, index) => (
+                      <button
+                        key={title}
+                        type="button"
+                        role="option"
+                        aria-selected={index === activeDescriptionSuggestion}
+                        className={cn(
+                          "block w-full rounded-sm px-3 py-2 text-left text-sm outline-none transition-colors",
+                          index === activeDescriptionSuggestion ? "bg-accent text-accent-foreground" : "hover:bg-muted"
+                        )}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectDescriptionSuggestion(title)}
+                        data-testid={`form-description-suggestion-${index}`}
+                      >
+                        {title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
             <Field label="Type">
               <select

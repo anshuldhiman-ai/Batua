@@ -77,6 +77,28 @@ async def list_transactions(
     }
 
 
+@router.get("/titles")
+async def list_transaction_titles(limit: int = 100):
+    """Return recently used, distinct transaction descriptions for quick entry."""
+    limit = max(1, min(limit, 100))
+    txns = await get_all_txns()
+    txns.sort(key=lambda t: (t.get("date", ""), t.get("created_at", "")), reverse=True)
+
+    seen: set[str] = set()
+    titles: list[str] = []
+    for txn in txns:
+        title = (txn.get("description") or "").strip()
+        key = title.casefold()
+        if not title or key in seen:
+            continue
+        seen.add(key)
+        titles.append(title)
+        if len(titles) == limit:
+            break
+
+    return {"titles": titles}
+
+
 @router.post("/")
 async def create_transaction(payload: TransactionCreate):
     _require_valid_date(payload.date)

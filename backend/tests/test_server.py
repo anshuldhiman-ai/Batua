@@ -291,6 +291,21 @@ def test_transaction_crud(client):
     assert response.status_code == 404
 
 
+def test_transaction_titles_are_distinct_and_nonempty(client):
+    """Quick-entry suggestions should omit duplicate titles."""
+    for description in ("Zomato", "zomato", "Swiggy"):
+        response = client.post(
+            "/api/transactions",
+            json={"date": "2026-06-19", "description": description, "amount": -100},
+        )
+        assert response.status_code == 200
+
+    response = client.get("/api/transactions/titles")
+    assert response.status_code == 200
+    titles = response.json()["titles"]
+    assert {title.lower() for title in titles} == {"zomato", "swiggy"}
+
+
 def test_transaction_create_clamps_future_date(client):
     """A future-dated transaction is stored as today, never in the future."""
     response = client.post(
