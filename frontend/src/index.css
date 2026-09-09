@@ -94,24 +94,25 @@
   /* Native date-picker glyph: use the app's accent color (primary/emerald) for
      the calendar icon instead of the default black. This matches the app's
      color scheme and provides better visibility. */
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    cursor: pointer;
-    opacity: 0.8;
-    filter: sepia(1) saturate(10) hue-rotate(50deg) brightness(1.1);
+  input[type="date"],
+  input[type="month"] {
+    color-scheme: light;
+    accent-color: hsl(var(--primary));
   }
-  .dark input[type="date"] {
-    color-scheme: dark;
-  }
-  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.9;
-    filter: sepia(1) saturate(10) hue-rotate(50deg) brightness(1.4);
   }
-  /* Force the calendar popup to respect dark mode for selected date highlight */
-  input[type="date"]::-webkit-datetime-edit {
+  .dark input[type="date"],
+  .dark input[type="month"] {
+    color-scheme: dark;
+  }
+  .date-input::-webkit-datetime-edit {
     color: inherit;
+    text-transform: uppercase;
   }
-  .dark input[type="date"]::-webkit-datetime-edit {
+  .dark .date-input::-webkit-datetime-edit {
     color: hsl(var(--foreground));
   }
 

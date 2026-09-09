@@ -143,11 +143,13 @@ export default function AnalyticsFilter({
               <Calendar className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
                 type="date"
+                lang="en-GB"
+                aria-label="Start date (DD/MM/YYYY)"
                 value={customStartDate}
                 onChange={(e) =>
                   onCustomDateChange({ startDate: e.target.value, endDate: customEndDate })
                 }
-                className="h-9 w-[140px] rounded-md border border-input bg-background pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="date-input h-9 w-[140px] rounded-md border border-input bg-background pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
             <span className="text-muted-foreground">→</span>
@@ -155,11 +157,13 @@ export default function AnalyticsFilter({
               <Calendar className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
                 type="date"
+                lang="en-GB"
+                aria-label="End date (DD/MM/YYYY)"
                 value={customEndDate}
                 onChange={(e) =>
                   onCustomDateChange({ startDate: customStartDate, endDate: e.target.value })
                 }
-                className="h-9 w-[140px] rounded-md border border-input bg-background pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="date-input h-9 w-[140px] rounded-md border border-input bg-background pl-9 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
           </div>

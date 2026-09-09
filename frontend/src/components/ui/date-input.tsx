@@ -50,12 +50,14 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
         ref={ref}
         id={id}
         type="date"
+        lang="en-GB"
+        aria-label={props["aria-label"] || "Date (DD/MM/YYYY)"}
         value={value || ""}
         min={min || "1900-01-01"}
         max={max || todayISO()}
         onChange={(e) => onChange?.(e.target.value)}
         onBlur={onBlur}
-        className={cn("appearance-none", className)}
+        className={cn("appearance-none date-input", className)}
         {...props}
       />
     );
