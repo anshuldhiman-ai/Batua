@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Sparkles, Wand2, Check, X, Loader2, Repeat, List, Mic, Split } from "lucide-react";
 import { toast } from "sonner";
 
@@ -457,7 +458,9 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   const [interim, setInterim] = React.useState("");
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = React.useState([]);
+  const [suggestionPosition, setSuggestionPosition] = React.useState({ top: 0, left: 0, width: 0 });
   const inputRef = React.useRef(null);
+  const suggestionsRef = React.useRef(null);
   // "backend" = record audio + transcribe offline on the server (works without
   // Google). "browser" = Web Speech API. Decided from /transcribe/status.
   const [sttMode, setSttMode] = React.useState("browser");
@@ -544,6 +547,16 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
       );
       setFilteredSuggestions(filtered.slice(0, 5)); // Show max 5 suggestions
       setShowSuggestions(filtered.length > 0);
+      
+      // Calculate position for portal
+      if (inputRef.current && filtered.length > 0) {
+        const rect = inputRef.current.getBoundingClientRect();
+        setSuggestionPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+          width: rect.width
+        });
+      }
     } else {
       setShowSuggestions(false);
       setFilteredSuggestions([]);
@@ -972,8 +985,16 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
               recording && "text-destructive placeholder:text-destructive/70"
             )}
           />
-          {showSuggestions && filteredSuggestions.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-border bg-background shadow-lg z-50 max-h-60 overflow-y-auto">
+          {showSuggestions && filteredSuggestions.length > 0 && createPortal(
+            <div
+              ref={suggestionsRef}
+              className="fixed rounded-lg border border-border bg-background shadow-lg z-[9999] max-h-60 overflow-y-auto"
+              style={{
+                top: suggestionPosition.top,
+                left: suggestionPosition.left,
+                width: suggestionPosition.width
+              }}
+            >
               {filteredSuggestions.map((suggestion, index) => (
                 <button
                   key={suggestion}
@@ -984,7 +1005,8 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
                   {suggestion}
                 </button>
               ))}
-            </div>
+            </div>,
+            document.body
           )}
           {supported && (
             <button
