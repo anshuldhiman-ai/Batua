@@ -564,10 +564,8 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   }, [value, descriptions]);
 
   const handleSuggestionClick = (suggestion) => {
-    console.log('Suggestion clicked:', suggestion);
     onChange(suggestion);
     setShowSuggestions(false);
-    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   React.useEffect(() => {
@@ -969,7 +967,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
             value={recording && interim ? interim : value}
             onChange={(e) => onChange(e.target.value)}
             onFocus={() => { onFocus(); }}
-            onBlur={() => { onBlur(); setTimeout(() => setShowSuggestions(false), 200); }}
+            onBlur={() => { onBlur(); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 if (showSuggestions && filteredSuggestions.length > 0) {
