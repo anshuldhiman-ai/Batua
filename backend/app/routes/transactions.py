@@ -17,6 +17,18 @@ async def get_all_txns():
     return await storage.all("transactions")
 
 
+@router.get("/descriptions")
+async def list_descriptions():
+    """Get unique transaction descriptions for autocomplete suggestions."""
+    txns = await get_all_txns()
+    descriptions = set()
+    for t in txns:
+        desc = t.get("description", "").strip()
+        if desc:
+            descriptions.add(desc)
+    return {"descriptions": sorted(list(descriptions))}
+
+
 @router.get("/")
 async def list_transactions(
     search: str | None = None,

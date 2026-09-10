@@ -112,6 +112,7 @@ export default function NLInputBar({ onSaved }) {
   const [bulkDrafts, setBulkDrafts] = React.useState(null);
   const [categories, setCategories] = React.useState(FALLBACK_CATEGORIES);
   const [paymentMethods, setPaymentMethods] = React.useState(FALLBACK_PAYMENT_METHODS);
+  const [descriptions, setDescriptions] = React.useState([]);
   // When a single line lists several priced items ("banana + mango 50+20"),
   // the user can save it as one entry or split it into N separate ones.
   const [split, setSplit] = React.useState(false);
@@ -125,6 +126,9 @@ export default function NLInputBar({ onSaved }) {
       .catch(() => {});
     api.get("/categories/payment-methods")
       .then((r) => !cancelled && setPaymentMethods((r.data?.methods?.length ? r.data.methods : FALLBACK_PAYMENT_METHODS)))
+      .catch(() => {});
+    api.get("/transactions/descriptions")
+      .then((r) => !cancelled && setDescriptions(r.data?.descriptions || []))
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
@@ -379,6 +383,7 @@ export default function NLInputBar({ onSaved }) {
               onAudioResult={transcribeAudio}
               parsing={parsing}
               placeholder='e.g. "zomato 450 yesterday upi"'
+              descriptions={descriptions}
             />
             <ExampleChips examples={SINGLE_EXAMPLES} onPick={setText} />
           </TabsContent>
@@ -392,6 +397,7 @@ export default function NLInputBar({ onSaved }) {
               onAudioResult={transcribeAudio}
               parsing={parsing}
               placeholder='e.g. "salary +5k on 1st every month"'
+              descriptions={descriptions}
             />
             <ExampleChips examples={RECURRING_EXAMPLES} onPick={setText} />
             <p className="mt-2 text-xs text-muted-foreground">
@@ -445,17 +451,20 @@ export default function NLInputBar({ onSaved }) {
   );
 }
 
-function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, parsing, placeholder, onFocus = () => {}, onBlur = () => {} }) {
+function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, parsing, placeholder, descriptions = [], onFocus = () => {}, onBlur = () => {} }) {
   const [recording, setRecording] = React.useState(false);
   const [supported, setSupported] = React.useState(true);
   const [interim, setInterim] = React.useState("");
+  const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = React.useState([]);
+  const inputRef = React.useRef(null);
   // "backend" = record audio + transcribe offline on the server (works without
   // Google). "browser" = Web Speech API. Decided from /transcribe/status.
   const [sttMode, setSttMode] = React.useState("browser");
   const recognitionRef = React.useRef(null);
   const retryRef = React.useRef(0);
   const finalTranscriptRef = React.useRef("");
-  const restartingRef = React.useRef(false); // true while auto-restarting (retry / silent drop)
+  const restartingRef = React.useRef(false); // true while auto-restarting after network error
   const manualStopRef = React.useRef(false);  // true when the user tapped stop
   const restartTimerRef = React.useRef(null);
   // MediaRecorder state for the offline backend path.
@@ -526,6 +535,26 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   };
 
   const [whisperAvailable, setWhisperAvailable] = React.useState(false);
+
+  // Filter descriptions based on input
+  React.useEffect(() => {
+    if (value.trim().length > 0) {
+      const filtered = descriptions.filter((desc) =>
+        desc.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredSuggestions(filtered.slice(0, 5)); // Show max 5 suggestions
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setShowSuggestions(false);
+      setFilteredSuggestions([]);
+    }
+  }, [value, descriptions]);
+
+  const handleSuggestionClick = (suggestion) => {
+    onChange(suggestion);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  };
 
   React.useEffect(() => {
     const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -921,18 +950,42 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
         </span>
         <div className="relative min-w-0 flex-1">
           <Input
+            ref={inputRef}
             data-testid="nl-input"
             value={recording && interim ? interim : value}
             onChange={(e) => onChange(e.target.value)}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            onKeyDown={(e) => e.key === "Enter" && onParse()}
+            onFocus={() => { onFocus(); }}
+            onBlur={() => { onBlur(); setTimeout(() => setShowSuggestions(false), 200); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (showSuggestions && filteredSuggestions.length > 0) {
+                  e.preventDefault();
+                  handleSuggestionClick(filteredSuggestions[0]);
+                } else {
+                  onParse();
+                }
+              }
+            }}
             placeholder={recording ? recordingPlaceholder : placeholder}
             className={cn(
               "h-10 border-0 bg-transparent px-1 pr-10 text-base shadow-none focus-visible:ring-0",
               recording && "text-destructive placeholder:text-destructive/70"
             )}
           />
+          {showSuggestions && filteredSuggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 rounded-lg border border-border bg-background shadow-lg z-50 max-h-60 overflow-y-auto">
+              {filteredSuggestions.map((suggestion, index) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent/50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
           {supported && (
             <button
               type="button"
