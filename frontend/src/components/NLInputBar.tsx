@@ -564,9 +564,10 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   }, [value, descriptions]);
 
   const handleSuggestionClick = (suggestion) => {
+    console.log('Suggestion clicked:', suggestion);
     onChange(suggestion);
     setShowSuggestions(false);
-    inputRef.current?.focus();
+    setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   React.useEffect(() => {
@@ -999,7 +1000,11 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
                 <button
                   key={suggestion}
                   type="button"
-                  onClick={() => handleSuggestionClick(suggestion)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSuggestionClick(suggestion);
+                  }}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-accent/50 transition-colors first:rounded-t-lg last:rounded-b-lg"
                 >
                   {suggestion}
