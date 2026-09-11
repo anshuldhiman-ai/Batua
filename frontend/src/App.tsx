@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 
 import Layout from "@/components/Layout";
+import SplashScreen from "@/components/SplashScreen";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { applyAccent, DEFAULT_ACCENT, DEFAULT_CUSTOM_COLOR } from "@/lib/themes";
@@ -59,6 +60,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={themeValue}>
+      <SplashScreen />
       <ErrorBoundary>
         <BrowserRouter>
           <React.Suspense fallback={<div role="status" aria-live="polite" className="flex items-center justify-center min-h-screen"><span className="sr-only">Loading page</span>Loading...</div>}>

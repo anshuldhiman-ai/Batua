@@ -16,6 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 import storage as storage_mod  # noqa: E402
 import ai  # noqa: E402
+import ml_nlp  # noqa: E402
+import ml_analytics  # noqa: E402
 from app.dependencies import set_storage  # noqa: E402
 from app.routes import (  # noqa: E402
     transactions,
@@ -50,9 +52,18 @@ async def lifespan(app: FastAPI):
     storage, backend_name = await storage_mod.create_storage()
     set_storage(storage)
     logger.info(f"Backend initialized with {backend_name} storage")
-    
+
+    # Pre-warm ML models and analytics for faster AI Insights page load
+    try:
+        logger.info("Pre-warming ML models...")
+        # Warm up the transaction classifier
+        ml_nlp.classify_transaction("warmup test transaction")
+        logger.info("ML classifier warmed up")
+    except Exception as e:
+        logger.warning(f"Failed to pre-warm ML models: {e}")
+
     yield
-    
+
     # Shutdown
     if storage:
         await storage.close()

@@ -27,6 +27,7 @@ import Logo from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { api } from "@/lib/utils-finance";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -295,6 +296,24 @@ export default function Layout() {
     const pageTitle = PAGE_TITLES[path] || "Batua";
     document.title = `${pageTitle} — Batua`;
   }, [location.pathname]);
+
+  // Pre-load AI Insights data on app mount for smoother experience
+  useEffect(() => {
+    const preloadAIInsights = async () => {
+      try {
+        // Fire and forget - cache the data for when user visits AI Insights
+        await Promise.allSettled([
+          api.get("/ml/spending-patterns"),
+          api.get("/ml/cash-flow-forecast"),
+          api.get("/ml/recommendations"),
+        ]);
+      } catch (error) {
+        // Silently fail - this is just pre-loading
+        console.debug("Pre-loading AI Insights failed:", error);
+      }
+    };
+    preloadAIInsights();
+  }, []);
 
   // First-time visitors get the onboarding tour automatically — after the page
   // has painted, so the tour never feels like it snatches the screen. (Body
