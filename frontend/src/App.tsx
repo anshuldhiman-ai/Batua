@@ -28,7 +28,7 @@ export const ThemeContext = React.createContext<any>({
   setCustomColor: () => {},
 });
 
-function useTheme() {
+export function useTheme() {
   const [theme, setTheme] = useLocalStorage("batua-theme", "light");
   const [accent, setAccent] = useLocalStorage("batua-accent", DEFAULT_ACCENT);
   const [customColor, setCustomColor] = useLocalStorage(
