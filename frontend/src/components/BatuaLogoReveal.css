@@ -1,0 +1,188 @@
+.batua-stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background);
+  z-index: 9999;
+}
+
+.batua-scene {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ambient background glow */
+.ambient-glow {
+  position: absolute;
+  inset: -100px;
+  background: radial-gradient(circle at center, var(--primary) 0%, transparent 70%);
+  opacity: 0;
+  animation: ambientFadeIn 3s ease-out 0.5s forwards;
+  filter: blur(60px);
+}
+
+@keyframes ambientFadeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 0.15; transform: scale(1); }
+}
+
+/* Background finance grid */
+.finance-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 20px;
+  opacity: 0;
+  animation: gridFadeIn 2s ease-out 1s forwards;
+}
+
+.finance-grid span {
+  background: var(--primary);
+  opacity: 0;
+  border-radius: 4px;
+  animation: gridCellPulse 2s ease-in-out 1.2s forwards;
+}
+
+.finance-grid span:nth-child(1) { animation-delay: 1.2s; }
+.finance-grid span:nth-child(2) { animation-delay: 1.3s; }
+.finance-grid span:nth-child(3) { animation-delay: 1.4s; }
+.finance-grid span:nth-child(4) { animation-delay: 1.5s; }
+.finance-grid span:nth-child(5) { animation-delay: 1.6s; }
+.finance-grid span:nth-child(6) { animation-delay: 1.7s; }
+.finance-grid span:nth-child(7) { animation-delay: 1.8s; }
+.finance-grid span:nth-child(8) { animation-delay: 1.9s; }
+.finance-grid span:nth-child(9) { animation-delay: 2.0s; }
+
+@keyframes gridFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gridCellPulse {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 0.3; transform: scale(1); }
+}
+
+/* Main logo wrapper */
+.batua-logo-wrap {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: logoZoom 2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  transform: scale(0.9);
+}
+
+@keyframes logoZoom {
+  from { transform: scale(0.9); }
+  to { transform: scale(1); }
+}
+
+/* Soft outer aura */
+.logo-aura {
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+  opacity: 0;
+  animation: auraPulse 2.5s ease-in-out 0.8s forwards;
+  filter: blur(30px);
+  border-radius: 50%;
+}
+
+@keyframes auraPulse {
+  0% { opacity: 0; transform: scale(0.8); }
+  50% { opacity: 0.4; transform: scale(1.1); }
+  100% { opacity: 0.2; transform: scale(1); }
+}
+
+/* Actual logo image */
+.batua-logo {
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  animation: logoReveal 1.5s ease-out 0.5s forwards;
+  filter: blur(4px);
+}
+
+@keyframes logoReveal {
+  from { opacity: 0; filter: blur(4px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+/* Moving edge light */
+.edge-light {
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  overflow: hidden;
+  opacity: 0;
+  animation: edgeLightFadeIn 1s ease-out 1s forwards;
+}
+
+.edge-light::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--primary);
+  border-radius: 12px;
+  opacity: 0.5;
+}
+
+.light-head {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--primary) 0%, transparent 50%);
+  filter: blur(8px);
+  animation: lightOrbit 3s linear infinite;
+}
+
+@keyframes edgeLightFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lightOrbit {
+  from {
+    top: -30px;
+    left: -30px;
+  }
+  25% {
+    top: -30px;
+    left: calc(100% - 30px);
+  }
+  50% {
+    top: calc(100% - 30px);
+    left: calc(100% - 30px);
+  }
+  75% {
+    top: calc(100% - 30px);
+    left: -30px;
+  }
+  to {
+    top: -30px;
+    left: -30px;
+  }
+}
+
+/* Secondary trail */
+.edge-light-trail {
+  opacity: 0;
+  animation: edgeLightFadeIn 1s ease-out 1.2s forwards;
+}
+
+.edge-light-trail .light-head {
+  animation: lightOrbit 3s linear infinite;
+  animation-delay: 1.5s;
+  opacity: 0.5;
+}
