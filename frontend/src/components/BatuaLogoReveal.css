@@ -1,188 +1,581 @@
 .batua-stage {
-  position: fixed;
-  inset: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--background);
-  z-index: 9999;
+
+  background:
+    radial-gradient(
+      circle at center,
+      hsl(var(--background)) 0%,
+      hsl(var(--background) / 0.9) 42%,
+      hsl(var(--background) / 0.8) 75%,
+      hsl(var(--background) / 0.7) 100%
+    );
+
+  position: relative;
 }
+
+
+/* =========================================================
+   MAIN SCENE
+========================================================= */
 
 .batua-scene {
+  width: 100%;
+  height: 100%;
   position: relative;
-  width: 300px;
-  height: 300px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
+  isolation: isolate;
+
+  animation: cinematicPush 7s
+    cubic-bezier(0.16, 1, 0.3, 1)
+    infinite alternate;
 }
 
-/* Ambient background glow */
+
+/* =========================================================
+   AMBIENT LIGHT
+========================================================= */
+
 .ambient-glow {
   position: absolute;
-  inset: -100px;
-  background: radial-gradient(circle at center, var(--primary) 0%, transparent 70%);
-  opacity: 0;
-  animation: ambientFadeIn 3s ease-out 0.5s forwards;
-  filter: blur(60px);
+
+  width: 520px;
+  height: 520px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      hsl(var(--primary) / 0.1),
+      hsl(var(--primary) / 0.05) 35%,
+      transparent 70%
+    );
+
+  filter: blur(35px);
+
+  opacity: 0.8;
+
+  animation: ambientPulse 5s ease-in-out infinite;
+
+  pointer-events: none;
 }
 
-@keyframes ambientFadeIn {
-  from { opacity: 0; transform: scale(0.8); }
-  to { opacity: 0.15; transform: scale(1); }
-}
 
-/* Background finance grid */
+/* =========================================================
+   BACKGROUND FINANCE GRID
+========================================================= */
+
 .finance-grid {
   position: absolute;
-  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 20px;
-  opacity: 0;
-  animation: gridFadeIn 2s ease-out 1s forwards;
+
+  grid-template-columns:
+    repeat(3, minmax(120px, 220px));
+
+  grid-template-rows:
+    repeat(3, minmax(90px, 150px));
+
+  gap: 35px;
+
+  align-content: center;
+  justify-content: center;
+
+  opacity: 0.11;
+
+  transform:
+    perspective(900px)
+    rotateX(8deg)
+    scale(1.15);
+
+  filter: blur(0.4px);
+
+  z-index: -1;
 }
+
+
+/* Individual background cards */
 
 .finance-grid span {
-  background: var(--primary);
-  opacity: 0;
-  border-radius: 4px;
-  animation: gridCellPulse 2s ease-in-out 1.2s forwards;
-}
-
-.finance-grid span:nth-child(1) { animation-delay: 1.2s; }
-.finance-grid span:nth-child(2) { animation-delay: 1.3s; }
-.finance-grid span:nth-child(3) { animation-delay: 1.4s; }
-.finance-grid span:nth-child(4) { animation-delay: 1.5s; }
-.finance-grid span:nth-child(5) { animation-delay: 1.6s; }
-.finance-grid span:nth-child(6) { animation-delay: 1.7s; }
-.finance-grid span:nth-child(7) { animation-delay: 1.8s; }
-.finance-grid span:nth-child(8) { animation-delay: 1.9s; }
-.finance-grid span:nth-child(9) { animation-delay: 2.0s; }
-
-@keyframes gridFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes gridCellPulse {
-  from { opacity: 0; transform: scale(0); }
-  to { opacity: 0.3; transform: scale(1); }
-}
-
-/* Main logo wrapper */
-.batua-logo-wrap {
   position: relative;
-  width: 200px;
-  height: 200px;
+
+  border: 1px solid hsl(var(--border) / 0.3);
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      145deg,
+      hsl(var(--card) / 0.5),
+      hsl(var(--card) / 0.3)
+    );
+
+  box-shadow:
+    inset 0 1px 0 hsl(var(--border) / 0.2),
+    0 20px 50px hsl(var(--background) / 0.5);
+}
+
+
+/* tiny financial UI details */
+
+.finance-grid span::before {
+  content: "";
+
+  position: absolute;
+
+  left: 18px;
+  right: 18px;
+  top: 18px;
+
+  height: 3px;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      90deg,
+      hsl(var(--foreground) / 0.2),
+      transparent
+    );
+}
+
+
+.finance-grid span::after {
+  content: "";
+
+  position: absolute;
+
+  left: 18px;
+  bottom: 20px;
+
+  width: 45%;
+  height: 20px;
+
+  border-radius: 5px;
+
+  border-bottom:
+    1px solid hsl(var(--border) / 0.3);
+}
+
+
+/* =========================================================
+   LOGO CONTAINER
+========================================================= */
+
+.batua-logo-wrap {
+  width: min(420px, 48vw);
+  aspect-ratio: 1 / 1;
+
+  position: relative;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: logoZoom 2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-  transform: scale(0.9);
+
+  animation:
+    logoEntrance 2.2s
+    cubic-bezier(0.16, 1, 0.3, 1)
+    both;
+
+  transform-style: preserve-3d;
 }
 
-@keyframes logoZoom {
-  from { transform: scale(0.9); }
-  to { transform: scale(1); }
-}
 
-/* Soft outer aura */
-.logo-aura {
-  position: absolute;
-  inset: -20px;
-  background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
-  opacity: 0;
-  animation: auraPulse 2.5s ease-in-out 0.8s forwards;
-  filter: blur(30px);
-  border-radius: 50%;
-}
+/* =========================================================
+   ACTUAL LOGO
+========================================================= */
 
-@keyframes auraPulse {
-  0% { opacity: 0; transform: scale(0.8); }
-  50% { opacity: 0.4; transform: scale(1.1); }
-  100% { opacity: 0.2; transform: scale(1); }
-}
-
-/* Actual logo image */
 .batua-logo {
   width: 100%;
   height: 100%;
+
+  object-fit: contain;
+
+  position: relative;
+
+  z-index: 5;
+
   opacity: 0;
-  animation: logoReveal 1.5s ease-out 0.5s forwards;
-  filter: blur(4px);
+
+  transform: scale(0.965);
+
+  filter:
+    brightness(0.9)
+    contrast(1.04)
+    drop-shadow(
+      0 25px 50px hsl(var(--background) / 0.5)
+    );
+
+  animation:
+    logoReveal 2.2s
+    cubic-bezier(0.16, 1, 0.3, 1)
+    0.25s forwards;
 }
 
-@keyframes logoReveal {
-  from { opacity: 0; filter: blur(4px); }
-  to { opacity: 1; filter: blur(0); }
+
+/* =========================================================
+   LOGO AURA
+========================================================= */
+
+.logo-aura {
+  position: absolute;
+
+  inset: 4%;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      hsl(var(--primary) / 0.15),
+      transparent 65%
+    );
+
+  filter: blur(35px);
+
+  opacity: 0;
+
+  z-index: 1;
+
+  animation:
+    auraReveal 2.5s
+    ease-out
+    0.5s
+    forwards;
 }
 
-/* Moving edge light */
+
+/* =========================================================
+   EDGE LIGHT
+========================================================= */
+
+/*
+   This creates the moving illumination.
+
+   The light itself is not drawn into the logo.
+   It travels around the logo's perimeter region
+   using a conic-gradient + mask.
+*/
+
 .edge-light {
   position: absolute;
-  inset: -4px;
-  border-radius: 12px;
-  overflow: hidden;
+
+  inset: -9px;
+
+  z-index: 10;
+
+  border-radius: 27%;
+
+  pointer-events: none;
+
   opacity: 0;
-  animation: edgeLightFadeIn 1s ease-out 1s forwards;
+
+  background:
+    conic-gradient(
+      from 0deg,
+
+      transparent 0deg,
+      transparent 8deg,
+
+      hsl(var(--primary) / 0.2) 13deg,
+
+      hsl(var(--primary) / 0.9) 18deg,
+
+      hsl(var(--primary) / 0.4) 24deg,
+
+      transparent 34deg,
+
+      transparent 360deg
+    );
+
+  /*
+     Mask the center so only the edge region
+     remains visible.
+  */
+
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+
+  -webkit-mask-composite: xor;
+
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+
+  mask-composite: exclude;
+
+  padding: 8px;
+
+  filter:
+    blur(0.3px)
+    drop-shadow(0 0 8px hsl(var(--primary) / 0.6))
+    drop-shadow(0 0 22px hsl(var(--primary) / 0.3));
+
+  animation:
+    perimeterSweep 4.8s
+    cubic-bezier(0.65, 0, 0.35, 1)
+    1.4s
+    infinite;
 }
 
-.edge-light::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 2px solid var(--primary);
-  border-radius: 12px;
-  opacity: 0.5;
-}
+
+/* =========================================================
+   LIGHT HEAD
+========================================================= */
 
 .light-head {
   position: absolute;
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, var(--primary) 0%, transparent 50%);
-  filter: blur(8px);
-  animation: lightOrbit 3s linear infinite;
+
+  width: 26px;
+  height: 26px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      hsl(var(--primary)) 0%,
+      hsl(var(--primary) / 0.9) 12%,
+      hsl(var(--primary) / 0.5) 38%,
+      transparent 72%
+    );
+
+  filter:
+    blur(1px)
+    drop-shadow(0 0 10px hsl(var(--primary) / 0.8))
+    drop-shadow(0 0 25px hsl(var(--primary) / 0.4));
+
+  transform:
+    translate(-50%, -50%);
+
+  left: 0;
+  top: 0;
 }
 
-@keyframes edgeLightFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
-@keyframes lightOrbit {
-  from {
-    top: -30px;
-    left: -30px;
-  }
-  25% {
-    top: -30px;
-    left: calc(100% - 30px);
-  }
-  50% {
-    top: calc(100% - 30px);
-    left: calc(100% - 30px);
-  }
-  75% {
-    top: calc(100% - 30px);
-    left: -30px;
-  }
-  to {
-    top: -30px;
-    left: -30px;
-  }
-}
+/* =========================================================
+   SECOND LIGHT TRAIL
+========================================================= */
 
-/* Secondary trail */
 .edge-light-trail {
   opacity: 0;
-  animation: edgeLightFadeIn 1s ease-out 1.2s forwards;
+
+  filter:
+    blur(5px)
+    drop-shadow(
+      0 0 20px hsl(var(--primary) / 0.4)
+    );
+
+  animation:
+    perimeterSweep 4.8s
+    cubic-bezier(0.65, 0, 0.35, 1)
+    1.55s
+    infinite;
 }
 
-.edge-light-trail .light-head {
-  animation: lightOrbit 3s linear infinite;
-  animation-delay: 1.5s;
-  opacity: 0.5;
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes logoEntrance {
+
+  0% {
+    opacity: 0;
+    transform:
+      translateY(12px)
+      scale(0.94);
+  }
+
+  100% {
+    opacity: 1;
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+
+@keyframes logoReveal {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      scale(0.94);
+
+    filter:
+      brightness(0.5)
+      contrast(1.05)
+      blur(3px);
+  }
+
+  45% {
+    opacity: 0.7;
+
+    filter:
+      brightness(0.7)
+      contrast(1.05)
+      blur(1px);
+  }
+
+  100% {
+    opacity: 1;
+
+    transform:
+      scale(1);
+
+    filter:
+      brightness(0.95)
+      contrast(1.05)
+      drop-shadow(
+        0 25px 50px hsl(var(--background) / 0.5)
+      );
+  }
+}
+
+
+@keyframes auraReveal {
+
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+
+/*
+   The actual border-light rotation.
+*/
+
+@keyframes perimeterSweep {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      rotate(0deg)
+      scale(0.98);
+  }
+
+  8% {
+    opacity: 1;
+  }
+
+  65% {
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 0.35;
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      rotate(360deg)
+      scale(1.02);
+  }
+}
+
+
+/* =========================================================
+   ATMOSPHERIC PULSE
+========================================================= */
+
+@keyframes ambientPulse {
+
+  0%,
+  100% {
+    transform: scale(0.95);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 0.9;
+  }
+}
+
+
+/* =========================================================
+   CINEMATIC CAMERA
+========================================================= */
+
+@keyframes cinematicPush {
+
+  0% {
+    transform: scale(0.985);
+  }
+
+  100% {
+    transform: scale(1.015);
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 600px) {
+
+  .batua-logo-wrap {
+    width: 72vw;
+  }
+
+  .finance-grid {
+    gap: 15px;
+
+    transform:
+      perspective(700px)
+      rotateX(8deg)
+      scale(1.35);
+  }
+
+  .ambient-glow {
+    width: 350px;
+    height: 350px;
+  }
+}
+
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .batua-scene,
+  .batua-logo,
+  .logo-aura,
+  .edge-light,
+  .edge-light-trail,
+  .ambient-glow {
+    animation: none;
+  }
+
+  .batua-logo {
+    opacity: 1;
+    transform: none;
+  }
 }
