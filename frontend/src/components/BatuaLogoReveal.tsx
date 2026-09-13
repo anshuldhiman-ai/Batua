@@ -1,15 +1,19 @@
 import React from "react";
 import { useTheme } from "@/App";
 import "./BatuaLogoReveal.css";
-import batuaLogoDark from "/b_logo_dark.svg";
-import batuaLogoLight from "/b_logo_light.svg";
+import AnimatedLogo from "./AnimatedLogo";
 
-export default function BatuaLogoReveal() {
+interface BatuaLogoRevealProps {
+  leaving?: boolean;
+  waiting?: boolean;
+  tagline?: boolean;
+}
+
+export default function BatuaLogoReveal({ leaving }: BatuaLogoRevealProps) {
   const { theme } = useTheme();
-  const batuaLogo = theme === "dark" ? batuaLogoDark : batuaLogoLight;
 
   return (
-    <div className="batua-stage">
+    <div className={`batua-stage ${leaving ? "leaving" : ""}`}>
       <div className="batua-scene">
 
         {/* Very subtle background atmosphere */}
@@ -28,18 +32,14 @@ export default function BatuaLogoReveal() {
           <span />
         </div>
 
-        {/* Main logo */}
+        {/* Main logo with sequential animation */}
         <div className="batua-logo-wrap">
 
           {/* Soft outer aura */}
           <div className="logo-aura" />
 
-          {/* Actual Batua logo */}
-          <img
-            src={batuaLogo}
-            alt="Batua"
-            className="batua-logo"
-          />
+          {/* Animated Batua logo */}
+          <AnimatedLogo />
 
           {/* Moving border light */}
           <div className="edge-light">

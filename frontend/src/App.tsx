@@ -38,8 +38,19 @@ export function useTheme() {
 
   React.useEffect(() => {
     const root = document.documentElement;
+    
+    // Add smooth transition for theme switching
+    root.style.transition = "background-color 0.3s ease, color 0.3s ease";
+    
     if (theme === "dark") root.classList.add("dark");
     else root.classList.remove("dark");
+    
+    // Remove transition after animation completes to avoid interfering with other interactions
+    const timeout = setTimeout(() => {
+      root.style.transition = "";
+    }, 300);
+    
+    return () => clearTimeout(timeout);
   }, [theme]);
 
   // Re-apply accent variables whenever the accent, custom color, or mode
