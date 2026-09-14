@@ -284,7 +284,11 @@ function MobileNav({ onLaunchTour }) {
   );
 }
 
-export default function Layout() {
+interface LayoutProps {
+  splashVisible?: boolean;
+}
+
+export default function Layout({ splashVisible }: LayoutProps) {
   const [collapsed, setCollapsed] = useLocalStorage("batua-sidebar-collapsed", false);
   const [tourSeen, setTourSeen] = useLocalStorage("batua-tour-seen", false);
   const [tourOpen, setTourOpen] = useState(false);
@@ -338,12 +342,14 @@ export default function Layout() {
       >
         Skip to main content
       </a>
-      <DesktopSidebar
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((c) => !c)}
-        onLaunchTour={() => setTourOpen(true)}
-      />
-      <MobileNav onLaunchTour={() => setTourOpen(true)} />
+      {!splashVisible && (
+        <DesktopSidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((c) => !c)}
+          onLaunchTour={() => setTourOpen(true)}
+        />
+      )}
+      {!splashVisible && <MobileNav onLaunchTour={() => setTourOpen(true)} />}
 
       <AnimatePresence>
         {tourOpen && (

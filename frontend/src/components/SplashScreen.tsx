@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from "react";
 import BatuaLogoReveal from "./BatuaLogoReveal";
 
-export default function SplashScreen() {
+interface SplashScreenProps {
+  onHide?: () => void;
+}
+
+export default function SplashScreen({ onHide }: SplashScreenProps) {
   const [visible, setVisible] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const [waiting, setWaiting] = useState(true);
@@ -20,6 +24,7 @@ export default function SplashScreen() {
           setLeaving(true);
           setTimeout(() => {
             setVisible(false);
+            onHide?.();
           }, 450); // Match CSS transition duration
         }, 2500);
 
@@ -31,6 +36,7 @@ export default function SplashScreen() {
           setLeaving(true);
           setTimeout(() => {
             setVisible(false);
+            onHide?.();
           }, 450);
         }, 2500);
         return () => clearTimeout(timer);

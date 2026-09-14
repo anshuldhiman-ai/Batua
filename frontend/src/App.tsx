@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 
@@ -68,15 +68,16 @@ export function useTheme() {
 
 export default function App() {
   const themeValue = useTheme();
+  const [splashVisible, setSplashVisible] = useState(true);
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <SplashScreen />
+      <SplashScreen onHide={() => setSplashVisible(false)} />
       <ErrorBoundary>
         <BrowserRouter>
           <React.Suspense fallback={<div role="status" aria-live="polite" className="flex items-center justify-center min-h-screen"><span className="sr-only">Loading page</span>Loading...</div>}>
             <Routes>
-              <Route element={<Layout />}>
+              <Route element={<Layout splashVisible={splashVisible} />}>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/transactions" element={<Transactions />} />
