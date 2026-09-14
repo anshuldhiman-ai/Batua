@@ -1,7 +1,6 @@
-import React from "react";
-import { useTheme } from "@/App";
+import React, { useState, useEffect } from "react";
+import Logo from "@/components/Logo";
 import "./BatuaLogoReveal.css";
-import AnimatedLogo from "./AnimatedLogo";
 
 interface BatuaLogoRevealProps {
   leaving?: boolean;
@@ -9,11 +8,23 @@ interface BatuaLogoRevealProps {
   tagline?: boolean;
 }
 
-export default function BatuaLogoReveal({ leaving }: BatuaLogoRevealProps) {
-  const { theme } = useTheme();
+export default function BatuaLogoReveal({ leaving, waiting, tagline }: BatuaLogoRevealProps) {
+  const [firstRun, setFirstRun] = useState(false);
+
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem("batua-splash-seen");
+      setFirstRun(!seen);
+      if (!seen) {
+        localStorage.setItem("batua-splash-seen", "true");
+      }
+    } catch {
+      // localStorage unavailable - don't block splash
+    }
+  }, []);
 
   return (
-    <div className={`batua-stage ${leaving ? "leaving" : ""}`}>
+    <div className={`batua-stage ${leaving ? "is-leaving" : ""}`}>
       <div className="batua-scene">
 
         {/* Very subtle background atmosphere */}
@@ -32,26 +43,22 @@ export default function BatuaLogoReveal({ leaving }: BatuaLogoRevealProps) {
           <span />
         </div>
 
-        {/* Main logo with sequential animation */}
-        <div className="batua-logo-wrap">
-
-          {/* Soft outer aura */}
-          <div className="logo-aura" />
-
-          {/* Animated Batua logo */}
-          <AnimatedLogo />
-
-          {/* Moving border light */}
-          <div className="edge-light">
-            <div className="light-head" />
-          </div>
-
-          {/* Secondary soft trail */}
-          <div className="edge-light edge-light-trail">
-            <div className="light-head" />
-          </div>
-
+        {/* Main logo */}
+        <div className="batua-mark">
+          <Logo className="mark-glyph" />
         </div>
+
+        {/* Tagline - first run only */}
+        {tagline && firstRun && (
+          <p className="batua-tagline">Your Money Matters</p>
+        )}
+
+        {/* Progress hairline - shown only when actually waiting */}
+        {waiting && (
+          <div className="batua-progress is-visible">
+            <span />
+          </div>
+        )}
 
       </div>
     </div>

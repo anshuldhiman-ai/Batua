@@ -41,6 +41,7 @@ export default function Logo({ className }: { className?: string }) {
           in the glyph's huge local space and mask almost everything out. */}
       <g mask="url(#batua-logo-holes)">
         <g
+          data-part="frame"
           transform="scale(0.25) translate(0.000000,3892.000000) scale(0.100000,-0.100000)"
           fill="hsl(var(--foreground))"
           stroke="none"
@@ -192,13 +193,14 @@ c-1225 -7 -1420 -6 -1525 7 -170 22 -296 63 -447 149 -394 221 -618 620 -621
 -212 -21z" />
         </g>
       </g>
-      <circle cx="338.7" cy="239.0" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" />
-      <circle cx="481.5" cy="364.9" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" />
-      <circle cx="339.0" cy="426.8" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" />
-      <circle cx="629.5" cy="684.2" r="18.6" fill="hsl(var(--foreground))" />
+      <circle cx="338.7" cy="239.0" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" data-part="clasp" />
+      <circle cx="481.5" cy="364.9" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" data-part="clasp" />
+      <circle cx="339.0" cy="426.8" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" data-part="clasp" />
+      <circle cx="629.5" cy="684.2" r="18.6" fill="hsl(var(--foreground))" data-part="rupee" />
       <g transform="translate(377.95,595) scale(0.08703)">
         <g transform="translate(0,2172) scale(0.1,-0.1)">
           <path
+            data-part="arrow"
             d="M7925 21620 l-6629 -5 -66 -96 c-36 -53 -70 -104 -77 -115 -6 -10
 -28 -46 -49 -79 -20 -33 -51 -78 -69 -100 -17 -22 -34 -47 -38 -57 -6 -17 -81
 -134 -266 -415 -58 -88 -153 -235 -211 -324 -58 -90 -115 -177 -127 -194 -12
