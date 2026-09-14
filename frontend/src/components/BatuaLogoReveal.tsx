@@ -27,22 +27,6 @@ export default function BatuaLogoReveal({ leaving, waiting, tagline }: BatuaLogo
     <div className={`batua-stage ${leaving ? "is-leaving" : ""}`}>
       <div className="batua-scene">
 
-        {/* Very subtle background atmosphere */}
-        <div className="ambient-glow" />
-
-        {/* Background finance panels */}
-        <div className="finance-grid">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-
         {/* Main logo */}
         <div className="batua-mark">
           <Logo className="mark-glyph" />

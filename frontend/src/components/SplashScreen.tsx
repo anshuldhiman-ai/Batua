@@ -11,6 +11,9 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
   const [waiting, setWaiting] = useState(true);
 
   useEffect(() => {
+    // Prevent scrolling during splash screen
+    document.body.style.overflow = 'hidden';
+
     // Gate splash screen on document.fonts.ready
     const checkFonts = async () => {
       try {
@@ -24,6 +27,7 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
           setLeaving(true);
           setTimeout(() => {
             setVisible(false);
+            document.body.style.overflow = '';
             onHide?.();
           }, 450); // Match CSS transition duration
         }, 2500);
@@ -36,6 +40,7 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
           setLeaving(true);
           setTimeout(() => {
             setVisible(false);
+            document.body.style.overflow = '';
             onHide?.();
           }, 450);
         }, 2500);
@@ -44,6 +49,11 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
     };
 
     checkFonts();
+
+    // Cleanup: restore scrolling if component unmounts
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, []);
 
   if (!visible) return null;
