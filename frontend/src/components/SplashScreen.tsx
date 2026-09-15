@@ -29,8 +29,8 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
             setVisible(false);
             document.body.style.overflow = '';
             onHide?.();
-          }, 450); // Match CSS transition duration
-        }, 2500);
+          }, 500);
+        }, 4000);
 
         return () => clearTimeout(timer);
       } catch {
