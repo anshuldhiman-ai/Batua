@@ -36,6 +36,7 @@ from app.routes import (  # noqa: E402
     people,
     goals,
     settings,
+    api_docs,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -74,7 +75,9 @@ async def lifespan(app: FastAPI):
 # development but expose the full API surface publicly. Gate them behind a
 # flag that defaults OFF so a production deploy is closed by default; set
 # ENABLE_DOCS=1 locally (or in a trusted environment) to turn them back on.
-_docs_enabled = os.environ.get("ENABLE_DOCS", "0").strip() not in ("0", "false", "no", "")
+# For development, docs are enabled by default when BATUA_DEV=1
+_is_dev = os.environ.get("BATUA_DEV", "0") == "1"
+_docs_enabled = _is_dev or os.environ.get("ENABLE_DOCS", "0").strip() not in ("0", "false", "no", "")
 
 app = FastAPI(
     title="Batua",
@@ -209,6 +212,7 @@ api.include_router(people.router, prefix="/people", tags=["people"])
 api.include_router(backup.router, tags=["backup"])
 api.include_router(goals.router, prefix="/goals", tags=["goals"])
 api.include_router(settings.router, tags=["settings"])
+api.include_router(api_docs.router, prefix="/docs", tags=["api-docs"])
 
 # Mount API router
 app.include_router(api, prefix="/api")

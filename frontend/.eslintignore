@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+coverage/
+.nyc_output/
+build/
+.vscode/
+.idea/
+*.config.js
+*.config.ts
+vite.config.ts
+tailwind.config.js
+postcss.config.js

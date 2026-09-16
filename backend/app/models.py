@@ -5,20 +5,41 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator, field_valida
 
 
 class Transaction(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    """A financial transaction (expense or income)."""
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "txn_1234567890",
+                    "date": "2026-06-19",
+                    "description": "Zomato",
+                    "amount": -450.0,
+                    "category": "Food Delivery",
+                    "payment_method": "UPI",
+                    "quantity": 1,
+                    "price": 450.0,
+                    "price_text": "",
+                    "txn_type": "debit",
+                    "notes": "Dinner with friends",
+                    "created_at": "2026-06-19T10:30:00Z"
+                }
+            ]
+        }
+    )
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    date: str  # YYYY-MM-DD
-    description: str
-    amount: float = Field(..., allow_inf_nan=False)  # negative = expense, positive = income
-    category: str = "Other"
-    payment_method: str = ""
-    quantity: int = Field(1, ge=1, le=100000)  # quantity of items purchased/credited
-    price: float = 0.0  # per-item price (₹); quantity × price = |amount|
-    price_text: str = ""  # verbatim price cell from the source file (e.g. "120+240")
-    txn_type: str = ""  # "credit" (money in) | "debit" (money out) — derived from amount
-    notes: str = ""
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique transaction identifier")
+    date: str = Field(..., description="Transaction date in YYYY-MM-DD format", examples=["2026-06-19"])
+    description: str = Field(..., description="Transaction description or merchant name", examples=["Zomato", "Salary"])
+    amount: float = Field(..., allow_inf_nan=False, description="Transaction amount (negative for expense, positive for income)", examples=[-450.0, 50000.0])
+    category: str = Field(default="Other", description="Transaction category", examples=["Food Delivery", "Income"])
+    payment_method: str = Field(default="", description="Payment method used", examples=["UPI", "Credit Card", "Cash"])
+    quantity: int = Field(1, ge=1, le=100000, description="Quantity of items (for multi-item transactions)", examples=[1, 2])
+    price: float = Field(default=0.0, description="Per-item price in INR (quantity × price = |amount|)", examples=[450.0, 25.0])
+    price_text: str = Field(default="", description="Original price text from source (e.g., '120+240')", examples=["120+240", "15*2+20"])
+    txn_type: str = Field(default="", description="Transaction type: 'credit' (money in) or 'debit' (money out)", examples=["credit", "debit"])
+    notes: str = Field(default="", description="Additional notes or description", examples=["Dinner with friends"])
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="ISO timestamp when transaction was created")
 
     @model_validator(mode="after")
     def _derive_price(self):
@@ -32,17 +53,35 @@ class Transaction(BaseModel):
 
 
 class TransactionCreate(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    """Request model for creating a new transaction."""
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "date": "2026-06-19",
+                    "description": "Zomato",
+                    "amount": -450.0,
+                    "category": "Food Delivery",
+                    "payment_method": "UPI",
+                    "quantity": 1,
+                    "price": 450.0,
+                    "price_text": "",
+                    "notes": "Dinner with friends"
+                }
+            ]
+        }
+    )
 
-    date: str
-    description: str
-    amount: float
-    category: str = "Other"
-    payment_method: str = ""
-    quantity: int = 1
-    price: float = 0.0
-    price_text: str = ""
-    notes: str = ""
+    date: str = Field(..., description="Transaction date in YYYY-MM-DD format", examples=["2026-06-19"])
+    description: str = Field(..., description="Transaction description or merchant name", examples=["Zomato", "Salary"])
+    amount: float = Field(..., description="Transaction amount (negative for expense, positive for income)", examples=[-450.0, 50000.0])
+    category: str = Field(default="Other", description="Transaction category", examples=["Food Delivery", "Income"])
+    payment_method: str = Field(default="", description="Payment method used", examples=["UPI", "Credit Card", "Cash"])
+    quantity: int = Field(default=1, description="Quantity of items", examples=[1, 2])
+    price: float = Field(default=0.0, description="Per-item price in INR", examples=[450.0, 25.0])
+    price_text: str = Field(default="", description="Original price text from source", examples=["120+240"])
+    notes: str = Field(default="", description="Additional notes", examples=["Dinner with friends"])
 
 
 class TransactionUpdate(BaseModel):
@@ -60,9 +99,25 @@ class TransactionUpdate(BaseModel):
 
 
 class NLRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    text: str
-    force_recurring: bool = False
+    """Request model for natural language transaction parsing."""
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "text": "zomato 450 yesterday upi",
+                    "force_recurring": False
+                },
+                {
+                    "text": "salary +5k on 1st every month",
+                    "force_recurring": False
+                }
+            ]
+        }
+    )
+
+    text: str = Field(..., description="Natural language transaction description", examples=["zomato 450 yesterday upi", "salary +5k credit"])
+    force_recurring: bool = Field(default=False, description="Force parsing as recurring transaction", examples=[False, True])
 
 
 class BulkNLRequest(BaseModel):
@@ -93,11 +148,23 @@ class RecurringCreate(BaseModel):
 
 
 class Budget(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    """A budget limit for a specific category."""
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "budget_1234567890",
+                    "category": "Food Delivery",
+                    "limit": 5000.0
+                }
+            ]
+        }
+    )
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    category: str
-    limit: float = Field(..., gt=0, allow_inf_nan=False)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique budget identifier")
+    category: str = Field(..., description="Category name for this budget", examples=["Food Delivery", "Transportation"])
+    limit: float = Field(..., gt=0, allow_inf_nan=False, description="Monthly spending limit for this category", examples=[5000.0, 2000.0])
 
 
 class BudgetCreate(BaseModel):
@@ -107,14 +174,29 @@ class BudgetCreate(BaseModel):
 
 
 class Goal(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    """A savings goal with target amount and deadline."""
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "goal_abc123def456",
+                    "name": "Emergency Fund",
+                    "target_amount": 100000.0,
+                    "current_amount": 25000.0,
+                    "target_date": "2026-12-31",
+                    "created_at": "2026-06-19T10:30:00Z"
+                }
+            ]
+        }
+    )
 
-    id: str = Field(default_factory=lambda: f"goal_{uuid.uuid4().hex[:12]}")
-    name: str
-    target_amount: float = Field(..., gt=0, allow_inf_nan=False)
-    current_amount: float = Field(0.0, ge=0, allow_inf_nan=False)
-    target_date: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    id: str = Field(default_factory=lambda: f"goal_{uuid.uuid4().hex[:12]}", description="Unique goal identifier")
+    name: str = Field(..., description="Goal name", examples=["Emergency Fund", "Vacation", "New Laptop"])
+    target_amount: float = Field(..., gt=0, allow_inf_nan=False, description="Target amount to save", examples=[100000.0, 50000.0])
+    current_amount: float = Field(0.0, ge=0, allow_inf_nan=False, description="Current saved amount", examples=[25000.0, 0.0])
+    target_date: str = Field(..., description="Target date in YYYY-MM-DD format", examples=["2026-12-31", "2026-09-01"])
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="ISO timestamp when goal was created")
 
 
 class GoalCreate(BaseModel):
