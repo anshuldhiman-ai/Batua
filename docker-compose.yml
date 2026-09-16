@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # MongoDB (optional - for production-like development)
+  mongodb:
+    image: mongo:7.0
+    container_name: batua-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: batua
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - batua-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: batua-backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=batua
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - ENABLE_DOCS=1
+      - BATUA_DEV=1
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - batua-network
+    command: python server.py
+
+  # Frontend (for development with hot reload)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: batua-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:8001/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - batua-network
+    command: yarn dev --host 0.0.0.0
+
+  # Redis for background jobs (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: batua-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - batua-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb_data:
+  backend_data:
+
+networks:
+  batua-network:
+    driver: bridge

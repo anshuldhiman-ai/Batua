@@ -100,13 +100,96 @@ if _docs_enabled:
 # Health check
 @api.get("/")
 async def health():
-    return {
+    """Enhanced health check with dependency status."""
+    health_status = {
         "app": "Batua",
         "status": "live",
         "storage": backend_name,
         "ai": ai.is_enabled(),
         "ai_model": ai.model_name() if ai.is_enabled() else None,
+        "dependencies": {},
+        "version": "1.0.0"
     }
+    
+    # Check storage connectivity
+    try:
+        from app.dependencies import get_storage
+        storage = get_storage()
+        # Simple storage health check
+        if storage:
+            health_status["dependencies"]["storage"] = "healthy"
+        else:
+            health_status["dependencies"]["storage"] = "unhealthy"
+            health_status["status"] = "degraded"
+    except Exception as e:
+        health_status["dependencies"]["storage"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check ML models availability
+    try:
+        import ml_nlp
+        # Quick test of ML classifier
+        ml_nlp.classify_transaction("health check test")
+        health_status["dependencies"]["ml_nlp"] = "healthy"
+    except Exception as e:
+        health_status["dependencies"]["ml_nlp"] = f"unavailable: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check analytics module
+    try:
+        import ml_analytics
+        health_status["dependencies"]["ml_analytics"] = "healthy"
+    except Exception as e:
+        health_status["dependencies"]["ml_analytics"] = f"unavailable: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check local LLM (Ollama) if enabled
+    try:
+        import local_llm
+        if local_llm.is_available():
+            health_status["dependencies"]["local_llm"] = "healthy"
+        else:
+            health_status["dependencies"]["local_llm"] = "unavailable"
+    except Exception as e:
+        health_status["dependencies"]["local_llm"] = f"error: {str(e)}"
+    
+    # Check Excel loader capabilities
+    try:
+        import excel_loader
+        health_status["dependencies"]["excel_loader"] = "healthy"
+    except Exception as e:
+        health_status["dependencies"]["excel_loader"] = f"unavailable: {str(e)}"
+    
+    # Check transcription capabilities
+    try:
+        import transcribe
+        health_status["dependencies"]["transcription"] = "healthy"
+    except Exception as e:
+        health_status["dependencies"]["transcription"] = f"unavailable: {str(e)}"
+    
+    # Overall status determination
+    storage_status = health_status["dependencies"].get("storage", "")
+    if storage_status == "healthy":
+        health_status["status"] = "healthy"
+    else:
+        health_status["status"] = "unhealthy"
+    
+    return health_status
+
+
+# Readiness check (for container orchestration)
+@api.get("/ready")
+async def ready():
+    """Simplified readiness check - is the app ready to serve traffic?"""
+    try:
+        from app.dependencies import get_storage
+        storage = get_storage()
+        if storage:
+            return {"status": "ready"}
+        else:
+            return {"status": "not_ready", "reason": "storage_not_initialized"}
+    except Exception as e:
+        return {"status": "not_ready", "reason": str(e)}
 
 
 # Include route modules

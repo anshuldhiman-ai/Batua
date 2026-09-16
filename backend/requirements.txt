@@ -22,3 +22,5 @@ scikit-learn==1.6.1
 numpy==2.2.4
 faster-whisper==1.2.1
 greenlet==3.5.3
+rq==1.16.1
+redis==5.2.1
