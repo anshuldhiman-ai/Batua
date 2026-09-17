@@ -38,18 +38,24 @@ export function useTheme() {
 
   React.useEffect(() => {
     const root = document.documentElement;
-    
-    // Add smooth transition for theme switching
-    root.style.transition = "background-color 0.3s ease, color 0.3s ease";
-    
-    if (theme === "dark") root.classList.add("dark");
-    else root.classList.remove("dark");
-    
+
+    // Enhanced smooth transition for theme switching with multiple properties
+    root.style.transition = "background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.5s cubic-bezier(0.4, 0, 0.2, 1)";
+
+    // Add a subtle scale effect during transition
+    root.style.transformOrigin = "center center";
+
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+
     // Remove transition after animation completes to avoid interfering with other interactions
     const timeout = setTimeout(() => {
       root.style.transition = "";
-    }, 300);
-    
+    }, 500);
+
     return () => clearTimeout(timeout);
   }, [theme]);
 

@@ -1,5 +1,5 @@
 """API documentation route with enhanced examples and usage information."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -341,7 +341,7 @@ async def api_documentation():
                         "method": "POST",
                         "path": "/excel/upload",
                         "description": "Upload and process Excel/CSV file",
-                        "notes": "Requires multipart/form-data with file upload",
+                        "notes": "Requires multipart/form-data with file upload. Auto-detects columns and date formats",
                         "example_response": {
                             "success": True,
                             "imported_count": 150,
@@ -354,8 +354,7 @@ async def api_documentation():
                                     "category": "Shopping"
                                 }
                             ]
-                        },
-                        "notes": "Auto-detects columns and date formats"
+                        }
                     }
                 ]
             },
@@ -421,30 +420,36 @@ async def quickstart_guide():
             "5. Set budget: POST /api/budgets with {\"category\": \"Food Delivery\", \"limit\": 5000}"
         ],
         "example_workflow": {
-            "step_1": "Parse natural language input",
-            "request": {
-                "method": "POST",
-                "url": "/api/nl-parse",
-                "body": {
-                    "text": "zomato 450 yesterday upi"
+            "step_1": {
+                "description": "Parse natural language input",
+                "request": {
+                    "method": "POST",
+                    "url": "/api/nl-parse",
+                    "body": {
+                        "text": "zomato 450 yesterday upi"
+                    }
                 }
             },
-            "step_2": "Create the transaction",
-            "request": {
-                "method": "POST",
-                "url": "/api/transactions",
-                "body": {
-                    "date": "2026-06-18",
-                    "description": "Zomato",
-                    "amount": -450.0,
-                    "category": "Food Delivery",
-                    "payment_method": "UPI"
+            "step_2": {
+                "description": "Create the transaction",
+                "request": {
+                    "method": "POST",
+                    "url": "/api/transactions",
+                    "body": {
+                        "date": "2026-06-18",
+                        "description": "Zomato",
+                        "amount": -450.0,
+                        "category": "Food Delivery",
+                        "payment_method": "UPI"
+                    }
                 }
             },
-            "step_3": "View updated analytics",
-            "request": {
-                "method": "GET",
-                "url": "/api/analytics/summary?month=2026-06"
+            "step_3": {
+                "description": "View updated analytics",
+                "request": {
+                    "method": "GET",
+                    "url": "/api/analytics/summary?month=2026-06"
+                }
             }
         },
         "natural_language_examples": [

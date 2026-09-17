@@ -17,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 import storage as storage_mod  # noqa: E402
 import ai  # noqa: E402
 import ml_nlp  # noqa: E402
-import ml_analytics  # noqa: E402
 from app.dependencies import set_storage  # noqa: E402
 from app.routes import (  # noqa: E402
     transactions,
@@ -140,7 +139,7 @@ async def health():
     
     # Check analytics module
     try:
-        import ml_analytics
+        import ml_analytics  # noqa: F401
         health_status["dependencies"]["ml_analytics"] = "healthy"
     except Exception as e:
         health_status["dependencies"]["ml_analytics"] = f"unavailable: {str(e)}"
@@ -158,14 +157,14 @@ async def health():
     
     # Check Excel loader capabilities
     try:
-        import excel_loader
+        import excel_loader  # noqa: F401
         health_status["dependencies"]["excel_loader"] = "healthy"
     except Exception as e:
         health_status["dependencies"]["excel_loader"] = f"unavailable: {str(e)}"
     
     # Check transcription capabilities
     try:
-        import transcribe
+        import transcribe  # noqa: F401
         health_status["dependencies"]["transcription"] = "healthy"
     except Exception as e:
         health_status["dependencies"]["transcription"] = f"unavailable: {str(e)}"
