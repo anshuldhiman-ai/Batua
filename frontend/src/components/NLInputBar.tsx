@@ -566,6 +566,9 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   const handleSuggestionClick = (suggestion) => {
     onChange(suggestion);
     setShowSuggestions(false);
+    setFilteredSuggestions([]);
+    // Auto-parse the suggestion after a brief delay to let the input update
+    setTimeout(() => onParse(suggestion), 50);
   };
 
   React.useEffect(() => {

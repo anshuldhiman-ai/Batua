@@ -40,7 +40,7 @@
 
 | | |
 |---|---|
-| 🧠 **Natural-language first** | Log transactions the way you'd text a friend. A local regex/NLP pipeline handles the common cases instantly, with an optional Gemini fallback for messy input. |
+| 🧠 **Natural-language first** | Log transactions the way you'd text a friend with **smart autocomplete** from your transaction history. A local regex/NLP pipeline handles the common cases instantly, with an optional Gemini fallback for messy input. |
 | 🔒 **Private by default** | Your data lives on your machine. The conversational assistant runs on a **local** Ollama model — zero cloud calls, zero subscription, zero data egress. |
 | ♻️ **Zero-config storage** | Ships with MongoDB support but transparently fails over to an embedded SQLite database. Clone, run, done — no database to provision. |
 | 📊 **Insight-dense** | Timelines, category breakdowns, merchant analysis, treemaps, a calendar heatmap, budget health, cash-flow forecasting, and anomaly detection out of the box. |
@@ -51,7 +51,7 @@
 ## 🎯 Feature Overview
 
 ### Capture
-- **Natural-language entry** — `swiggy 320 upi`, `salary 85000 credit`, parsed into structured transactions.
+- **Natural-language entry with autocomplete** — Start typing and get instant suggestions from your transaction history. Click to autofill and parse automatically. Example: `swiggy 320 upi`, `salary 85000 credit`.
 - **Multi-transaction voice input (Hindi/Hinglish)** — dictate a whole note like
   *"aaj lays k 2 packet ek 10 ka ek 20 ka aur chai 10 phir zomato 450 upi"* and it splits into
   separate entries, detecting quantity, per-item prices, categories, and dates.
