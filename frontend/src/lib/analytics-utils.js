@@ -408,17 +408,18 @@ export async function fetchAnalyticsSummary({ startDate, endDate, granularity = 
     end: endDate,
     granularity
   });
-  const res = await fetch(`${apiUrl("/analytics/summary")}?${params}`, { signal });
+  const res = await api.get(`/analytics/summary?${params}`, { signal });
   if (!res.ok) throw new Error("Failed to fetch analytics summary");
-  return res.json();
+  return res.data;
 }
 
 /** Paginate through all transactions in a date range. */
 export async function fetchAllTransactions({ startDate, endDate, signal } = {}) {
   const pageSize = 500;
   let page = 1;
+  let hasMore = true;
   const all = [];
-  while (true) {
+  while (hasMore) {
     const { data } = await api.get("/transactions/", {
       params: {
         start_date: startDate || undefined,
@@ -429,8 +430,11 @@ export async function fetchAllTransactions({ startDate, endDate, signal } = {}) 
       signal,
     });
     all.push(...(data.items || []));
-    if (page >= (data.pages || 1)) break;
-    page += 1;
+    if (page >= (data.pages || 1)) {
+      hasMore = false;
+    } else {
+      page += 1;
+    }
   }
   return all;
 }

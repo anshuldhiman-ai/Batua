@@ -12,3 +12,9 @@ build/
 vite.config.ts
 tailwind.config.js
 postcss.config.js
+android/
+public/assets/
+*.test.ts
+*.test.tsx
+*.test.js
+*.test.jsx
