@@ -18,6 +18,7 @@ import storage as storage_mod  # noqa: E402
 import ai  # noqa: E402
 import ml_nlp  # noqa: E402
 from app.dependencies import set_storage  # noqa: E402
+from app.cache import Cache  # noqa: E402
 from app.routes import (  # noqa: E402
     transactions,
     analytics,
@@ -99,6 +100,61 @@ if _docs_enabled:
         return JSONResponse(app.openapi())
 
 
+# The dependency probes in _probe_dependencies run the ML classifier and
+# probe Ollama — far too expensive for a liveness endpoint that gets polled.
+# Cache their results briefly; storage itself is still checked on every call.
+_health_probe_cache = Cache(default_ttl=30)
+
+
+def _probe_dependencies() -> tuple[dict, bool]:
+    """Probe optional dependencies.
+
+    Returns (results, degraded); degraded is True only when a core ML module
+    failed, matching the status semantics this route has always used.
+    """
+    results: dict[str, str] = {}
+    degraded = False
+
+    # ML classifier — actually run it; a bare import proves little
+    try:
+        ml_nlp.classify_transaction("health check test")
+        results["ml_nlp"] = "healthy"
+    except Exception as e:
+        results["ml_nlp"] = f"unavailable: {str(e)}"
+        degraded = True
+
+    # Analytics module
+    try:
+        import ml_analytics  # noqa: F401
+        results["ml_analytics"] = "healthy"
+    except Exception as e:
+        results["ml_analytics"] = f"unavailable: {str(e)}"
+        degraded = True
+
+    # Local LLM (Ollama), when enabled
+    try:
+        import local_llm
+        results["local_llm"] = "healthy" if local_llm.is_available() else "unavailable"
+    except Exception as e:
+        results["local_llm"] = f"error: {str(e)}"
+
+    # Excel loader
+    try:
+        import excel_loader  # noqa: F401
+        results["excel_loader"] = "healthy"
+    except Exception as e:
+        results["excel_loader"] = f"unavailable: {str(e)}"
+
+    # Transcription
+    try:
+        import transcribe  # noqa: F401
+        results["transcription"] = "healthy"
+    except Exception as e:
+        results["transcription"] = f"unavailable: {str(e)}"
+
+    return results, degraded
+
+
 # Health check
 @api.get("/")
 async def health():
@@ -127,47 +183,18 @@ async def health():
         health_status["dependencies"]["storage"] = f"error: {str(e)}"
         health_status["status"] = "degraded"
     
-    # Check ML models availability
-    try:
-        import ml_nlp
-        # Quick test of ML classifier
-        ml_nlp.classify_transaction("health check test")
-        health_status["dependencies"]["ml_nlp"] = "healthy"
-    except Exception as e:
-        health_status["dependencies"]["ml_nlp"] = f"unavailable: {str(e)}"
+    # The remaining dependency probes (ML classifier run, Ollama probe,
+    # optional module imports) are expensive and this endpoint gets polled,
+    # so their results are cached briefly. Storage above stays per-call —
+    # it is cheap and is the actual liveness signal.
+    probes = _health_probe_cache.get("dependencies")
+    if probes is None:
+        probes = _probe_dependencies()
+        _health_probe_cache.set("dependencies", probes)
+    probe_results, probes_degraded = probes
+    health_status["dependencies"].update(probe_results)
+    if probes_degraded and health_status["status"] == "live":
         health_status["status"] = "degraded"
-    
-    # Check analytics module
-    try:
-        import ml_analytics  # noqa: F401
-        health_status["dependencies"]["ml_analytics"] = "healthy"
-    except Exception as e:
-        health_status["dependencies"]["ml_analytics"] = f"unavailable: {str(e)}"
-        health_status["status"] = "degraded"
-    
-    # Check local LLM (Ollama) if enabled
-    try:
-        import local_llm
-        if local_llm.is_available():
-            health_status["dependencies"]["local_llm"] = "healthy"
-        else:
-            health_status["dependencies"]["local_llm"] = "unavailable"
-    except Exception as e:
-        health_status["dependencies"]["local_llm"] = f"error: {str(e)}"
-    
-    # Check Excel loader capabilities
-    try:
-        import excel_loader  # noqa: F401
-        health_status["dependencies"]["excel_loader"] = "healthy"
-    except Exception as e:
-        health_status["dependencies"]["excel_loader"] = f"unavailable: {str(e)}"
-    
-    # Check transcription capabilities
-    try:
-        import transcribe  # noqa: F401
-        health_status["dependencies"]["transcription"] = "healthy"
-    except Exception as e:
-        health_status["dependencies"]["transcription"] = f"unavailable: {str(e)}"
     
     # Overall status: unhealthy only when storage is down. Other dependency
     # failures already set "degraded" above; the default stays "live".
