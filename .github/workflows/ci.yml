@@ -65,7 +65,12 @@ jobs:
       run: |
         cd frontend
         yarn install --frozen-lockfile
-    
+
+    - name: Lint
+      run: |
+        cd frontend
+        yarn lint
+
     - name: Build
       run: |
         cd frontend
