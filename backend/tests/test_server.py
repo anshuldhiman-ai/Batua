@@ -1,28 +1,7 @@
-import pytest
 import io
 import openpyxl
 from datetime import datetime
 from unittest.mock import patch
-from fastapi.testclient import TestClient
-
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    test_db = tmp_path / "test_server_store.db"
-    return SQLiteStorage(str(test_db))
-
-@pytest.fixture
-def client(test_storage):
-    import server
-    
-    # Patch storage.create_storage so lifespan registers test_storage
-    async def mock_create():
-        return test_storage, "test-json-file"
-        
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
-
 
 def test_health_check(client):
     response = client.get("/api/")

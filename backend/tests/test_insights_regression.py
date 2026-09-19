@@ -5,27 +5,6 @@
 - /api/dashboard/metrics previously had dead code after `return`, so the
   result was never cached. Here we assert the cache is actually populated.
 """
-import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    return SQLiteStorage(str(tmp_path / "test_insights_store.db"))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-
-    async def mock_create():
-        return test_storage, "test-json-file"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
 
 
 def test_insights_cold_cache_does_not_crash(client):

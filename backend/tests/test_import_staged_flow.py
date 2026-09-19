@@ -2,31 +2,13 @@
 import io
 import time
 import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
 
 
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    test_db = tmp_path / "test_import_store.db"
-    return SQLiteStorage(str(test_db))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-    from app.upload_progress import _progress_store
-
+@pytest.fixture(autouse=True)
+def _fresh_progress_store():
     # Fresh progress store per test so tasks don't leak between tests.
+    from app.upload_progress import _progress_store
     _progress_store._tasks.clear()
-
-    async def mock_create():
-        return test_storage, "test-json-file"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
 
 
 def _poll(client, task_id, timeout=15):

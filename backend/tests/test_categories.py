@@ -7,8 +7,6 @@ keep their behaviour. Both the raw keyword path and the full
 ``classify_transaction`` path (keyword-first, ML fallback) are exercised.
 """
 import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
 
 import ml_nlp
 
@@ -124,19 +122,3 @@ def test_payment_methods_endpoint(client):
         assert m in methods
 
 
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    return SQLiteStorage(str(tmp_path / "test_categories_store.db"))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-
-    async def mock_create():
-        return test_storage, "test-json-file"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c

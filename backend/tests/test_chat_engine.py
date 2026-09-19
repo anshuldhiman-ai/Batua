@@ -3,27 +3,6 @@ the session-aware /api/ml/qa + /api/ml/chat/{id} routes.
 """
 from datetime import date
 
-import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    return SQLiteStorage(str(tmp_path / "test_chat_store.db"))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-
-    async def mock_create():
-        return test_storage, "test-json-file"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
 
 
 def _seed(client):

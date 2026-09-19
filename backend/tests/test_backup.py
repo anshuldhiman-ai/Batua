@@ -7,25 +7,11 @@ never wipe a collection the backup file doesn't actually carry.
 """
 import pytest
 from unittest.mock import patch
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    return SQLiteStorage(str(tmp_path / "test_backup_store.db"))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-
-    async def mock_create():
-        return test_storage, "test-sqlite"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
+def storage_backend_name():
+    return "test-sqlite"
 
 
 TXN = {

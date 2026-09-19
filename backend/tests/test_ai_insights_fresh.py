@@ -1,25 +1,4 @@
 """Verify AI Insights reflects transactions added via the transactions API."""
-import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    return SQLiteStorage(str(tmp_path / "ai_insights.db"))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-
-    async def mock_create():
-        return test_storage, "test-json-file"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
 
 
 def test_ml_spending_patterns_see_newly_added_transactions(client):

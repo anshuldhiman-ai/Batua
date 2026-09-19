@@ -6,9 +6,6 @@ one against a seeded SQLite store to catch runtime errors and contract
 regressions.
 """
 import pandas as pd
-import pytest
-from unittest.mock import patch
-from fastapi.testclient import TestClient
 
 from ml_analytics import SpendingPatternAnalyzer
 
@@ -26,24 +23,6 @@ def test_monthly_trend_uses_all_months_not_just_endpoints():
     result = analyzer._analyze_monthly_patterns(df)
     assert result["trend"] != "stable"
     assert result["avg_monthly_spending"] == -300.0
-
-
-@pytest.fixture
-def test_storage(tmp_path):
-    from storage import SQLiteStorage
-    return SQLiteStorage(str(tmp_path / "test_ml_store.db"))
-
-
-@pytest.fixture
-def client(test_storage):
-    import server
-
-    async def mock_create():
-        return test_storage, "test-json-file"
-
-    with patch("storage.create_storage", side_effect=mock_create):
-        with TestClient(server.app) as c:
-            yield c
 
 
 def _seed(client):
