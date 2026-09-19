@@ -32,7 +32,7 @@ async def api_documentation():
                         "description": "Health check with dependency status",
                         "example_response": {
                             "app": "Batua",
-                            "status": "healthy",
+                            "status": "live",
                             "storage": "sqlite",
                             "ai": True,
                             "ai_model": "gemini-2.5-flash",

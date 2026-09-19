@@ -169,11 +169,10 @@ async def health():
     except Exception as e:
         health_status["dependencies"]["transcription"] = f"unavailable: {str(e)}"
     
-    # Overall status determination
+    # Overall status: unhealthy only when storage is down. Other dependency
+    # failures already set "degraded" above; the default stays "live".
     storage_status = health_status["dependencies"].get("storage", "")
-    if storage_status == "healthy":
-        health_status["status"] = "healthy"
-    else:
+    if storage_status != "healthy":
         health_status["status"] = "unhealthy"
     
     return health_status
