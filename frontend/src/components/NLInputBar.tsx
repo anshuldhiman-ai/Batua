@@ -259,8 +259,7 @@ export default function NLInputBar({ onSaved }) {
       } else if (split && draft.fragments?.length) {
         await saveFragments(draft);
       } else {
-        const { kind, count, total, fragments, ...txn } = draft;
-        await api.post("/transactions", txn);
+        await api.post("/transactions", toTxnPayload(draft));
         toast.success("Transaction saved");
       }
       resetAll();
@@ -272,15 +271,29 @@ export default function NLInputBar({ onSaved }) {
     }
   };
 
+  const toTxnPayload = (src) => ({
+    date: src.date,
+    description: src.description,
+    amount: src.amount,
+    category: src.category || "Other",
+    payment_method: src.payment_method || "",
+    quantity: Math.max(1, parseInt(src.quantity, 10) || 1),
+    price: Number(src.price) || 0,
+    price_text: src.price_text || "",
+    notes: src.notes || "",
+  });
+
   // "Split into N" — save each detected item as its own transaction.
   const saveFragments = async (src) => {
-    let saved = 0;
-    for (const item of src.fragments || []) {
-      const { kind, count, total, fragments, ...txn } = item;
-      await api.post("/transactions", txn);
-      saved += 1;
+    const items = (src.fragments || []).map(toTxnPayload).filter((txn) => txn.date && txn.description);
+    if (!items.length) {
+      toast.error("Nothing to split — keep as one entry or parse again.");
+      return;
     }
-    toast.success(`Saved ${saved} transactions`);
+    for (const txn of items) {
+      await api.post("/transactions", txn);
+    }
+    toast.success(`Saved ${items.length} transactions`);
   };
 
   const saveRecurring = async (rec) => {
@@ -320,8 +333,7 @@ export default function NLInputBar({ onSaved }) {
           });
           recurring += data.inserted;
         } else {
-          const { kind, count, total, ...txn } = item;
-          await api.post("/transactions", txn);
+          await api.post("/transactions", toTxnPayload(item));
           singles += 1;
         }
       }
@@ -340,6 +352,7 @@ export default function NLInputBar({ onSaved }) {
     setBulkText("");
     setDraft(null);
     setBulkDrafts(null);
+    setSplit(false);
   };
 
   const updateDraft = (key, val) => setDraft((d) => ({ ...d, [key]: val }));
@@ -356,12 +369,15 @@ export default function NLInputBar({ onSaved }) {
   return (
     <Card
       glow={false}
-      className="relative overflow-hidden rounded-[30px] bg-card/60 backdrop-blur-sm"
+      className="relative overflow-hidden rounded-2xl border-border/70 bg-card shadow-sm"
     >
-      <div className="relative z-10 p-5">
-        <div className="mb-3 flex items-center gap-2 text-sm font-medium text-primary">
-          <Sparkles className="h-4 w-4" />
-          Add transactions in plain English
+      <div className="relative z-10 p-5 sm:p-6">
+        <div className="mb-4">
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Quick add</p>
+          <div className="mt-0.5 flex items-center gap-2 text-sm font-medium">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Type it the way you’d say it
+          </div>
         </div>
 
         <Tabs value={mode} onValueChange={(v) => { setMode(v); resetAll(); }}>
@@ -458,6 +474,7 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   const [interim, setInterim] = React.useState("");
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = React.useState([]);
+  const [activeSuggestion, setActiveSuggestion] = React.useState(0);
   const [suggestionPosition, setSuggestionPosition] = React.useState({ top: 0, left: 0, width: 0 });
   const inputRef = React.useRef(null);
   const suggestionsRef = React.useRef(null);
@@ -539,29 +556,35 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
 
   const [whisperAvailable, setWhisperAvailable] = React.useState(false);
 
-  // Filter descriptions based on input
+  // Filter past descriptions. Position with viewport coords only — `fixed` +
+  // scrollY was dropping the list far below the bar after any page scroll.
   React.useEffect(() => {
-    if (value.trim().length > 0) {
-      const filtered = descriptions.filter((desc) =>
-        desc.toLowerCase().includes(value.toLowerCase())
-      );
-      setFilteredSuggestions(filtered.slice(0, 5)); // Show max 5 suggestions
-      setShowSuggestions(filtered.length > 0);
-      
-      // Calculate position for portal
-      if (inputRef.current && filtered.length > 0) {
-        const rect = inputRef.current.getBoundingClientRect();
-        setSuggestionPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
-          width: rect.width
-        });
-      }
-    } else {
+    const q = value.trim().toLowerCase();
+    if (!q || recording) {
       setShowSuggestions(false);
       setFilteredSuggestions([]);
+      return;
     }
-  }, [value, descriptions]);
+    const filtered = descriptions
+      .filter((desc) => desc && desc.toLowerCase().includes(q))
+      .sort((a, b) => {
+        const as = a.toLowerCase().startsWith(q) ? 0 : 1;
+        const bs = b.toLowerCase().startsWith(q) ? 0 : 1;
+        return as - bs || a.length - b.length;
+      })
+      .slice(0, 6);
+    setFilteredSuggestions(filtered);
+    setShowSuggestions(filtered.length > 0);
+    setActiveSuggestion(0);
+    if (inputRef.current && filtered.length > 0) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setSuggestionPosition({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: Math.max(rect.width, 240),
+      });
+    }
+  }, [value, descriptions, recording]);
 
   const handleSuggestionClick = (suggestion) => {
     onChange(suggestion);
@@ -972,14 +995,29 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
             onFocus={() => { onFocus(); }}
             onBlur={() => { onBlur(); }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (showSuggestions && filteredSuggestions.length > 0) {
+              if (showSuggestions && filteredSuggestions.length > 0) {
+                if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  handleSuggestionClick(filteredSuggestions[0]);
-                } else {
-                  onParse();
+                  setActiveSuggestion((i) => (i + 1) % filteredSuggestions.length);
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActiveSuggestion((i) => (i - 1 + filteredSuggestions.length) % filteredSuggestions.length);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setShowSuggestions(false);
+                  return;
+                }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSuggestionClick(filteredSuggestions[activeSuggestion] || filteredSuggestions[0]);
+                  return;
                 }
               }
+              if (e.key === "Enter") onParse();
             }}
             placeholder={recording ? recordingPlaceholder : placeholder}
             className={cn(
@@ -990,25 +1028,36 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
           {showSuggestions && filteredSuggestions.length > 0 && createPortal(
             <div
               ref={suggestionsRef}
-              className="fixed rounded-lg border border-border bg-background shadow-lg z-[9999] max-h-60 overflow-y-auto"
+              role="listbox"
+              data-testid="nl-suggestions"
+              className="fixed z-[9999] max-h-64 overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-elevated"
               style={{
                 top: suggestionPosition.top,
                 left: suggestionPosition.left,
-                width: suggestionPosition.width
+                width: suggestionPosition.width,
               }}
             >
+              <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                From your history
+              </p>
               {filteredSuggestions.map((suggestion, index) => (
                 <button
                   key={suggestion}
                   type="button"
+                  role="option"
+                  aria-selected={index === activeSuggestion}
+                  onMouseEnter={() => setActiveSuggestion(index)}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handleSuggestionClick(suggestion);
                   }}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent/50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                  className={cn(
+                    "flex w-full items-center rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+                    index === activeSuggestion ? "bg-accent text-accent-foreground" : "hover:bg-muted"
+                  )}
                 >
-                  {suggestion}
+                  <span className="truncate">{suggestion}</span>
                 </button>
               ))}
             </div>,
@@ -1093,7 +1142,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
   const [priceEditing, setPriceEditing] = React.useState(false);
 
   return (
-    <div className="mt-4 rounded-lg border border-border bg-background/60 p-4 animate-fade-up" data-testid="nl-preview">
+    <div className="mt-4 rounded-2xl border border-border/80 bg-muted/20 p-4 animate-fade-up" data-testid="nl-preview">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {isRecurring ? `Repeat monthly · pick which months to apply` : "Preview — edit before saving"}
@@ -1225,7 +1274,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
 
       {!isRecurring && fragmentCount >= 2 && (
         <div
-          className="mt-4 rounded-lg border border-primary/25 bg-primary/5 p-3"
+          className="mt-4 rounded-xl border border-border bg-background p-3.5"
           data-testid="fragment-split"
         >
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">

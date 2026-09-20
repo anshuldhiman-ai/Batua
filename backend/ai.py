@@ -205,7 +205,8 @@ def analyze_receipt(file_bytes: bytes, mime_type: str) -> dict | None:
                     "- 'payment_method': guess one of: UPI, Cash, Card, Bank Transfer, Other\n"
                     "- 'quantity': number of items purchased (default 1)\n"
                     "- 'price': price per item (total amount divided by quantity; default absolute amount)\n"
-                    "- 'notes': brief bullet points of major items bought\n\n"
+                    "- 'notes': short comma-separated list of major items bought\n"
+                    "- 'items': array of {name, amount, quantity} line items (omit tax/total rows; empty array if unclear)\n\n"
                     "Respond with ONLY valid minified JSON, no markdown code blocks, "
                     "no ```json wrapper, and no surrounding text."
                 )},

@@ -40,6 +40,7 @@ import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
 import ReceiptScanner from "@/components/ReceiptScanner";
 import ExportDialog from "@/components/ExportDialog";
+import { parseReceiptText, type ParsedReceipt } from "@/lib/parse-receipt";
 
 const PAGE_SIZE = 15;
 const EMPTY = { date: "", description: "", amount: 0, category: "Other", payment_method: "", notes: "", quantity: 1, price: 0, price_text: "" };
@@ -98,40 +99,26 @@ export default function Transactions() {
   const [scanningReceipt, setScanningReceipt] = React.useState(false);
   const receiptInputRef = React.useRef(null);
 
-  const handleReceiptTextExtracted = (text: string) => {
-    // Parse the extracted text and populate the form
-    // This is a simple parser - you could enhance it with regex patterns
-    const lines = text.split('\n').filter(line => line.trim());
-    let description = '';
-    let amount = 0;
-    
-    // Try to find amount in the text
-    const amountMatch = text.match(/₹?\s*(\d+(?:,\d+)*(?:\.\d{2})?)/g);
-    if (amountMatch && amountMatch.length > 0) {
-      // Get the largest amount (likely the total)
-      const amounts = amountMatch.map(a => parseFloat(a.replace(/[₹,\s]/g, ''))).filter(n => !isNaN(n));
-      if (amounts.length > 0) {
-        amount = Math.max(...amounts);
-      }
-    }
-    
-    // Use first non-empty line as description
-    description = lines[0] || '';
-    
+  const applyParsedReceipt = (parsed: ParsedReceipt) => {
     setEditing(null);
     setPriceEditing(false);
     setForm({
       ...EMPTY,
-      date: new Date().toISOString().slice(0, 10),
-      description: description || 'Receipt purchase',
-      amount: -Math.abs(amount), // Default to expense
-      category: 'Other',
-      payment_method: '',
-      quantity: 1,
-      price: Math.abs(amount),
-      notes: text.substring(0, 500), // Store first 500 chars as notes
+      date: parsed.date || new Date().toISOString().slice(0, 10),
+      description: parsed.description || "Receipt purchase",
+      amount: parsed.amount || 0,
+      category: parsed.category || "Other",
+      payment_method: parsed.payment_method || "",
+      quantity: parsed.quantity || 1,
+      price: parsed.price || Math.abs(parsed.amount || 0),
+      notes: parsed.notes || "",
     });
+    setReceiptModalOpen(false);
     setModalOpen(true);
+  };
+
+  const handleReceiptTextExtracted = (text: string, parsed?: ParsedReceipt) => {
+    applyParsedReceipt(parsed || parseReceiptText(text || ""));
   };
 
   const handleReceiptUpload = async (e) => {
@@ -1036,8 +1023,12 @@ export default function Transactions() {
 
       {/* Receipt Scan Dialog */}
       <Dialog open={receiptModalOpen} onOpenChange={setReceiptModalOpen}>
-        <DialogContent onClose={() => setReceiptModalOpen(false)} data-testid="receipt-modal">
-          <ReceiptScanner 
+        <DialogContent
+          onClose={() => setReceiptModalOpen(false)}
+          data-testid="receipt-modal"
+          className="max-w-2xl"
+        >
+          <ReceiptScanner
             onTextExtracted={handleReceiptTextExtracted}
             onClose={() => setReceiptModalOpen(false)}
           />
