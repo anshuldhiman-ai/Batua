@@ -6,12 +6,26 @@ interface BatuaLogoRevealProps {
   leaving?: boolean;
   waiting?: boolean;
   tagline?: boolean;
+  /** null = not yet determined (localStorage read pending). When false, the
+   *  full choreography is skipped and the assembled mark is shown statically. */
+  firstRunKnown?: boolean | null;
 }
 
-export default function BatuaLogoReveal({ leaving, waiting, tagline }: BatuaLogoRevealProps) {
+export default function BatuaLogoReveal({
+  leaving,
+  waiting,
+  tagline,
+  firstRunKnown,
+}: BatuaLogoRevealProps) {
   const [firstRun, setFirstRun] = useState(false);
 
   useEffect(() => {
+    // The localStorage read lives in SplashScreen now; keep this for any
+    // standalone usages of the reveal (e.g. tests, future in-app replay).
+    if (firstRunKnown !== undefined && firstRunKnown !== null) {
+      setFirstRun(firstRunKnown);
+      return;
+    }
     try {
       const seen = localStorage.getItem("batua-splash-seen");
       setFirstRun(!seen);
@@ -21,10 +35,12 @@ export default function BatuaLogoReveal({ leaving, waiting, tagline }: BatuaLogo
     } catch {
       // localStorage unavailable - don't block splash
     }
-  }, []);
+  }, [firstRunKnown]);
+
+  const isQuick = firstRunKnown === false;
 
   return (
-    <div className={`batua-stage ${leaving ? "is-leaving" : ""}`}>
+    <div className={`batua-stage ${leaving ? "is-leaving" : ""} ${isQuick ? "is-quick" : ""}`}>
       <div className="batua-scene">
 
         {/* Main logo */}
