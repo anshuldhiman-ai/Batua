@@ -172,8 +172,8 @@
 @keyframes walletLand {
   from {
     opacity: 0;
-    transform: translateY(14%) rotate(-4deg) scale(0.96);
-    filter: blur(3px);
+    transform: translateY(12%) rotate(-3deg) scale(0.97);
+    filter: blur(2.5px);
   }
   to {
     opacity: 1;

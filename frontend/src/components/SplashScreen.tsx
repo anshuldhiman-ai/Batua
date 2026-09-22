@@ -18,23 +18,26 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
   const [visible, setVisible] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const [waiting, setWaiting] = useState(true);
-  const [firstRun, setFirstRun] = useState<boolean | null>(null);
+
+  // Determine first/returning visitor *before* the first paint so we don't
+  // briefly play the wrong animation (which can feel glitchy).
+  const [firstRun] = useState<boolean>(() => {
+    try {
+      const seen = localStorage.getItem("batua-splash-seen");
+      const isFirst = !seen;
+      if (!seen) {
+        localStorage.setItem("batua-splash-seen", "true");
+      }
+      return isFirst;
+    } catch {
+      // localStorage unavailable - treat as first run
+      return true;
+    }
+  });
 
   useEffect(() => {
     // Prevent scrolling during splash screen
     document.body.style.overflow = 'hidden';
-
-    let isFirstRun = true;
-    try {
-      const seen = localStorage.getItem("batua-splash-seen");
-      isFirstRun = !seen;
-      if (!seen) {
-        localStorage.setItem("batua-splash-seen", "true");
-      }
-    } catch {
-      // localStorage unavailable - don't block splash, treat as first run
-    }
-    setFirstRun(isFirstRun);
 
     // Gate splash screen on document.fonts.ready
     const run = async () => {
@@ -47,7 +50,7 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
 
       // Allow the animation to complete before leaving. Repeat visitors get
       // the quick flash instead of the full story.
-      const hold = isFirstRun ? FULL_MS : QUICK_MS;
+      const hold = firstRun ? FULL_MS : QUICK_MS;
       const timer = setTimeout(() => {
         setLeaving(true);
         setTimeout(() => {
@@ -66,7 +69,7 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
     return () => {
       document.body.style.overflow = '';
     };
-  }, []);
+  }, [firstRun]);
 
   if (!visible) return null;
 
