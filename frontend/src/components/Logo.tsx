@@ -36,12 +36,14 @@ export default function Logo({ className }: { className?: string }) {
           <rect x="355" y="578" width="175" height="228" fill="#000" />
         </mask>
       </defs>
-      {/* The mask must live on a NON-transformed wrapper: applied directly to
-          the transformed group, the mask's userSpaceOnUse coordinates resolve
-          in the glyph's huge local space and mask almost everything out. */}
-      <g mask="url(#batua-logo-holes)">
+      {/* data-part="frame" is a transform-free wrapper in ROOT viewBox space
+          (0-973). The splash screen animates this wrapper with CSS; the inner
+          group keeps its SVG attribute transform untouched. Animating the
+          inner group instead would let the CSS transform REPLACE the
+          attribute transform and throw the "B" out of position. The mask
+          lives on the wrapper so the coin holes track the frame as it moves. */}
+      <g data-part="frame" mask="url(#batua-logo-holes)">
         <g
-          data-part="frame"
           transform="scale(0.25) translate(0.000000,3892.000000) scale(0.100000,-0.100000)"
           fill="hsl(var(--foreground))"
           stroke="none"
@@ -197,10 +199,13 @@ c-1225 -7 -1420 -6 -1525 7 -170 22 -296 63 -447 149 -394 221 -618 620 -621
       <circle cx="481.5" cy="364.9" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" data-part="clasp" />
       <circle cx="339.0" cy="426.8" r="28.4" fill="none" stroke="hsl(var(--primary))" strokeWidth="22" data-part="clasp" />
       <circle cx="629.5" cy="684.2" r="18.6" fill="hsl(var(--foreground))" data-part="rupee" />
-      <g transform="translate(377.95,595) scale(0.08703)">
-        <g transform="translate(0,2172) scale(0.1,-0.1)">
-          <path
-            data-part="arrow"
+      {/* Same contract as the frame: data-part="arrow" is the transform-free
+          wrapper in root space; the nested groups keep their attribute
+          transforms. CSS animates only the wrapper. */}
+      <g data-part="arrow">
+        <g transform="translate(377.95,595) scale(0.08703)">
+          <g transform="translate(0,2172) scale(0.1,-0.1)">
+            <path
             d="M7925 21620 l-6629 -5 -66 -96 c-36 -53 -70 -104 -77 -115 -6 -10
 -28 -46 -49 -79 -20 -33 -51 -78 -69 -100 -17 -22 -34 -47 -38 -57 -6 -17 -81
 -134 -266 -415 -58 -88 -153 -235 -211 -324 -58 -90 -115 -177 -127 -194 -12
@@ -280,6 +285,7 @@ c3076 -4 3915 -8 3924 -17 13 -13 14 -61 4 -273 -7 -139 -24 -252 -69 -455
 33 29 65 6 74 -9 3 -19 5 -22 4 -4 -2 -2990 -5 -6637 -8z"
             fill="hsl(var(--foreground))"
           />
+          </g>
         </g>
       </g>
     </svg>
