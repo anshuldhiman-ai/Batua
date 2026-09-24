@@ -5,12 +5,10 @@ interface SplashScreenProps {
   onHide?: () => void;
 }
 
-// Total on-screen time for the full choreography: the arrow (1.7s delay +
-// 0.6s) finishes at ~2.3s, the snap pulse lands ~2.55s, the tagline at 2.5s +
-// 0.5s. Start the exit once the mark is assembled.
-const FULL_MS = 2700;
+// Total on-screen time for the full choreography: arrow finishes at ~1.6s
+const FULL_MS = 2000;
 // Repeat visitors: skip the story, just flash the assembled mark.
-const QUICK_MS = 600;
+const QUICK_MS = 500;
 // Must stay in sync with the .batua-stage transition duration in CSS.
 const EXIT_MS = 450;
 

@@ -11,19 +11,14 @@
 
   background: hsl(var(--background));
 
-  transition:
-    opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+  transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Hand-off: shrink toward the top-left corner where the header logo lives,
-   while the app fades in underneath. Duration must stay in sync with
+/* Hand-off: fade out smoothly. Duration must stay in sync with
    EXIT_MS in SplashScreen.tsx. */
 .batua-stage.is-leaving {
   opacity: 0;
-  /* translate FIRST then scale: the mark shrinks around its center while
-     sliding the full distance to the header-logo corner. */
-  transform: translate(-40vw, -40vh) scale(0.1);
   pointer-events: none;
 }
 
@@ -32,20 +27,22 @@
 .batua-stage.is-quick .mark-glyph [data-part],
 .batua-stage.is-quick .batua-mark {
   animation: none;
+  opacity: 1;
+  transform: none;
 }
 
 .batua-stage.is-quick .mark-glyph {
-  animation: quickFade 0.35s ease-out both;
+  animation: quickFade 0.4s ease-out both;
 }
 
 @keyframes quickFade {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: scale(1);
   }
 }
 
@@ -72,58 +69,53 @@
   height: 100%;
 }
 
-/* ─── COINS-DROPPING CHOREOGRAPHY ────────────────────────────────────────────
-   The wallet (B frame) lands first, then each coin drops from above with a
-   gravity fall + micro-bounce. The whole mark "thuds" slightly on each coin
-   landing, the ₹ flips face-on, and the arrow sweeps out. A final snap pulse
-   welds everything into one mark.
+/* ─── SMOOTH REVEAL CHOREOGRAPHY ─────────────────────────────────────────────
+   Simple, elegant reveal: frame fades in, coins drop gently, arrow sweeps, done.
+   No complex transforms, no heavy animations.
 
-   STRUCTURE CONTRACT: every [data-part] node is a transform-free wrapper
-   in the SVG's root viewBox space (0–973). Parts carrying their own SVG
-   attribute transforms (frame, arrow) sit INSIDE these wrappers and are
-   never animated directly — a CSS transform would REPLACE the attribute
-   transform and throw the part out of the mark. All wrappers use
-   transform-box: fill-box so percentages resolve against each part's own
-   bounding box, keeping every animated part locked to the mark's geometry. */
+   STRUCTURE CONTRACT: every [data-part] node is a transform-free wrapper in
+   the SVG's root viewBox space (0–973). Parts carrying their own SVG attribute
+   transforms (frame, arrow) sit INSIDE these wrappers and are never animated
+   directly — a CSS transform would REPLACE the attribute transform and throw
+   the part out of the mark. Wrappers use transform-box: fill-box so
+   percentages resolve against each part's own bounding box, keeping every
+   animated part locked to the mark's geometry. */
 
 /* Shared contract for every animated part. */
 .mark-glyph [data-part] {
   transform-box: fill-box;
   transform-origin: center;
   will-change: opacity, transform;
+  animation-fill-mode: both;
 }
 
-/* 1 · The wallet (B frame) rises from below and settles, slightly tilted. */
-.mark-glyph [data-part="frame"] {
-  animation: walletLand 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
-}
-
-/* 2 · Each coin drops from above with its own delay via data-part order. */
+/* Each coin drops smoothly from above, staggered by nth-of-type. */
 .mark-glyph [data-part="clasp"]:nth-of-type(1) {
-  animation: coinDrop 0.55s cubic-bezier(0.5, 0, 0.7, 0.4) 0.5s both;
+  animation: coinDrop 0.5s cubic-bezier(0.34, 1.2, 0.64, 1) 0.3s both;
 }
 
 .mark-glyph [data-part="clasp"]:nth-of-type(2) {
-  animation: coinDrop 0.55s cubic-bezier(0.5, 0, 0.7, 0.4) 0.8s both;
+  animation: coinDrop 0.5s cubic-bezier(0.34, 1.2, 0.64, 1) 0.5s both;
 }
 
 .mark-glyph [data-part="clasp"]:nth-of-type(3) {
-  animation: coinDrop 0.55s cubic-bezier(0.5, 0, 0.7, 0.4) 1.1s both;
+  animation: coinDrop 0.5s cubic-bezier(0.34, 1.2, 0.64, 1) 0.7s both;
 }
 
-/* 4 · The ₹ coin flips face-on like a settling coin. */
+/* Frame fades in first */
+.mark-glyph [data-part="frame"] {
+  animation: fadeIn 0.6s ease-out 0.1s both;
+}
+
+/* ₹ appears after coins */
 .mark-glyph [data-part="rupee"] {
-  animation: rupeeFlip 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) 1.45s both;
+  animation: fadeIn 0.4s ease-out 0.9s both;
 }
 
-/* 5 · The arrow sweeps out with an overshoot, like money being sent. */
+/* Arrow sweeps out last */
 .mark-glyph [data-part="arrow"] {
-  animation: arrowSweep 0.6s cubic-bezier(0.22, 1.2, 0.36, 1) 1.7s both;
-}
-
-/* 6 · Final snap: the assembled mark pulses once so it feels welded. */
-.batua-mark {
-  animation: markSnap 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 2.1s both;
+  transform-origin: center;
+  animation: arrowSweep 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1.1s both;
 }
 
 /* ─── Tagline (first run only) ─────────────────────────────── */
@@ -135,7 +127,7 @@
   font-weight: 500;
   letter-spacing: 0.09em;
   color: hsl(var(--muted-foreground));
-  animation: taglineIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 2.5s both;
+  animation: fadeIn 0.4s ease-out 1.5s both;
 }
 
 /* ─── Progress hairline ────────────────────────────────────── */
@@ -171,91 +163,40 @@
 
 /* ─── Keyframes ────────────────────────────────────────────── */
 
-/* Wallet rises from below, blur→sharp, settles from a slight tilt. */
-@keyframes walletLand {
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(12%) rotate(-3deg) scale(0.97);
-    filter: blur(2.5px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) rotate(0deg) scale(1);
-    filter: blur(0);
   }
 }
 
-/* Coin falls from above with a fast gravity curve, then a micro-bounce.
-   The keyframe easing handles the fall; the landing overshoot below makes
-   the bounce. */
+/* Coin drops smoothly from above with a gentle bounce */
 @keyframes coinDrop {
   0% {
     opacity: 0;
-    transform: translateY(-300%) scale(0.9);
+    transform: translateY(-100%) scale(0.8);
   }
-  40% {
+  60% {
     opacity: 1;
-  }
-  70% {
-    transform: translateY(0) scale(1, 0.88);
-  }
-  85% {
-    transform: translateY(-8%) scale(0.96, 1.04);
+    transform: translateY(0) scale(1.05);
   }
   100% {
+    opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
 
-/* ₹ flips from edge-on to face-on while settling. */
-@keyframes rupeeFlip {
-  from {
-    opacity: 0;
-    transform: rotateY(90deg) scale(0.7);
-  }
-  to {
-    opacity: 1;
-    transform: rotateY(0deg) scale(1);
-  }
-}
-
-/* Arrow pops out with an overshoot beyond the resting point. */
+/* Arrow sweeps out smoothly */
 @keyframes arrowSweep {
   0% {
     opacity: 0;
-    transform: scale(0.4) translate(16px, -14px);
-  }
-  70% {
-    opacity: 1;
-    transform: scale(1.12) translate(-4px, 3px);
+    transform: scale(0.6) translateX(20px);
   }
   100% {
     opacity: 1;
-    transform: scale(1) translate(0, 0);
-  }
-}
-
-/* Assembled mark pulses once. */
-@keyframes markSnap {
-  from {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(0.97);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-@keyframes taglineIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: scale(1) translateX(0);
   }
 }
 
@@ -275,6 +216,8 @@
   .batua-tagline,
   .batua-mark {
     animation: none;
+    opacity: 1;
+    transform: none;
   }
 
   .batua-progress span {
@@ -283,9 +226,5 @@
 
   .batua-stage {
     transition: opacity 0.2s linear;
-  }
-
-  .batua-stage.is-leaving {
-    transform: none;
   }
 }
