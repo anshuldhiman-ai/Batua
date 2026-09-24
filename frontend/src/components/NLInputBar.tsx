@@ -560,7 +560,10 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   // scrollY was dropping the list far below the bar after any page scroll.
   React.useEffect(() => {
     const q = value.trim().toLowerCase();
-    if (!q || recording) {
+    // Never resurface the list while a parse is in flight: picking a suggestion
+    // or hitting Enter sets the text, which would otherwise re-open the list
+    // over the result that is about to render.
+    if (!q || recording || parsing) {
       setShowSuggestions(false);
       setFilteredSuggestions([]);
       return;
@@ -584,14 +587,26 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
         width: Math.max(rect.width, 240),
       });
     }
-  }, [value, descriptions, recording]);
+  }, [value, descriptions, recording, parsing]);
+
+  // A parse just finished — keep the list closed and reset the highlight so the
+  // next keystroke starts from the top of a fresh list.
+  React.useEffect(() => {
+    if (!parsing) {
+      setShowSuggestions(false);
+      setFilteredSuggestions([]);
+      setActiveSuggestion(0);
+    }
+  }, [parsing]);
 
   const handleSuggestionClick = (suggestion) => {
+    // Commit the pick and hide the list, then parse the chosen text directly.
+    // Clearing only here is not enough: the suggestion effect refills the list
+    // from the new `value` before the parse resolves. parseSingle clears it
+    // again once the request lands — see the parse-in-flight guard below.
     onChange(suggestion);
     setShowSuggestions(false);
-    setFilteredSuggestions([]);
-    // Auto-parse the suggestion after a brief delay to let the input update
-    setTimeout(() => onParse(suggestion), 50);
+    onParse(suggestion);
   };
 
   React.useEffect(() => {

@@ -150,6 +150,90 @@ describe("NLInputBar Component", () => {
     expect(mockedPost).not.toHaveBeenCalled();
   });
 
+  describe("history suggestions", () => {
+    // The suggestions effect reads descriptions from this GET; the bar also
+    // fetches categories on mount, so route by URL.
+    function withHistory(descriptions: string[]) {
+      vi.mocked(api.get).mockImplementation((url: string) =>
+        Promise.resolve(
+          url === "/transactions/descriptions"
+            ? ({ data: { descriptions } } as any)
+            : ({ data: { categories: [], methods: [] } } as any),
+        ),
+      );
+    }
+
+    // Both tab panels stay mounted and share the same text state, so every
+    // assertion about the list has to allow for more than one instance.
+    function suggestionLists() {
+      return screen.queryAllByTestId("nl-suggestions");
+    }
+
+    async function typeAndAwaitSuggestions(text: string) {
+      const input = firstInput();
+      fireEvent.change(input, { target: { value: text } });
+      // The suggestions effect only runs once the mount GETs resolve and land
+      // in state, so flush them before looking for the list.
+      await waitFor(() => expect(api.get).toHaveBeenCalled());
+      await waitFor(() => expect(suggestionLists().length).toBeGreaterThan(0));
+      return input;
+    }
+
+    it("closes the list once a parse starts, so the text refill can't reopen it", async () => {
+      withHistory(["zomato dinner", "zomato lunch"]);
+      mockedPost.mockResolvedValue({
+        data: { kind: "single", description: "Zomato", amount: -450, category: "Food" },
+      } as any);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+
+      // First Enter fills the input from the highlighted suggestion and parses.
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
+          text: "zomato lunch",
+          force_recurring: false,
+        });
+      });
+
+      // Regression: the list used to reappear from the new input value while
+      // the request was in flight, so it sat open over the result.
+      await waitFor(() => expect(suggestionLists()).toHaveLength(0));
+
+      // And a follow-up Enter must parse the typed line once, not re-enter the
+      // suggestion branch and parse a second time.
+      mockedPost.mockClear();
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
+          text: "zomato lunch",
+          force_recurring: false,
+        });
+      });
+    });
+
+    it("resurfaces suggestions when the user keeps editing after a parse", async () => {
+      withHistory(["zomato dinner", "zomato lunch"]);
+      mockedPost.mockResolvedValue({
+        data: { kind: "single", description: "Zomato", amount: -450, category: "Food" },
+      } as any);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => {
+        expect(screen.getByTestId("preview-description")).toBeInTheDocument();
+      });
+      expect(suggestionLists()).toHaveLength(0);
+
+      // Typing again is a fresh query, so the list comes back.
+      fireEvent.change(input, { target: { value: "zomato lun" } });
+      await waitFor(() => expect(suggestionLists().length).toBeGreaterThan(0));
+    });
+  });
+
   async function parseSingle(text) {
     renderBar();
     mockedPost.mockResolvedValueOnce({
