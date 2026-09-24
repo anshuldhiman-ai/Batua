@@ -1017,7 +1017,11 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
                   return;
                 }
               }
-              if (e.key === "Enter") onParse();
+              if (e.key === "Enter") {
+                setShowSuggestions(false);
+                setFilteredSuggestions([]);
+                onParse();
+              }
             }}
             placeholder={recording ? recordingPlaceholder : placeholder}
             className={cn(

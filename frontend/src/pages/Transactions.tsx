@@ -918,8 +918,8 @@ export default function Transactions() {
                 data-testid="form-type"
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
               >
-                <option value="credit">Credit (money in)</option>
-                <option value="debit">Debit (money out)</option>
+                <option value="credit">Credit (income)</option>
+                <option value="debit">Debit (expense)</option>
               </select>
             </Field>
             <Field label="Amount (₹)">
