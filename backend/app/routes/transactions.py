@@ -21,12 +21,15 @@ async def get_all_txns():
 async def list_descriptions():
     """Get unique transaction descriptions for autocomplete suggestions."""
     txns = await get_all_txns()
-    descriptions = set()
+    # Dedupe case-insensitively: "Zomato" and "zomato" are one merchant, and
+    # showing both would render as a duplicate suggestion.
+    descriptions: dict[str, str] = {}
     for t in txns:
-        desc = t.get("description", "").strip()
-        if desc:
-            descriptions.add(desc)
-    return {"descriptions": sorted(list(descriptions))}
+        desc = (t.get("description") or "").strip()
+        if not desc:
+            continue
+        descriptions.setdefault(desc.casefold(), desc)
+    return {"descriptions": sorted(descriptions.values(), key=str.casefold)}
 
 
 @router.get("/")
