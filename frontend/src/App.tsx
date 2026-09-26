@@ -6,7 +6,13 @@ import Layout from "@/components/Layout";
 import SplashScreen from "@/components/SplashScreen";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { applyAccent, DEFAULT_ACCENT, DEFAULT_CUSTOM_COLOR } from "@/lib/themes";
+import {
+  applyAccent,
+  DEFAULT_ACCENT,
+  DEFAULT_CUSTOM_COLOR,
+  type ThemeMode,
+} from "@/lib/themes";
+import type { SetLocalStorageValue } from "@/hooks/useLocalStorage";
 
 // Code split route components for better performance
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
@@ -19,7 +25,18 @@ const MLInsights = React.lazy(() => import("./pages/MLInsights"));
 const Settings = React.lazy(() => import("./pages/Settings"));
 const ApiDocs = React.lazy(() => import("./pages/ApiDocs"));
 
-export const ThemeContext = React.createContext<any>({
+export interface ThemeContextValue {
+  theme: ThemeMode;
+  toggle: () => void;
+  /** Accent id from `ACCENTS`, or `CUSTOM_ACCENT`. */
+  accent: string;
+  setAccent: SetLocalStorageValue<string>;
+  /** Hex color used when `accent === CUSTOM_ACCENT`. */
+  customColor: string;
+  setCustomColor: SetLocalStorageValue<string>;
+}
+
+export const ThemeContext = React.createContext<ThemeContextValue>({
   theme: "light",
   toggle: () => {},
   accent: DEFAULT_ACCENT,
@@ -28,10 +45,13 @@ export const ThemeContext = React.createContext<any>({
   setCustomColor: () => {},
 });
 
-export function useTheme() {
-  const [theme, setTheme] = useLocalStorage("batua-theme", "light");
-  const [accent, setAccent] = useLocalStorage("batua-accent", DEFAULT_ACCENT);
-  const [customColor, setCustomColor] = useLocalStorage(
+export function useTheme(): ThemeContextValue {
+  const [theme, setTheme] = useLocalStorage<ThemeMode>("batua-theme", "light");
+  const [accent, setAccent] = useLocalStorage<string>(
+    "batua-accent",
+    DEFAULT_ACCENT
+  );
+  const [customColor, setCustomColor] = useLocalStorage<string>(
     "batua-accent-custom",
     DEFAULT_CUSTOM_COLOR
   );

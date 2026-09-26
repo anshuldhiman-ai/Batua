@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 // Mock dependencies before imports — keep the real priceBreakdown logic so the
@@ -169,6 +169,11 @@ describe("NLInputBar Component", () => {
       return screen.queryAllByTestId("nl-suggestions");
     }
 
+    // The single tab is the first InputRow, so its portal is the first list.
+    function firstListOptions() {
+      return within(suggestionLists()[0]).getAllByRole("option");
+    }
+
     async function typeAndAwaitSuggestions(text: string) {
       const input = firstInput();
       fireEvent.change(input, { target: { value: text } });
@@ -231,6 +236,123 @@ describe("NLInputBar Component", () => {
       // Typing again is a fresh query, so the list comes back.
       fireEvent.change(input, { target: { value: "zomato lun" } });
       await waitFor(() => expect(suggestionLists().length).toBeGreaterThan(0));
+    });
+
+    it("lists each history entry once, ignoring case", async () => {
+      // The history endpoint can hand back "Zomato" and "zomato" as separate
+      // rows; showing both would just be a duplicated suggestion.
+      withHistory(["Zomato", "zomato", "ZOMATO", "zomato dinner", "zomato lunch"]);
+      renderBar();
+
+      await typeAndAwaitSuggestions("zomato");
+
+      const labels = firstListOptions().map((o) => o.textContent);
+      expect(labels).toHaveLength(3);
+      expect(new Set(labels.map((l) => l.toLowerCase())).size).toBe(3);
+    });
+
+    it("moves the highlight with ArrowDown/ArrowUp and wraps around", async () => {
+      withHistory(["zomato dinner", "zomato lunch"]);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+
+      // The list opens with the first option highlighted.
+      expect(firstListOptions()[0]).toHaveAttribute("aria-selected", "true");
+
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(firstListOptions()[1]).toHaveAttribute("aria-selected", "true");
+      expect(firstListOptions()[0]).toHaveAttribute("aria-selected", "false");
+
+      // Past the end it wraps back to the top.
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(firstListOptions()[0]).toHaveAttribute("aria-selected", "true");
+
+      // And ArrowUp from the top wraps to the last entry.
+      fireEvent.keyDown(input, { key: "ArrowUp" });
+      expect(firstListOptions()[1]).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("Enter picks the highlighted suggestion, not the first one", async () => {
+      withHistory(["zomato lunch", "zomato dinner"]);
+      mockedPost.mockResolvedValue({
+        data: { kind: "single", description: "zomato dinner", amount: -650, category: "Food" },
+      } as any);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+      expect(firstListOptions()[0]).toHaveTextContent("zomato lunch");
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
+          text: "zomato dinner",
+          force_recurring: false,
+        });
+      });
+    });
+
+    it("Escape closes the list without picking anything", async () => {
+      withHistory(["zomato dinner", "zomato lunch"]);
+      mockedPost.mockResolvedValue({
+        data: { kind: "single", description: "zomato", amount: -450, category: "Food" },
+      } as any);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+      const openLists = suggestionLists();
+      expect(openLists.length).toBeGreaterThan(1);
+
+      fireEvent.keyDown(input, { key: "Escape" });
+      await waitFor(() => expect(suggestionLists()).toHaveLength(openLists.length - 1));
+
+      // The typed text is left exactly as the user had it, and the next Enter
+      // parses that raw line rather than a suggestion.
+      expect(input).toHaveValue("zomato");
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
+          text: "zomato",
+          force_recurring: false,
+        });
+      });
+    });
+
+    it("picking a suggestion only sets the text — it never carries an amount, category or date", async () => {
+      withHistory(["zomato lunch", "zomato dinner"]);
+      mockedPost.mockResolvedValue({
+        data: {
+          kind: "single",
+          description: "zomato dinner",
+          amount: -650,
+          category: "Food",
+          payment_method: "UPI",
+          date: "2026-07-26",
+        },
+      } as any);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      // The pick sends only the text for parsing — no draft fields ride along,
+      // so a stale amount/category/date can never leak into the parse.
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
+          text: "zomato dinner",
+          force_recurring: false,
+        });
+      });
+      const [, body] = mockedPost.mock.calls[0];
+      expect(Object.keys(body).sort()).toEqual(["force_recurring", "text"]);
+      expect(input).toHaveValue("zomato dinner");
+
+      // And it only previews the draft — nothing is written to the ledger.
+      await waitFor(() => expect(screen.getByTestId("preview-description")).toHaveValue("zomato dinner"));
+      expect(mockedPost).not.toHaveBeenCalledWith("/transactions", expect.anything());
     });
   });
 

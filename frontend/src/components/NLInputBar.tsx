@@ -568,8 +568,17 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
       setFilteredSuggestions([]);
       return;
     }
+    // The history endpoint can hand back the same merchant under different
+    // casings ("Zomato" / "zomato"), which would render as duplicate rows.
+    const seen = new Set();
     const filtered = descriptions
       .filter((desc) => desc && desc.toLowerCase().includes(q))
+      .filter((desc) => {
+        const key = desc.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
       .sort((a, b) => {
         const as = a.toLowerCase().startsWith(q) ? 0 : 1;
         const bs = b.toLowerCase().startsWith(q) ? 0 : 1;
