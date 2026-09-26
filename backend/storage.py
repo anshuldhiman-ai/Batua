@@ -18,6 +18,7 @@ from typing import Optional, Any, Dict
 from sqlmodel import SQLModel, Field, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import update as sqlalchemy_update
 
 logger = logging.getLogger("batua.storage")
 
@@ -286,6 +287,26 @@ class SQLiteStorage:
                 await session.refresh(db_obj)
                 return _to_dict(db_obj, collection)
 
+    async def update_many(self, collection: str, query: dict, patch: dict) -> int:
+        """Apply one validated patch to every row matching an equality query."""
+        if collection in {"sessions", "chat_sessions"}:
+            raise ValueError("Bulk updates are not supported for session collections")
+        await self._ensure_db()
+        model_class = _get_model_class(collection)
+        filters = []
+        for key, value in query.items():
+            attr = getattr(model_class, key, None)
+            if attr is not None:
+                filters.append(attr == value)
+        values = {key: value for key, value in patch.items() if hasattr(model_class, key)}
+        if not filters or not values:
+            return 0
+        async with self._lock:
+            async with AsyncSession(self._engine) as session:
+                result = await session.exec(sqlalchemy_update(model_class).where(*filters).values(**values))
+                await session.commit()
+                return result.rowcount or 0
+
     async def delete(self, collection: str, _id: str) -> bool:
         await self._ensure_db()
         model_class = _get_model_class(collection)
@@ -411,6 +432,13 @@ class MongoStorage:
     async def delete(self, collection: str, _id: str) -> bool:
         res = await self._db[collection].delete_one({"id": _id})
         return res.deleted_count > 0
+
+    async def update_many(self, collection: str, query: dict, patch: dict) -> int:
+        """Apply one patch to every document matching an equality query."""
+        if not query or not patch:
+            return 0
+        result = await self._db[collection].update_many(query, {"$set": patch})
+        return result.matched_count
 
     async def delete_many(self, collection: str, ids: list[str]) -> int:
         res = await self._db[collection].delete_many({"id": {"$in": ids}})
