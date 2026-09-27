@@ -51,6 +51,11 @@ async def test_sqlite_storage_operations(tmp_path):
     update_non_existent = await storage.update("transactions", "txn-none", {"amount": 0})
     assert update_non_existent is None
     
+    # 6. Test one-statement bulk update
+    bulk_updated = await storage.update_many("transactions", {"category": "Food & Dining"}, {"category": "Dining"})
+    assert bulk_updated == 1
+    assert (await storage.get("transactions", "txn-1"))["category"] == "Dining"
+
     # 6. Test delete
     deleted = await storage.delete("transactions", "txn-3")
     assert deleted is True

@@ -107,6 +107,11 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         "people": people,
         "custom_categories": custom_categories,
     }
+    invalid_only_collections = {
+        collection for collection, rows in rows_by_collection.items()
+        if collection in supplied and getattr(payload, collection) and not rows
+    }
+
 
     # Only collections the backup file actually carries may be replaced. A
     # partial export (say people-only) must leave everything else alone —
@@ -116,7 +121,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
     try:
         if replace:
             for collection in COLLECTIONS:
-                if collection in supplied:
+                if collection in supplied and collection not in invalid_only_collections:
                     await storage.clear(collection)
                     touched.append(collection)
         for collection, rows in rows_by_collection.items():
@@ -155,4 +160,5 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         "custom_categories": len(custom_categories),
         "skipped": skipped,
         "replaced": replace,
+        "preserved_invalid_collections": sorted(invalid_only_collections),
     }

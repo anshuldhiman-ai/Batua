@@ -117,12 +117,7 @@ async def rename_category(payload: CategoryRename):
         raise HTTPException(404, f"Custom category '{old_name}' not found")
     
     # Update all transactions with this category
-    txns = await storage.all("transactions")
-    updated_count = 0
-    for t in txns:
-        if t.get("category") == old_name:
-            await storage.update("transactions", t["id"], {"category": new_name})
-            updated_count += 1
+    updated_count = await storage.update_many("transactions", {"category": old_name}, {"category": new_name})
     
     invalidate_analytics_cache()
     return {"old_name": old_name, "new_name": new_name, "transactions_updated": updated_count}
@@ -159,12 +154,7 @@ async def delete_category(payload: CategoryDelete):
         raise HTTPException(404, f"Custom category '{name}' not found")
     
     # Reassign all transactions with this category
-    txns = await storage.all("transactions")
-    reassigned_count = 0
-    for t in txns:
-        if t.get("category") == name:
-            await storage.update("transactions", t["id"], {"category": reassign_to})
-            reassigned_count += 1
+    reassigned_count = await storage.update_many("transactions", {"category": name}, {"category": reassign_to})
     
     invalidate_analytics_cache()
     return {"deleted": name, "reassigned_to": reassign_to, "transactions_reassigned": reassigned_count}
