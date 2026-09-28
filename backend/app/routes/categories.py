@@ -88,7 +88,7 @@ async def add_category(payload: CategoryCreate):
 
 @router.post("/rename")
 async def rename_category(payload: CategoryRename):
-    """Rename a category and update all transactions using it."""
+    """Rename a category and update all transactions using it using bulk update."""
     if not payload.old_name or not payload.new_name:
         raise HTTPException(400, "Category names cannot be empty")
     
@@ -116,16 +116,18 @@ async def rename_category(payload: CategoryRename):
     except (RuntimeError, ValueError, KeyError):
         raise HTTPException(404, f"Custom category '{old_name}' not found")
     
-    # Update all transactions with this category
+    # Update all transactions with this category using bulk update
     updated_count = await storage.update_many("transactions", {"category": old_name}, {"category": new_name})
     
+    # Invalidate analytics cache after bulk update
     invalidate_analytics_cache()
+    
     return {"old_name": old_name, "new_name": new_name, "transactions_updated": updated_count}
 
 
 @router.post("/delete")
 async def delete_category(payload: CategoryDelete):
-    """Delete a custom category and reassign its transactions."""
+    """Delete a custom category and reassign its transactions using bulk update."""
     if not payload.name or not payload.reassign_to:
         raise HTTPException(400, "Category names cannot be empty")
     
@@ -153,8 +155,10 @@ async def delete_category(payload: CategoryDelete):
     except (RuntimeError, ValueError, KeyError):
         raise HTTPException(404, f"Custom category '{name}' not found")
     
-    # Reassign all transactions with this category
+    # Reassign all transactions with this category using bulk update
     reassigned_count = await storage.update_many("transactions", {"category": name}, {"category": reassign_to})
     
+    # Invalidate analytics cache after bulk update
     invalidate_analytics_cache()
+    
     return {"deleted": name, "reassigned_to": reassign_to, "transactions_reassigned": reassigned_count}

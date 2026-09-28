@@ -193,7 +193,7 @@ class SQLiteStorage:
                 )
             """))
 
-    async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
+    async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
         await self._ensure_db()
         model_class = _get_model_class(collection)
         
@@ -201,13 +201,84 @@ class SQLiteStorage:
             statement = select(model_class)
             if query:
                 for key, value in query.items():
-                    attr = getattr(model_class, key, None)
-                    if attr is not None:
-                        statement = statement.where(attr == value)
+                    # Handle complex MongoDB-style queries for SQLite
+                    if isinstance(value, dict):
+                        if "$gte" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr >= value["$gte"])
+                        elif "$lte" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr <= value["$lte"])
+                        elif "$gt" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr > value["$gt"])
+                        elif "$lt" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr < value["$lt"])
+                    else:
+                        attr = getattr(model_class, key, None)
+                        if attr is not None:
+                            statement = statement.where(attr == value)
+            
+            # Add ordering
+            if order_by:
+                attr = getattr(model_class, order_by, None)
+                if attr is not None:
+                    if order_desc:
+                        statement = statement.order_by(attr.desc())
+                    else:
+                        statement = statement.order_by(attr)
+            
+            # Add pagination
+            if offset is not None:
+                statement = statement.offset(offset)
+            if limit is not None:
+                statement = statement.limit(limit)
             
             results = await session.exec(statement)
             db_objs = results.all()
             return [_to_dict(obj, collection) for obj in db_objs]
+    
+    async def count(self, collection: str, query: Optional[dict] = None) -> int:
+        """Count documents matching a query."""
+        await self._ensure_db()
+        model_class = _get_model_class(collection)
+        
+        async with AsyncSession(self._engine) as session:
+            from sqlalchemy import func
+            statement = select(func.count()).select_from(model_class)
+            
+            if query:
+                for key, value in query.items():
+                    # Handle complex MongoDB-style queries for SQLite
+                    if isinstance(value, dict):
+                        if "$gte" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr >= value["$gte"])
+                        elif "$lte" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr <= value["$lte"])
+                        elif "$gt" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr > value["$gt"])
+                        elif "$lt" in value:
+                            attr = getattr(model_class, key, None)
+                            if attr is not None:
+                                statement = statement.where(attr < value["$lt"])
+                    else:
+                        attr = getattr(model_class, key, None)
+                        if attr is not None:
+                            statement = statement.where(attr == value)
+            
+            result = await session.exec(statement)
+            return result.first() or 0
 
     async def get(self, collection: str, _id: str) -> Optional[dict]:
         await self._ensure_db()
@@ -386,10 +457,27 @@ class MongoStorage:
         except (pymongo.errors.OperationFailure, pymongo.errors.ServerSelectionTimeoutError) as exc:
             logger.warning(f"Failed to create MongoDB indexes: {exc}")
 
-    async def all(self, collection: str, query: Optional[dict] = None) -> list[dict]:
+    async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
         await self._ensure_indexes()
-        cur = self._db[collection].find(query or {}, {"_id": 0})
-        return await cur.to_list(length=None)
+        cursor = self._db[collection].find(query or {}, {"_id": 0})
+        
+        # Add ordering
+        if order_by:
+            sort_order = -1 if order_desc else 1
+            cursor = cursor.sort(order_by, sort_order)
+        
+        # Add pagination
+        if offset is not None:
+            cursor = cursor.skip(offset)
+        if limit is not None:
+            cursor = cursor.limit(limit)
+        
+        return await cursor.to_list(length=None)
+    
+    async def count(self, collection: str, query: Optional[dict] = None) -> int:
+        """Count documents matching a query."""
+        await self._ensure_indexes()
+        return await self._db[collection].count_documents(query or {})
 
     async def get(self, collection: str, _id: str) -> Optional[dict]:
         return await self._db[collection].find_one({"id": _id}, {"_id": 0})

@@ -43,13 +43,62 @@ async def list_transactions(
     page: int = 1,
     page_size: int = 25,
 ):
-    txns = await get_all_txns()
-
+    storage = get_storage()
+    
+    # Build database-level query for filterable fields
+    db_query = {}
+    if category and category != "All":
+        db_query["category"] = category
+    if payment_method and payment_method != "All":
+        db_query["payment_method"] = payment_method
+    if start_date:
+        db_query["date"] = {"$gte": start_date} if storage.__class__.__name__ == "MongoStorage" else start_date
+    if end_date:
+        if storage.__class__.__name__ == "MongoStorage":
+            if "date" in db_query and isinstance(db_query["date"], dict):
+                db_query["date"]["$lte"] = end_date
+            else:
+                db_query["date"] = {"$lte": end_date}
+        else:
+            # SQLite doesn't support complex queries, will handle in application layer
+            pass
+    
+    # Transaction type filtering
+    if txn_type == "income":
+        if storage.__class__.__name__ == "MongoStorage":
+            db_query["amount"] = {"$gt": 0}
+        else:
+            # SQLite: will filter in application layer
+            pass
+    elif txn_type == "expense":
+        if storage.__class__.__name__ == "MongoStorage":
+            db_query["amount"] = {"$lt": 0}
+        else:
+            # SQLite: will filter in application layer
+            pass
+    
+    # Get total count for pagination
+    total = await storage.count("transactions", query=db_query)
+    
+    # Get paginated results from database
+    page = max(1, page)
+    offset = (page - 1) * page_size
+    
+    txns = await storage.all(
+        "transactions", 
+        query=db_query,
+        order_by="date",
+        order_desc=True,
+        limit=page_size,
+        offset=offset
+    )
+    
+    # Apply remaining filters that couldn't be done at database level
     if search:
         s = search.lower().strip()
-
+        from datetime import datetime
+        
         def _match_txn(t):
-            from datetime import datetime
             parts = [
                 t.get("description", ""), t.get("notes", ""),
                 t.get("category", ""), t.get("payment_method", ""),
@@ -62,27 +111,19 @@ async def list_transactions(
             except (ValueError, TypeError):
                 pass
             return s in hay
-
+        
         txns = [t for t in txns if _match_txn(t)]
-    if category and category != "All":
-        txns = [t for t in txns if t.get("category") == category]
-    if payment_method and payment_method != "All":
-        txns = [t for t in txns if t.get("payment_method") == payment_method]
-    if start_date:
-        txns = [t for t in txns if t.get("date", "") >= start_date]
-    if end_date:
-        txns = [t for t in txns if t.get("date", "") <= end_date]
-    if txn_type == "income":
-        txns = [t for t in txns if t.get("amount", 0) > 0]
-    elif txn_type == "expense":
-        txns = [t for t in txns if t.get("amount", 0) < 0]
-
-    txns.sort(key=lambda t: (t.get("date", ""), t.get("created_at", "")), reverse=True)
-
-    total = len(txns)
-    page = max(1, page)
-    start = (page - 1) * page_size
-    items = [_with_kind(t) for t in txns[start : start + page_size]]
+    
+    # Apply SQLite-specific filters
+    if storage.__class__.__name__ != "MongoStorage":
+        if end_date:
+            txns = [t for t in txns if t.get("date", "") <= end_date]
+        if txn_type == "income":
+            txns = [t for t in txns if t.get("amount", 0) > 0]
+        elif txn_type == "expense":
+            txns = [t for t in txns if t.get("amount", 0) < 0]
+    
+    items = [_with_kind(t) for t in txns]
     return {
         "items": items,
         "total": total,

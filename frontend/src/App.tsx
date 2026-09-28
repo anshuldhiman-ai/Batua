@@ -30,10 +30,10 @@ export interface ThemeContextValue {
   toggle: () => void;
   /** Accent id from `ACCENTS`, or `CUSTOM_ACCENT`. */
   accent: string;
-  setAccent: SetLocalStorageValue<string>;
+  setAccent: (value: string | ((prev: string) => string)) => void;
   /** Hex color used when `accent === CUSTOM_ACCENT`. */
   customColor: string;
-  setCustomColor: SetLocalStorageValue<string>;
+  setCustomColor: (value: string | ((prev: string) => string)) => void;
 }
 
 export const ThemeContext = React.createContext<ThemeContextValue>({

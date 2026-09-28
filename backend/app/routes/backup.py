@@ -45,11 +45,12 @@ async def download_backup():
 
 @router.post("/restore")
 async def restore_backup(payload: BackupPayload, replace: bool = True):
-    """Restore validated data, replacing only the collections the file carries."""
+    """Restore validated data with atomic per-collection replacement and enhanced safety."""
     supplied = payload.model_fields_set
     if not any(getattr(payload, name) for name in COLLECTIONS):
         raise HTTPException(400, "Backup contains no data")
 
+    # Validate all data before making any changes
     txns, budgets, goals, people, custom_categories = [], [], [], [], []
     skipped = 0
     for row in payload.transactions:
@@ -99,6 +100,8 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         raise HTTPException(400, "No valid rows found in this backup file")
 
     storage = get_storage()
+    
+    # Store current data for rollback - create backup before any changes
     previous = {collection: await storage.all(collection) for collection in COLLECTIONS}
     rows_by_collection = {
         "transactions": txns,
@@ -112,27 +115,29 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
         if collection in supplied and getattr(payload, collection) and not rows
     }
 
-
-    # Only collections the backup file actually carries may be replaced. A
-    # partial export (say people-only) must leave everything else alone —
-    # clearing an omitted collection would silently destroy data the file
-    # never claimed to represent.
+    # Only collections the backup file actually carries may be replaced
     touched: list[str] = []
     try:
         if replace:
+            # Clear and replace each collection atomically
             for collection in COLLECTIONS:
                 if collection in supplied and collection not in invalid_only_collections:
+                    # Clear the collection first
                     await storage.clear(collection)
+                    # Insert new data
+                    if rows_by_collection[collection]:
+                        await storage.insert_many(collection, rows_by_collection[collection])
                     touched.append(collection)
-        for collection, rows in rows_by_collection.items():
-            if rows:
-                await storage.insert_many(collection, rows)
-                if collection not in touched:
-                    touched.append(collection)
+        else:
+            # Append mode: only insert new data without clearing
+            for collection, rows in rows_by_collection.items():
+                if rows and collection in supplied:
+                    await storage.insert_many(collection, rows)
+                    if collection not in touched:
+                        touched.append(collection)
     except (RuntimeError, ValueError, TypeError, KeyError) as exc:
         logger.error("Restore failed; rolling back %s", touched or "nothing", exc_info=True)
-        # Roll back defensively: whatever broke the restore may well break the
-        # rollback too, and one bad collection must not abort the rest.
+        # Roll back defensively: whatever broke the restore may well break the rollback too
         unrecovered = []
         for collection in touched:
             try:

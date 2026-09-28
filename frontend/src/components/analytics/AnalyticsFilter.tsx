@@ -11,14 +11,17 @@ import {
 import { cn } from "@/lib/utils";
 import { currentYearMonth } from "@/lib/utils-finance";
 
-const VIEW_OPTIONS = [
+type ViewOption = "daily" | "weekly" | "monthly" | "yearly";
+type DateRangeOption = "last_3_months" | "current_month" | "last_30_days" | "last_90_days" | "single_month" | "month_range" | "current_year" | "previous_year" | "custom";
+
+const VIEW_OPTIONS: { value: ViewOption; label: string }[] = [
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
   { value: "yearly", label: "Yearly" },
 ];
 
-const DATE_RANGE_OPTIONS = [
+const DATE_RANGE_OPTIONS: { value: DateRangeOption; label: string }[] = [
   { value: "last_3_months", label: "Last 3 Months" },
   { value: "current_month", label: "This Month" },
   { value: "last_30_days", label: "Last 30 Days" },
@@ -29,6 +32,23 @@ const DATE_RANGE_OPTIONS = [
   { value: "previous_year", label: "Last Year" },
   { value: "custom", label: "Custom Dates" },
 ];
+
+interface AnalyticsFilterProps {
+  view: ViewOption;
+  onViewChange: (view: ViewOption) => void;
+  dateRange: DateRangeOption;
+  onDateRangeChange: (range: DateRangeOption) => void;
+  customStartDate?: string;
+  customEndDate?: string;
+  onCustomDateChange: (dates: { startDate: string; endDate: string }) => void;
+  singleMonth?: string;
+  onSingleMonthChange?: (month: string) => void;
+  rangeStartMonth?: string;
+  rangeEndMonth?: string;
+  onMonthRangeChange?: (range: { start: string; end: string }) => void;
+  periodLabel?: string;
+  className?: string;
+}
 
 /**
  * Analytics filter bar — view granularity + period presets.
@@ -49,7 +69,7 @@ export default function AnalyticsFilter({
   onMonthRangeChange,
   periodLabel,
   className,
-}: any) {
+}: AnalyticsFilterProps) {
   const defaultMonth = currentYearMonth();
 
   return (
