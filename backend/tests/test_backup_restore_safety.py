@@ -66,7 +66,6 @@ async def test_backup_restore_invalid_data_rejection():
 @pytest.mark.asyncio
 async def test_backup_restore_atomic_replacement(test_storage):
     """Test that backup restore uses atomic per-collection replacement."""
-    storage = test_storage
     # Create backup data
     backup_data = {
         "transactions": [

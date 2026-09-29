@@ -1,5 +1,4 @@
 """Test transaction title suggestions functionality."""
-import pytest
 
 
 def test_transaction_titles_endpoint(client):
