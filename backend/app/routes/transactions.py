@@ -20,7 +20,8 @@ async def get_all_txns():
 @router.get("/descriptions")
 async def list_descriptions():
     """Get unique transaction descriptions for autocomplete suggestions."""
-    txns = await get_all_txns()
+    storage = get_storage()
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=500)
     # Dedupe case-insensitively: "Zomato" and "zomato" are one merchant, and
     # showing both would render as a duplicate suggestion.
     descriptions: dict[str, str] = {}
@@ -137,7 +138,8 @@ async def list_transactions(
 async def list_transaction_titles(limit: int = 100):
     """Return recently used, distinct transaction descriptions for quick entry."""
     limit = max(1, min(limit, 100))
-    txns = await get_all_txns()
+    storage = get_storage()
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=500)
     txns.sort(key=lambda t: (t.get("date", ""), t.get("created_at", "")), reverse=True)
 
     seen: set[str] = set()

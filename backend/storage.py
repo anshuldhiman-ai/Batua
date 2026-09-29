@@ -29,17 +29,17 @@ logger = logging.getLogger("batua.storage")
 
 class TransactionDB(SQLModel, table=True):
     __tablename__ = "transactions"
-    
+
     id: str = Field(primary_key=True, index=True)
     date: Optional[str] = Field(default="", index=True, nullable=True)  # YYYY-MM-DD
     description: Optional[str] = Field(default="", nullable=True)
     amount: Optional[float] = Field(default=0.0, nullable=True)
     category: Optional[str] = Field(default="Other", index=True, nullable=True)
-    payment_method: Optional[str] = Field(default="", nullable=True)
+    payment_method: Optional[str] = Field(default="", index=True, nullable=True)
     quantity: Optional[int] = Field(default=1, nullable=True)
     price: Optional[float] = Field(default=0.0, nullable=True)  # per-item price; quantity × price = |amount|
     price_text: Optional[str] = Field(default="", nullable=True)  # verbatim price cell (e.g. "120+240")
-    txn_type: Optional[str] = Field(default="", nullable=True)  # "credit" | "debit"
+    txn_type: Optional[str] = Field(default="", index=True, nullable=True)  # "credit" | "debit"
     notes: Optional[str] = Field(default="", nullable=True)
     created_at: Optional[str] = Field(default=None, nullable=True)
 
@@ -174,17 +174,38 @@ class SQLiteStorage:
                 await conn.run_sync(self._migrate_columns)
             self._initialized = True
 
+    async def _ensure_indexes(self):
+        """Create indexes on frequently queried columns if they don't exist."""
+        from sqlalchemy import text
+        async with self._lock:
+            async with self._engine.begin() as conn:
+                result = await conn.execute(text("PRAGMA index_list(transactions)"))
+                existing = {row[1] for row in result}
+                needed = ["idx_transactions_date", "idx_transactions_category", "idx_transactions_payment_method", "idx_transactions_txn_type"]
+                for idx_name in needed:
+                    if idx_name not in existing:
+                        if idx_name == "idx_transactions_date":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date)"))
+                        elif idx_name == "idx_transactions_category":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category)"))
+                        elif idx_name == "idx_transactions_payment_method":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_payment_method ON transactions(payment_method)"))
+                        elif idx_name == "idx_transactions_txn_type":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_txn_type ON transactions(txn_type)"))
+
     @staticmethod
     def _migrate_columns(conn):
         """Add columns that create_all won't add to a pre-existing table
         (SQLite has no auto-migration; older store.db files lack `price`)."""
         from sqlalchemy import text
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(transactions)"))}
+        result = conn.execute(text("PRAGMA table_info(transactions)"))
+        existing = {row[1] for row in result}
         if existing and "price" not in existing:
             conn.execute(text("ALTER TABLE transactions ADD COLUMN price FLOAT DEFAULT 0.0"))
         
         # Check if custom_categories table exists, create if not
-        tables = {row[0] for row in conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))}
+        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        tables = {row[0] for row in result}
         if "custom_categories" not in tables:
             conn.execute(text("""
                 CREATE TABLE custom_categories (
@@ -195,6 +216,7 @@ class SQLiteStorage:
 
     async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
         await self._ensure_db()
+        await self._ensure_indexes()
         model_class = _get_model_class(collection)
         
         async with AsyncSession(self._engine) as session:
@@ -246,6 +268,7 @@ class SQLiteStorage:
     async def count(self, collection: str, query: Optional[dict] = None) -> int:
         """Count documents matching a query."""
         await self._ensure_db()
+        await self._ensure_indexes()
         model_class = _get_model_class(collection)
         
         async with AsyncSession(self._engine) as session:

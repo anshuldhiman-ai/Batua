@@ -1,13 +1,12 @@
 """Test backup restore safety and rollback behavior."""
 import pytest
-from app.dependencies import get_storage
 from app.models import Transaction
 
 
 @pytest.mark.asyncio
-async def test_backup_restore_validation():
+async def test_backup_restore_validation(test_storage):
     """Test that backup validates all data before making changes."""
-    storage = get_storage()
+    storage = test_storage
     
     # Create some initial data
     await storage.insert("transactions", {
@@ -65,8 +64,9 @@ async def test_backup_restore_invalid_data_rejection():
 
 
 @pytest.mark.asyncio
-async def test_backup_restore_atomic_replacement():
+async def test_backup_restore_atomic_replacement(test_storage):
     """Test that backup restore uses atomic per-collection replacement."""
+    storage = test_storage
     # Create backup data
     backup_data = {
         "transactions": [
@@ -98,9 +98,9 @@ async def test_backup_restore_atomic_replacement():
 
 
 @pytest.mark.asyncio
-async def test_backup_restore_partial_import():
+async def test_backup_restore_partial_import(test_storage):
     """Test that partial backup (e.g., people-only) doesn't clear other collections."""
-    storage = get_storage()
+    storage = test_storage
     
     # Create data in multiple collections
     await storage.insert("transactions", {

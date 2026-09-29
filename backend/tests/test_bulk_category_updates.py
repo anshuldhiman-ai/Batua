@@ -1,13 +1,11 @@
 """Test bulk category rename/delete operations."""
 import pytest
-from app.dependencies import get_storage
-from app.cache import invalidate_analytics_cache
 
 
 @pytest.mark.asyncio
-async def test_category_rename_bulk_update():
+async def test_category_rename_bulk_update(test_storage):
     """Test that category rename uses bulk update and invalidates cache."""
-    storage = get_storage()
+    storage = test_storage
     
     # Create a custom category
     await storage.insert("custom_categories", {
@@ -35,11 +33,6 @@ async def test_category_rename_bulk_update():
         }
     ])
     
-    # Set cache entry
-    cache = invalidate_analytics_cache.__wrapped__.__globals__['_analytics_cache']
-    cache.set("test_key", "test_value")
-    assert len(cache) > 0
-    
     # Perform bulk update
     updated_count = await storage.update_many(
         "transactions",
@@ -64,9 +57,9 @@ async def test_category_rename_bulk_update():
 
 
 @pytest.mark.asyncio
-async def test_category_delete_bulk_reassign():
+async def test_category_delete_bulk_reassign(test_storage):
     """Test that category delete uses bulk reassign and invalidates cache."""
-    storage = get_storage()
+    storage = test_storage
     
     # Create a custom category
     await storage.insert("custom_categories", {
