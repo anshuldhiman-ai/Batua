@@ -100,7 +100,7 @@ def update_job_progress(job_id: str, progress: float, message: str = ""):
     except Exception as e:
         logger.error(f"Failed to update job progress: {e}")
 
-# Example background jobs
+# Example background jobs (placeholder implementations)
 @background_job(queue_name="excel_import", timeout=1800)
 def process_excel_import(file_path: str, user_id: str = "default") -> Dict[str, Any]:
     """Background job for processing Excel imports (placeholder)."""
@@ -145,7 +145,7 @@ def retrain_ml_model() -> Dict[str, Any]:
 
 @background_job(queue_name="export", timeout=1800)
 def export_transactions(user_id: str = "default", format: str = "excel") -> Dict[str, Any]:
-    """Background job for exporting transactions (simplified placeholder)."""
+    """Background job for exporting transactions (placeholder)."""
     job_id = job.get_current_job().id
     update_job_progress(job_id, 0.0, "Starting transaction export")
     
