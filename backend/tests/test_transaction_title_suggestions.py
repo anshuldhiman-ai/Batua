@@ -51,8 +51,8 @@ def test_transaction_titles_endpoint(client):
     starbucks_count = sum(1 for t in titles if t.lower() == "starbucks")
     assert starbucks_count == 1, "Should have only one Starbucks entry (case-insensitive)"
     
-    # Clean up test transactions
-    all_txns = client.get("/api/transactions/")
+    # Clean up test transactions by getting all transactions
+    all_txns = client.get("/api/transactions/?page_size=100")
     txn_data = all_txns.json()
     for txn in txn_data.get("items", []):
         if txn.get("description") in ["Starbucks", "starbucks", "Amazon"]:
@@ -62,7 +62,7 @@ def test_transaction_titles_endpoint(client):
 def test_transaction_titles_limit(client):
     """Test that title suggestions respect the limit parameter."""
     # Create many transactions
-    for i in range(50):
+    for i in range(20):  # Reduced from 50 to avoid too many operations
         client.post("/api/transactions/", json={
             "description": f"Merchant {i}",
             "amount": -10.0,
@@ -84,7 +84,7 @@ def test_transaction_titles_limit(client):
     assert len(titles) <= 10
     
     # Clean up
-    all_txns = client.get("/api/transactions/")
+    all_txns = client.get("/api/transactions/?page_size=100")
     txn_data = all_txns.json()
     for txn in txn_data.get("items", []):
         if txn.get("description", "").startswith("Merchant"):
@@ -123,7 +123,7 @@ def test_transaction_titles_distinctness(client):
     assert grocery_count == 1, "Should have distinct suggestions"
     
     # Clean up
-    all_txns = client.get("/api/transactions/")
+    all_txns = client.get("/api/transactions/?page_size=100")
     txn_data = all_txns.json()
     for txn in txn_data.get("items", []):
         if txn.get("description") == "Grocery Store":
