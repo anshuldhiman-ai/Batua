@@ -119,15 +119,15 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
     touched: list[str] = []
     try:
         if replace:
-            # Clear and replace each collection atomically
+            # Clear collections first, then insert new data
             for collection in COLLECTIONS:
                 if collection in supplied and collection not in invalid_only_collections:
-                    # Clear the collection first
                     await storage.clear(collection)
-                    # Insert new data
-                    if rows_by_collection[collection]:
-                        await storage.insert_many(collection, rows_by_collection[collection])
                     touched.append(collection)
+            # Then insert new data
+            for collection, rows in rows_by_collection.items():
+                if rows and collection in supplied and collection not in invalid_only_collections:
+                    await storage.insert_many(collection, rows)
         else:
             # Append mode: only insert new data without clearing
             for collection, rows in rows_by_collection.items():
