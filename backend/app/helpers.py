@@ -16,6 +16,51 @@ async def get_all_txns() -> list[dict]:
     return await storage.all("transactions")
 
 
+async def get_txns_filtered(
+    category: str | None = None,
+    payment_method: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    txn_type: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> tuple[list[dict], int]:
+    """Fetch transactions with DB-level filtering, sorting, and pagination.
+
+    Returns (txns, total_count) so callers can paginate without loading all rows.
+    """
+    from app.dependencies import get_storage
+    storage = get_storage()
+    db_query: dict = {}
+    if category and category != "All":
+        db_query["category"] = category
+    if payment_method and payment_method != "All":
+        db_query["payment_method"] = payment_method
+    if start_date:
+        db_query["date"] = {"$gte": start_date}
+    if end_date:
+        if "date" in db_query and isinstance(db_query["date"], dict):
+            db_query["date"]["$lte"] = end_date
+        else:
+            db_query["date"] = {"$lte": end_date}
+    if txn_type == "income":
+        db_query["amount"] = {"$gt": 0}
+    elif txn_type == "expense":
+        db_query["amount"] = {"$lt": 0}
+    if limit is None:
+        limit = 1000  # safe default for analytics scans
+    txns = await storage.all(
+        "transactions",
+        query=db_query,
+        order_by="date",
+        order_desc=True,
+        limit=limit,
+        offset=offset,
+    )
+    total = await storage.count("transactions", query=db_query)
+    return txns, total
+
+
 def _weekday_of(txn: dict) -> int:
     try:
         return datetime.strptime(txn["date"], "%Y-%m-%d").weekday()

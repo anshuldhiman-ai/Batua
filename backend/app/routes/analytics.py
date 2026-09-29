@@ -16,8 +16,18 @@ async def analytics_timeline(start_month: str | None = None, end_month: str | No
     cached = cache.get(cache_key)
     if cached:
         return cached
-    
-    txns = await get_all_txns()
+
+    storage = get_storage()
+    db_query: dict = {}
+    if start_month:
+        db_query["date"] = {"$gte": f"{start_month}-01"}
+    if end_month:
+        if "date" in db_query and isinstance(db_query["date"], dict):
+            db_query["date"]["$lte"] = f"{end_month}-31"
+        else:
+            db_query["date"] = {"$lte": f"{end_month}-31"}
+    # Fetch with generous limit; pre_bucket handles month grouping server-side
+    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000)
     # Use pre-bucketed data for efficiency
     by_month = pre_bucket_transactions(txns)
     
@@ -48,7 +58,11 @@ async def analytics_timeline(start_month: str | None = None, end_month: str | No
 
 @router.get("/category-breakdown")
 async def category_breakdown(month: str | None = None):
-    txns = await get_all_txns()
+    storage = get_storage()
+    db_query: dict = {}
+    if month:
+        db_query["date"] = {"$gte": f"{month}-01", "$lte": f"{month}-31"}
+    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000)
     totals: dict[str, float] = defaultdict(float)
     for t in txns:
         if month and month_key(t.get("date", "")) != month:
@@ -66,7 +80,8 @@ async def category_breakdown(month: str | None = None):
 
 @router.get("/top-merchants")
 async def top_merchants(limit: int = 10):
-    txns = await get_all_txns()
+    storage = get_storage()
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
     totals: dict[str, float] = defaultdict(float)
     for t in txns:
         amount = t.get("amount", 0)
@@ -83,7 +98,8 @@ async def top_merchants(limit: int = 10):
 @router.get("/heatmap")
 async def heatmap():
     """Daily expense totals for calendar heatmap (GitHub-style)."""
-    txns = await get_all_txns()
+    storage = get_storage()
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
     by_date: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)
     for t in txns:
@@ -107,7 +123,8 @@ async def heatmap():
 async def payment_method_totals():
     """Spend split into just Online vs Cash, parsing mixed modes like
     '₹5 Cash + ₹291 UPI' and dropping amounts paid by someone else."""
-    txns = await get_all_txns()
+    storage = get_storage()
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
     totals = {"Online": 0.0, "Cash": 0.0}
     counts = {"Online": 0, "Cash": 0}
     for t in txns:
@@ -129,7 +146,8 @@ async def payment_method_totals():
 
 @router.get("/treemap")
 async def treemap():
-    txns = await get_all_txns()
+    storage = get_storage()
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
     nested: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for t in txns:
         amount = t.get("amount", 0)
@@ -170,24 +188,27 @@ async def analytics_summary(
     if cached:
         return cached
     
-    storage = get_storage()
-    txns = await storage.all("transactions")
-    
     # 1. Date math for previous comparison period
     try:
         start_dt = datetime.strptime(start, "%Y-%m-%d")
         end_dt = datetime.strptime(end, "%Y-%m-%d")
     except ValueError:
         raise HTTPException(400, "Invalid start or end date format. Use YYYY-MM-DD.")
-        
+    if end_dt < start_dt:
+        raise HTTPException(400, "End date must be on or after start date.")
+
     days_diff = (end_dt - start_dt).days + 1
-    
+
     prev_end_dt = start_dt - timedelta(days=1)
     prev_start_dt = prev_end_dt - timedelta(days=days_diff - 1)
     
     prev_start = prev_start_dt.strftime("%Y-%m-%d")
     prev_end = prev_end_dt.strftime("%Y-%m-%d")
-    
+
+    storage = get_storage()
+    db_query: dict = {"date": {"$gte": prev_start, "$lte": end}}
+    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True)
+
     # 2. Main series & comparison series aggregation
     series = aggregate_series(txns, start, end, granularity)
     prev_series = aggregate_series(txns, prev_start, prev_end, granularity)
