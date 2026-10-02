@@ -15,6 +15,8 @@ Public API: ``detect_columns(content, filename)`` and
 ``try_load_excel(content, filename, use_ai)`` — both return / use
 Transaction-shaped dicts (negative amount = expense, positive = income).
 """
+from __future__ import annotations
+
 import io
 import re
 import ast
@@ -23,11 +25,33 @@ import uuid
 import calendar
 from datetime import datetime, timezone
 
-import pandas as pd
 from dateutil import parser as dateparser
 
 from parser import _detect_category  # reuse category keyword inference
 import ai
+
+
+# pandas costs ~0.4s to import and is only needed once a file is actually being
+# parsed — which never happens during startup. Import it lazily so the server
+# boots without paying for it. PEP 562 module ``__getattr__`` keeps the
+# long-standing ``excel_loader.pd`` access pattern (and tests that patch it)
+# working unchanged.
+pd = None
+
+
+def _ensure_pandas():
+    """Import pandas on first use and bind it as a module global."""
+    global pd
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
+    return pd
+
+
+def __getattr__(name):
+    if name == "pd":
+        return _ensure_pandas()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # --------------------------------------------------------------------------- #
 # Column aliases
@@ -300,6 +324,7 @@ def _filetype(content: bytes, filename: str) -> str:
 
 def _read_sheets(content: bytes, filename: str) -> list[tuple[str, pd.DataFrame]]:
     """Return [(sheet_name, raw_df_with_no_header), ...]."""
+    _ensure_pandas()
     ftype = _filetype(content, filename)
     if ftype == "csv":
         for sep in (",", ";", "\t", "|"):

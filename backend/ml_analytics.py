@@ -1,18 +1,45 @@
 """ML-powered analytics for spending patterns and forecasting."""
-import pandas as pd
-import numpy as np
+from __future__ import annotations
+
 from typing import Dict, List
 import logging
 
 logger = logging.getLogger("batua.ml_analytics")
+
+# pandas/numpy cost a few hundred ms to import and this module is imported at
+# server boot (via the /ml routes) but only *used* when an analytics request
+# actually lands. Import them lazily so startup doesn't pay for them; PEP 562
+# ``__getattr__`` keeps the ``ml_analytics.pd`` access pattern working.
+pd = None
+np = None
+
+
+def _ensure_libs():
+    """Import pandas/numpy on first use and bind them as module globals."""
+    global pd, np
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
+    if np is None:
+        import numpy as _np
+        np = _np
+    return pd, np
+
+
+def __getattr__(name):
+    if name in ("pd", "np"):
+        _ensure_libs()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class SpendingPatternAnalyzer:
     """Analyze spending patterns using time series and clustering."""
     
     def __init__(self):
+        _ensure_libs()
         self._initialized = False
-    
+
     def analyze_patterns(self, transactions: List[Dict]) -> Dict:
         """Analyze spending patterns from transaction data."""
         if not transactions:
@@ -214,8 +241,9 @@ class CashFlowForecaster:
     """Forecast cash flow using time series models."""
     
     def __init__(self):
+        _ensure_libs()
         self._initialized = False
-    
+
     def forecast_cash_flow(self, transactions: List[Dict], months_ahead: int = 3) -> Dict:
         """Forecast cash flow for the next N months."""
         if not transactions:
@@ -281,8 +309,9 @@ class BudgetOptimizer:
     """Optimize budget allocations based on spending patterns."""
     
     def __init__(self):
+        _ensure_libs()
         self._initialized = False
-    
+
     def optimize_budgets(self, transactions: List[Dict], total_budget: float) -> Dict:
         """Suggest optimal budget allocations based on spending patterns."""
         if not transactions:
@@ -290,7 +319,7 @@ class BudgetOptimizer:
         
         try:
             df = pd.DataFrame(transactions)
-            df['amount'] = pd.abs(df['amount'])
+            df['amount'] = df['amount'].abs()
             
             # Calculate average spending by category
             category_spending = df.groupby('category')['amount'].mean()
@@ -338,6 +367,7 @@ class AnomalyDetector:
     """
 
     def __init__(self):
+        _ensure_libs()
         self._initialized = False
 
     def detect_anomalies(self, transactions: List[Dict], limit: int = 8) -> Dict:
@@ -446,6 +476,7 @@ _anomaly_detector = None
 
 def get_pattern_analyzer() -> SpendingPatternAnalyzer:
     """Get or create the pattern analyzer instance."""
+    _ensure_libs()
     global _pattern_analyzer
     if _pattern_analyzer is None:
         _pattern_analyzer = SpendingPatternAnalyzer()
@@ -454,6 +485,7 @@ def get_pattern_analyzer() -> SpendingPatternAnalyzer:
 
 def get_forecaster() -> CashFlowForecaster:
     """Get or create the forecaster instance."""
+    _ensure_libs()
     global _forecaster
     if _forecaster is None:
         _forecaster = CashFlowForecaster()
@@ -462,6 +494,7 @@ def get_forecaster() -> CashFlowForecaster:
 
 def get_budget_optimizer() -> BudgetOptimizer:
     """Get or create the budget optimizer instance."""
+    _ensure_libs()
     global _budget_optimizer
     if _budget_optimizer is None:
         _budget_optimizer = BudgetOptimizer()
@@ -470,6 +503,7 @@ def get_budget_optimizer() -> BudgetOptimizer:
 
 def get_anomaly_detector() -> AnomalyDetector:
     """Get or create the anomaly detector instance."""
+    _ensure_libs()
     global _anomaly_detector
     if _anomaly_detector is None:
         _anomaly_detector = AnomalyDetector()

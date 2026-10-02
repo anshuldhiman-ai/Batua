@@ -567,8 +567,69 @@ class MongoStorage:
 # Connection entry point
 # --------------------------------------------------------------------------- #
 
+_SQLITE_PATH = Path(__file__).parent / "data" / "store.db"
+
+
+def _sqlite_fallback() -> SQLiteStorage:
+    return SQLiteStorage(str(_SQLITE_PATH))
+
+
+def _use_sqlite_first() -> bool:
+    """True when the local SQLite store demonstrably holds the user's data.
+
+    Presence of the file alone isn't enough — a failed Mongo probe still
+    creates an empty ``store.db`` — so this only opts into the zero-wait path
+    when the database actually has rows, or when a JSON store was migrated
+    and never had a corresponding SQLite file.
+
+    Escapes hatch: ``MONGO_REQUIRED=1`` keeps the old blocking behaviour for
+    deployments where MongoDB is the system of record and a few seconds of
+    startup latency is preferable to ever serving SQLite.
+    """
+    if os.environ.get("MONGO_REQUIRED", "0").strip().lower() in ("1", "true", "yes"):
+        return False
+    # A configured, non-local Mongo URL is a deliberate deployment choice —
+    # probe it synchronously rather than silently defaulting to SQLite.
+    mongo_url = os.environ.get("MONGO_URL", "")
+    if mongo_url and "localhost" not in mongo_url and "127.0.0.1" not in mongo_url:
+        return False
+    if not _SQLITE_PATH.exists():
+        # No SQLite file yet, but a legacy JSON store implies existing data.
+        return (Path(__file__).parent / "data" / "store.json").exists()
+    try:
+        import sqlite3
+
+        with sqlite3.connect(str(_SQLITE_PATH)) as conn:
+            try:
+                row = conn.execute("SELECT 1 FROM transactions LIMIT 1").fetchone()
+            except sqlite3.OperationalError:
+                # Table not created yet (empty/incompatible file).
+                return False
+        return row is not None
+    except (sqlite3.Error, OSError):
+        return False
+
+
+async def _probe_mongo(mongo_url: str, db_name: str):
+    """Return an open MongoStorage, or None when MongoDB isn't reachable."""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        import pymongo.errors
+
+        client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=1500)
+        await client.admin.command("ping")
+        logger.info("Using MongoDB backend (%s / %s)", mongo_url, db_name)
+        return MongoStorage(client, client[db_name])
+    except (pymongo.errors.PyMongoError, OSError, asyncio.TimeoutError) as exc:
+        logger.warning("MongoDB unavailable (%s).", exc)
+        return None
+
+
 async def create_storage() -> tuple[object, str]:
     """Return (storage, backend_name). Tries MongoDB, falls back to SQLite.
+
+    The SQLite store is opened immediately and returned as long as
+    ``storage.sqlite`` holds a live SQLite database — see ``_use_sqlite_first``.
 
     Set ``STORAGE_BACKEND=sqlite`` to skip the MongoDB probe entirely — used
     on Android where Mongo is never available and the 1.5s timeout is wasted.
@@ -581,19 +642,38 @@ async def create_storage() -> tuple[object, str]:
 
     mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
     db_name = os.environ.get("DB_NAME", "batua")
-    try:
-        from motor.motor_asyncio import AsyncIOMotorClient
-        import pymongo.errors
 
-        client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=1500)
-        await client.admin.command("ping")
-        logger.info("Using MongoDB backend (%s / %s)", mongo_url, db_name)
-        return MongoStorage(client, client[db_name]), "mongodb"
-    except (pymongo.errors.PyMongoError, OSError, asyncio.TimeoutError) as exc:
-        sqlite_path = Path(__file__).parent / "data" / "store.db"
-        logger.warning(
-            "MongoDB unavailable (%s). Falling back to SQLite SQLModel store at %s",
-            exc,
-            sqlite_path,
+    # A 1.5s Mongo ping on a machine with no MongoDB is dead time in the
+    # startup path. When a local SQLite store already holds data the user is
+    # plainly running against it, so start on SQLite right away and check
+    # MongoDB in the background instead of blocking boot on it.
+    if _use_sqlite_first():
+        logger.info("Local SQLite store has data; starting on SQLite (Mongo probe runs in background)")
+        asyncio.create_task(_probe_mongo_in_background(mongo_url, db_name))
+        return _sqlite_fallback(), "sqlite"
+
+    mongo = await _probe_mongo(mongo_url, db_name)
+    if mongo is not None:
+        return mongo, "mongodb"
+
+    sqlite_path = Path(__file__).parent / "data" / "store.db"
+    logger.warning("Falling back to SQLite SQLModel store at %s", sqlite_path)
+    return SQLiteStorage(str(sqlite_path)), "sqlite"
+
+
+async def _probe_mongo_in_background(mongo_url: str, db_name: str) -> None:
+    """Verify MongoDB is reachable, for logging/observability only.
+
+    We deliberately do NOT switch the live app over to MongoDB after startup:
+    ``set_storage`` already handed the SQLite instance to every request
+    handler, and the two backends are not kept in sync, so a late swap would
+    silently split the user's data across two stores mid-session.
+    """
+    mongo = await _probe_mongo(mongo_url, db_name)
+    if mongo is not None:
+        await mongo.close()
+        logger.info(
+            "MongoDB is reachable at %s, but the session is already running on "
+            "SQLite; restart the backend to switch backends.",
+            mongo_url,
         )
-        return SQLiteStorage(str(sqlite_path)), "sqlite"

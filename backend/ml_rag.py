@@ -14,9 +14,24 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-import pandas as pd
-
 import local_llm
+
+# Imported lazily — see the note in ml_analytics.py.
+pd = None
+
+
+def _ensure_pandas():
+    global pd
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
+    return pd
+
+
+def __getattr__(name):
+    if name == "pd":
+        return _ensure_pandas()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 logger = logging.getLogger("batua.ml_rag")
 
@@ -187,6 +202,7 @@ class FinanceQA:
     """Answer natural-language questions about the user's transactions."""
 
     def __init__(self) -> None:
+        _ensure_pandas()
         self._index_cache: dict | None = None
 
     # ------------------------------------------------------------------ #
@@ -1065,6 +1081,7 @@ _qa_system: FinanceQA | None = None
 
 
 def get_qa_system() -> FinanceQA:
+    _ensure_pandas()
     global _qa_system
     if _qa_system is None:
         _qa_system = FinanceQA()

@@ -1,5 +1,6 @@
 """Batua — FastAPI backend. All routes mounted under /api."""
 import os
+import asyncio
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -45,27 +46,40 @@ logger = logging.getLogger("batua")
 backend_name = "unknown"
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage storage lifecycle."""
-    global backend_name
-    # Startup
-    storage, backend_name = await storage_mod.create_storage()
-    set_storage(storage)
-    logger.info(f"Backend initialized with {backend_name} storage")
+async def _prewarm_ml() -> None:
+    """Load the classifier + training data in the background.
 
-    # Pre-warm ML models and analytics for faster AI Insights page load
+    This takes ~1.2s (reading 86k training samples plus the persisted
+    classifier). It used to run inline during startup, so uvicorn did not
+    accept connections until it finished. Running it as a task lets the
+    server answer requests immediately — anything that needs the classifier
+    waits on the same lock inside ml_nlp.
+    """
     try:
         logger.info("Pre-warming ML models...")
-        # Warm up the transaction classifier
-        ml_nlp.classify_transaction("warmup test transaction")
+        await asyncio.to_thread(ml_nlp.classify_transaction, "warmup test transaction")
         logger.info("ML classifier warmed up")
     except Exception as e:
         logger.warning(f"Failed to pre-warm ML models: {e}")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage storage lifecycle."""
+    global backend_name
+    # Startup: storage first — the only dependency every request shares.
+    storage, backend_name = await storage_mod.create_storage()
+    set_storage(storage)
+    logger.info(f"Backend initialized with {backend_name} storage")
+
+    # Pre-warm ML models and analytics for faster AI Insights page load.
+    # Run it concurrently so it doesn't delay the server accepting traffic.
+    warmup = asyncio.create_task(_prewarm_ml())
+
     yield
 
     # Shutdown
+    warmup.cancel()
     if storage:
         await storage.close()
         logger.info("Storage closed")

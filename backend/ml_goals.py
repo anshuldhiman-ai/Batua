@@ -1,18 +1,37 @@
 """ML-powered goal tracking and savings predictions."""
-import pandas as pd
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import logging
 
 logger = logging.getLogger("batua.ml_goals")
 
+# Imported lazily — see the note in ml_analytics.py.
+pd = None
+
+
+def _ensure_pandas():
+    global pd
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
+    return pd
+
+
+def __getattr__(name):
+    if name == "pd":
+        return _ensure_pandas()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 class SavingsGoalTracker:
     """Track and predict progress towards savings goals."""
     
     def __init__(self):
+        _ensure_pandas()
         self._initialized = False
-    
+
     def create_goal(self, name: str, target_amount: float, target_date: str, 
                    current_amount: float = 0.0) -> Dict:
         """Create a new savings goal."""
@@ -50,7 +69,7 @@ class SavingsGoalTracker:
         try:
             df = pd.DataFrame(transactions)
             df['date'] = pd.to_datetime(df['date'])
-            df['amount'] = pd.abs(df['amount'])
+            df['amount'] = df['amount'].abs()
             
             # Calculate average monthly savings (income - expenses)
             df['month'] = df['date'].dt.to_period('M')
@@ -124,7 +143,7 @@ class SavingsGoalTracker:
         try:
             df = pd.DataFrame(transactions)
             df['date'] = pd.to_datetime(df['date'])
-            df['amount'] = pd.abs(df['amount'])
+            df['amount'] = df['amount'].abs()
             
             # Categorize expenses
             category_spending = df.groupby('category')['amount'].sum()
@@ -163,8 +182,9 @@ class RecommendationEngine:
     """Generate personalized savings recommendations."""
     
     def __init__(self):
+        _ensure_pandas()
         self._initialized = False
-    
+
     def generate_recommendations(self, transactions: List[Dict]) -> Dict:
         """Generate personalized savings recommendations."""
         if not transactions:
@@ -337,6 +357,7 @@ _recommendation_engine = None
 
 def get_goal_tracker() -> SavingsGoalTracker:
     """Get or create the goal tracker instance."""
+    _ensure_pandas()
     global _goal_tracker
     if _goal_tracker is None:
         _goal_tracker = SavingsGoalTracker()
@@ -345,6 +366,7 @@ def get_goal_tracker() -> SavingsGoalTracker:
 
 def get_recommendation_engine() -> RecommendationEngine:
     """Get or create the recommendation engine instance."""
+    _ensure_pandas()
     global _recommendation_engine
     if _recommendation_engine is None:
         _recommendation_engine = RecommendationEngine()
