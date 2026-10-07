@@ -593,8 +593,12 @@ _ARITH_AMOUNT_RE = re.compile(
 )
 
 
-def _detect_amount(text: str) -> tuple[float | None, bool, str]:
-    """Return (amount_abs, explicit_positive, remaining_text)."""
+def _detect_amount(text: str) -> tuple[float | None, bool, bool, str]:
+    """Return (amount_abs, explicit_positive, explicit_negative, remaining_text).
+
+    explicit_* are True only when the user literally typed that sign; both are
+    False for a bare number, where direction is decided by income keywords.
+    """
     # Arithmetic breakdown first: "chai 120+89+70" -> 279 (a single total).
     # Runs before the sign/plain-number checks so "120+89+70" isn't picked
     # apart into "89" (with its "+" read as an explicit income sign) and "70".
@@ -603,7 +607,7 @@ def _detect_amount(text: str) -> tuple[float | None, bool, str]:
         val = _eval_arithmetic(am.group(2))
         if val is not None:
             text = _remove(text, am.start(), am.end())
-            return val, am.group(1) == "+", text
+            return val, am.group(1) == "+", am.group(1) == "-", text
     # Explicit sign first, e.g. +85000, -250, +5k
     m = re.search(
         r"([+-])\s?(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b", text, re.IGNORECASE
@@ -612,7 +616,7 @@ def _detect_amount(text: str) -> tuple[float | None, bool, str]:
         sign = m.group(1)
         num = _apply_suffix(float(m.group(2).replace(",", "")), m.group(3))
         text = _remove(text, m.start(), m.end())
-        return num, sign == "+", text
+        return num, sign == "+", sign == "-", text
     # Plain number, optionally with currency prefix and k/l/cr suffix (not part of a date like 10/05 or 5th)
     for m in re.finditer(
         r"(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b", text, re.IGNORECASE
@@ -626,8 +630,8 @@ def _detect_amount(text: str) -> tuple[float | None, bool, str]:
             continue
         num = _apply_suffix(float(m.group(1).replace(",", "")), m.group(2))
         text = _remove(text, s, e)
-        return num, False, text
-    return None, False, text
+        return num, False, False, text
+    return None, False, False, text
 
 
 def _detect_date(text: str, today: datetime) -> tuple[str, str]:
@@ -758,15 +762,22 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
 
     method, working = _detect_payment(working)
     quantity, working = _detect_quantity(working)
-    amount_abs, explicit_pos, working = _detect_amount(working)
+    amount_abs, explicit_pos, explicit_neg, working = _detect_amount(working)
     date_str, working = _detect_date(working, today)
     category = _detect_category(original)
     description = _clean_description(working, category)
 
-    # Sign logic: explicit + OR income signal word -> positive, else negative.
+    # Sign logic: an explicitly typed sign always wins over income keywords,
+    # so "gift -500" stays a debit even though "gift" is an income word.
+    # With no sign at all, income signals decide; otherwise it's a debit.
     lower = original.lower()
     income_signal = bool(_INCOME_WORDS_RE.search(lower))
-    is_income = explicit_pos or income_signal or category == "Income"
+    if explicit_neg:
+        is_income = False
+    elif explicit_pos:
+        is_income = True
+    else:
+        is_income = income_signal or category == "Income"
 
     amount = 0.0 if amount_abs is None else amount_abs
     amount = abs(amount) if is_income else -abs(amount)
@@ -824,11 +835,18 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
                     result[key] = enriched[key]
             if enriched.get("date"):
                 result["date"] = enriched["date"]
+            # Never let Gemini flip the direction the user typed: it may only
+            # fill in an amount that regex couldn't find, keeping our sign.
             if enriched.get("amount") not in (None, 0):
                 try:
-                    result["amount"] = float(enriched["amount"])
+                    enrich_amt = float(enriched["amount"])
                 except (TypeError, ValueError):
-                    pass
+                    enrich_amt = None
+                if enrich_amt is not None:
+                    if amount_abs is None:
+                        result["amount"] = enrich_amt
+                    else:
+                        result["amount"] = abs(enrich_amt) if result["amount"] >= 0 else -abs(enrich_amt)
 
     # No future-dated transactions — clamp anything past today (e.g. "tomorrow"
     # or an explicit future date) down to today, from regex, ML or Gemini.

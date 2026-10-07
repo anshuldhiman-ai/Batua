@@ -51,7 +51,8 @@
 ## 🎯 Feature Overview
 
 ### Capture
-- **Natural-language entry with autocomplete** — Start typing and get instant suggestions from your transaction history. Click to autofill and parse automatically. Example: `swiggy 320 upi`, `salary 85000 credit`.
+- **Natural-language entry with autocomplete** — Start typing and get instant suggestions from your transaction history. Click (or Enter) to complete the text in the input; press Enter again to parse it — picking a suggestion never fires the parse on its own. Example: `swiggy 320 upi`, `salary 85000 credit`.
+- **Explicit credit/debit signs** — Type `+` or `-` right before the amount to force the direction: `gift -500` stays a **debit** even though "gift" is an income word, and `salary +85000` is always a **credit**. A bare amount with no sign is inferred from context (income words like *salary*, *gift*, *refund* → credit; everything else → debit). The preview panel also shows a Credit/Debit toggle to override the parsed sign before saving. A debit can never be filed under "Income".
 - **Multi-transaction voice input (Hindi/Hinglish)** — dictate a whole note like
   *"aaj lays k 2 packet ek 10 ka ek 20 ka aur chai 10 phir zomato 450 upi"* and it splits into
   separate entries, detecting quantity, per-item prices, categories, and dates.

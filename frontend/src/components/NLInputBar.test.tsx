@@ -184,7 +184,7 @@ describe("NLInputBar Component", () => {
       return input;
     }
 
-    it("closes the list once a parse starts, so the text refill can't reopen it", async () => {
+    it("Enter on a suggestion completes the text but does NOT parse; a second Enter parses it", async () => {
       withHistory(["zomato dinner", "zomato lunch"]);
       mockedPost.mockResolvedValue({
         data: { kind: "single", description: "Zomato", amount: -450, category: "Food" },
@@ -193,22 +193,15 @@ describe("NLInputBar Component", () => {
 
       const input = await typeAndAwaitSuggestions("zomato");
 
-      // First Enter fills the input from the highlighted suggestion and parses.
+      // First Enter fills the input from the highlighted suggestion — only the
+      // word completes; no parse request fires.
       fireEvent.keyDown(input, { key: "Enter" });
-      await waitFor(() => {
-        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
-          text: "zomato lunch",
-          force_recurring: false,
-        });
-      });
-
-      // Regression: the list used to reappear from the new input value while
-      // the request was in flight, so it sat open over the result.
+      expect(input).toHaveValue("zomato lunch");
       await waitFor(() => expect(suggestionLists()).toHaveLength(0));
+      expect(mockedPost).not.toHaveBeenCalled();
 
-      // And a follow-up Enter must parse the typed line once, not re-enter the
-      // suggestion branch and parse a second time.
-      mockedPost.mockClear();
+      // The committed suggestion doesn't reopen the list, so the follow-up
+      // Enter parses the completed line exactly once.
       fireEvent.keyDown(input, { key: "Enter" });
       await waitFor(() => {
         expect(mockedPost).toHaveBeenCalledTimes(1);
@@ -219,18 +212,13 @@ describe("NLInputBar Component", () => {
       });
     });
 
-    it("resurfaces suggestions when the user keeps editing after a parse", async () => {
+    it("resurfaces suggestions when the user edits after picking one", async () => {
       withHistory(["zomato dinner", "zomato lunch"]);
-      mockedPost.mockResolvedValue({
-        data: { kind: "single", description: "Zomato", amount: -450, category: "Food" },
-      } as any);
       renderBar();
 
       const input = await typeAndAwaitSuggestions("zomato");
-      fireEvent.keyDown(input, { key: "Enter" });
-      await waitFor(() => {
-        expect(screen.getByTestId("preview-description")).toBeInTheDocument();
-      });
+      fireEvent.keyDown(input, { key: "Enter" }); // completes "zomato lunch"
+      expect(input).toHaveValue("zomato lunch");
       expect(suggestionLists()).toHaveLength(0);
 
       // Typing again is a fresh query, so the list comes back.
@@ -275,9 +263,6 @@ describe("NLInputBar Component", () => {
 
     it("Enter picks the highlighted suggestion, not the first one", async () => {
       withHistory(["zomato lunch", "zomato dinner"]);
-      mockedPost.mockResolvedValue({
-        data: { kind: "single", description: "zomato dinner", amount: -650, category: "Food" },
-      } as any);
       renderBar();
 
       const input = await typeAndAwaitSuggestions("zomato");
@@ -285,12 +270,9 @@ describe("NLInputBar Component", () => {
       fireEvent.keyDown(input, { key: "ArrowDown" });
       fireEvent.keyDown(input, { key: "Enter" });
 
-      await waitFor(() => {
-        expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
-          text: "zomato dinner",
-          force_recurring: false,
-        });
-      });
+      // Only the text completes — the highlighted row, and no parse fires.
+      expect(input).toHaveValue("zomato dinner");
+      expect(mockedPost).not.toHaveBeenCalled();
     });
 
     it("Escape closes the list without picking anything", async () => {
@@ -320,8 +302,23 @@ describe("NLInputBar Component", () => {
       });
     });
 
-    it("picking a suggestion only sets the text — it never carries an amount, category or date", async () => {
+    it("picking a suggestion only sets the text — it never parses or carries an amount, category or date", async () => {
       withHistory(["zomato lunch", "zomato dinner"]);
+      renderBar();
+
+      const input = await typeAndAwaitSuggestions("zomato");
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      // The pick only completes the word: nothing is sent anywhere, so a
+      // stale amount/category/date can never leak into a parse, and nothing
+      // is written to the ledger until the user submits.
+      expect(input).toHaveValue("zomato dinner");
+      expect(mockedPost).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("preview-description")).not.toBeInTheDocument();
+
+      // A subsequent parse (the user submitting the completed line) sends only
+      // the text — no draft fields ride along.
       mockedPost.mockResolvedValue({
         data: {
           kind: "single",
@@ -332,14 +329,7 @@ describe("NLInputBar Component", () => {
           date: "2026-07-26",
         },
       } as any);
-      renderBar();
-
-      const input = await typeAndAwaitSuggestions("zomato");
-      fireEvent.keyDown(input, { key: "ArrowDown" });
       fireEvent.keyDown(input, { key: "Enter" });
-
-      // The pick sends only the text for parsing — no draft fields ride along,
-      // so a stale amount/category/date can never leak into the parse.
       await waitFor(() => {
         expect(mockedPost).toHaveBeenCalledWith("/parse-nl", {
           text: "zomato dinner",
@@ -348,10 +338,6 @@ describe("NLInputBar Component", () => {
       });
       const [, body] = mockedPost.mock.calls[0];
       expect(Object.keys(body).sort()).toEqual(["force_recurring", "text"]);
-      expect(input).toHaveValue("zomato dinner");
-
-      // And it only previews the draft — nothing is written to the ledger.
-      await waitFor(() => expect(screen.getByTestId("preview-description")).toHaveValue("zomato dinner"));
       expect(mockedPost).not.toHaveBeenCalledWith("/transactions", expect.anything());
     });
   });
@@ -463,6 +449,64 @@ describe("NLInputBar Component", () => {
         "/transactions",
         expect.objectContaining({ description: "Cup Coffe", amount: -15, payment_method: "Cash", quantity: 1 })
       );
+    });
+  });
+
+  describe("credit/debit toggle", () => {
+    async function parseSalary() {
+      mockedPost.mockResolvedValue({
+        data: { kind: "single", description: "Gift", amount: 500, category: "Income", date: "2026-07-26", payment_method: "" },
+      } as any);
+      renderBar();
+      const input = firstInput();
+      fireEvent.change(input, { target: { value: "gift 500" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => expect(screen.getByTestId("nl-preview")).toBeInTheDocument());
+    }
+
+    it("shows the toggle reflecting the parsed direction", async () => {
+      await parseSalary();
+      expect(screen.getByTestId("preview-debit-toggle")).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByTestId("preview-credit-toggle")).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("flips a misparsed credit into a debit, dropping the Income category", async () => {
+      await parseSalary();
+      // The parser called it income; the user corrects it to a debit.
+      fireEvent.click(screen.getByTestId("preview-debit-toggle"));
+
+      expect(screen.getByTestId("preview-amount")).toHaveValue("-500");
+      expect(screen.getByTestId("preview-debit-toggle")).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(screen.getByTestId("nl-save-btn"));
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledWith(
+          "/transactions",
+          expect.objectContaining({ description: "Gift", amount: -500, category: "Other" })
+        );
+      });
+    });
+
+    it("flips a debit back into a credit", async () => {
+      mockedPost.mockResolvedValue({
+        data: { kind: "single", description: "Zomato", amount: -450, category: "Food Delivery", date: "2026-07-26" },
+      } as any);
+      renderBar();
+      const input = firstInput();
+      fireEvent.change(input, { target: { value: "zomato 450" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => expect(screen.getByTestId("nl-preview")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId("preview-credit-toggle"));
+      expect(screen.getByTestId("preview-amount")).toHaveValue("450");
+
+      fireEvent.click(screen.getByTestId("nl-save-btn"));
+      await waitFor(() => {
+        expect(mockedPost).toHaveBeenCalledWith(
+          "/transactions",
+          expect.objectContaining({ description: "Zomato", amount: 450 })
+        );
+      });
     });
   });
 });

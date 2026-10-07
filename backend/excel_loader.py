@@ -35,16 +35,14 @@ import ai
 # parsed — which never happens during startup. Import it lazily so the server
 # boots without paying for it. PEP 562 module ``__getattr__`` keeps the
 # long-standing ``excel_loader.pd`` access pattern (and tests that patch it)
-# working unchanged.
-pd = None
-
-
+# working unchanged — the module simply has NO ``pd`` attribute until the
+# first access triggers the import (setting ``pd = None`` up here would shadow
+# ``__getattr__`` and crash every use with 'NoneType' errors).
 def _ensure_pandas():
     """Import pandas on first use and bind it as a module global."""
     global pd
-    if pd is None:
-        import pandas as _pd
-        pd = _pd
+    import pandas as _pd
+    pd = _pd
     return pd
 
 
@@ -128,6 +126,7 @@ def _is_number(s) -> bool:
 
 
 def _clean_amount(raw) -> float | None:
+    _ensure_pandas()
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return None
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):
@@ -186,6 +185,7 @@ def _price_expr_text(raw) -> str:
     information over the parsed price, but a breakdown like ``15*2+20`` is
     what the user actually wrote in the sheet and is shown as-is in the app.
     """
+    _ensure_pandas()
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return ""
     s = str(raw).strip()
@@ -245,6 +245,7 @@ _DATE_FORMATS_MONTHFIRST = [
 
 def _to_date(raw, default: datetime, dayfirst: bool = True) -> datetime | None:
     """Parse one cell into a datetime. ``dayfirst`` controls ambiguous strings."""
+    _ensure_pandas()
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return None
     if isinstance(raw, (datetime, pd.Timestamp)):
@@ -347,6 +348,7 @@ _FLAT_ALIASES = {a for v in COLUMN_ALIASES.values() for a in v}
 
 
 def _header_score(cells: list) -> int:
+    _ensure_pandas()
     nonnull = [c for c in cells if c is not None and not (isinstance(c, float) and pd.isna(c)) and str(c).strip()]
     if len(nonnull) < 2:
         return -1

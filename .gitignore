@@ -77,3 +77,7 @@ pytest-basetemp*/
 
 # Uploaded Excel files
 Expenditure*.xlsx
+
+# Large original design exports (kept local)
+original-logo.png
+frontend/src/components/_brand_paths_raw.json

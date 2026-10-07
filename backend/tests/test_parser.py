@@ -22,15 +22,15 @@ def test_detect_payment():
     assert _detect_payment("no payment method mentioned")[0] == ""
 
 def test_detect_amount():
-    # Explicit sign
-    assert _detect_amount("zomato +450")[0:2] == (450.0, True)
-    assert _detect_amount("zomato -450")[0:2] == (450.0, False)
+    # Explicit sign — the tuple is (amount, explicit_pos, explicit_neg, rest)
+    assert _detect_amount("zomato +450")[0:3] == (450.0, True, False)
+    assert _detect_amount("zomato -450")[0:3] == (450.0, False, True)
     # Shorthand suffixes
-    assert _detect_amount("salary +5k")[0:2] == (5000.0, True)
-    assert _detect_amount("car -1.5lakh")[0:2] == (150000.0, False)
-    assert _detect_amount("flat 2cr")[0:2] == (20000000.0, False)
+    assert _detect_amount("salary +5k")[0:3] == (5000.0, True, False)
+    assert _detect_amount("car -1.5lakh")[0:3] == (150000.0, False, True)
+    assert _detect_amount("flat 2cr")[0:3] == (20000000.0, False, False)
     # Plain number
-    assert _detect_amount("milk 50")[0:2] == (50.0, False)
+    assert _detect_amount("milk 50")[0:3] == (50.0, False, False)
     # Edge case: skip date-like and ordinals
     assert _detect_amount("date 15/06 amount 100")[0] == 100.0
     assert _detect_amount("1st prize 1000")[0] == 1000.0
@@ -498,6 +498,48 @@ def test_credit_card_payment_method_detected():
     """Payment method 'Credit Card' should still be detected."""
     result = parse_transaction("amazon 1500 credit card", datetime(2026, 6, 19))
     assert result["payment_method"] == "Credit Card"
+
+
+# ── Explicit sign must beat income keywords (debit typed as debit) ──
+
+def test_explicit_negative_sign_beats_income_words():
+    """"gift -500" is a debit the user typed, never an income keyword flip."""
+    today = datetime(2026, 6, 19)
+    for text, word in (
+        ("gift -500 for mom", "gift"),
+        ("refund -250 given back", "refund"),
+        ("interest -1000 paid", "interest"),
+        ("won -200 bet lost", "won"),
+    ):
+        result = parse_transaction(text, today)
+        assert result["amount"] < 0, f"{text!r} parsed as credit {result['amount']}"
+        assert result["txn_type"] == "debit"
+        assert result["category"] != "Income"
+
+
+def test_explicit_positive_sign_still_income():
+    """"+85000 salary" and "+5k" remain credits."""
+    today = datetime(2026, 6, 19)
+    result = parse_transaction("salary +85000", today)
+    assert result["amount"] == 85000.0
+    assert result["txn_type"] == "credit"
+
+    # An explicit + on a plain merchant is income too (no expense words).
+    result = parse_transaction("+200 from friend rahul", today)
+    assert result["amount"] == 200.0
+    assert result["txn_type"] == "credit"
+
+
+def test_bare_amount_still_uses_income_keywords():
+    """No sign typed → income words still decide direction (old behavior)."""
+    today = datetime(2026, 6, 19)
+    result = parse_transaction("gift 500", today)
+    assert result["amount"] == 500.0
+    assert result["txn_type"] == "credit"
+
+    result = parse_transaction("zomato 450", today)
+    assert result["amount"] == -450.0
+    assert result["txn_type"] == "debit"
 
 
 def test_trailing_currency_marker_is_removed_from_description():

@@ -36,7 +36,7 @@ traces stay in server logs only.
   "id": "…",
   "date": "2026-07-28",
   "description": "zomato 450",
-  "amount": 450.0,
+  "amount": -450.0,
   "category": "Food & Dining",
   "transaction_type": "expense",
   "payment_method": "upi",
@@ -44,6 +44,13 @@ traces stay in server logs only.
   "meta": {}
 }
 ```
+
+**Amount sign convention:** `amount` is signed — negative = debit (expense),
+positive = credit (income). A bare amount with no typed sign is inferred from
+context (income words such as *salary*, *gift*, *refund* → credit; otherwise
+debit), but an explicit `+`/`-` typed next to the amount always wins (e.g.
+`gift -500` → debit). NL parse responses also carry a convenience
+`txn_type`: `"credit" | "debit"`, mirroring the sign of `amount`.
 
 ---
 
@@ -129,8 +136,8 @@ traces stay in server logs only.
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/parse-nl` | Parse one entry: `"zomato 450 upi"` |
-| POST | `/parse-nl/bulk` | Parse multiple lines at once |
+| POST | `/parse-nl` | Parse one entry: `"zomato 450 upi"` → `{ description, amount, date, category, payment_method, quantity, txn_type }`. `amount` is signed (negative = debit, positive = credit); an explicit `+`/`-` before the amount overrides keyword inference. |
+| POST | `/parse-nl/bulk` | Parse multiple lines at once (same response shape per line) |
 | POST | `/parse-nl/voice` | Parse a spoken dictation string |
 | GET | `/transcribe/status` | Whisper/transcription availability |
 | POST | `/transcribe/model` | Set transcription model |

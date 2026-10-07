@@ -78,12 +78,22 @@ into a structured transaction in stages:
 
 1. Tokenize + detect **amount** (incl. formula cells like `₹15*2+₹20`), **merchant**,
    **date** (yesterday / weekday / DD/MM vs MM/DD), **payment method** (upi/cash/card).
-2. **`_detect_category`** maps keywords → category.
-3. Highest-confidence path wins; ambiguous input may fall through to local ML
+2. **Sign resolution** — an explicit `+`/`-` typed next to the amount always wins
+   (`gift -500` → debit, `salary +85000` → credit); with no sign, income keywords
+   (`salary`/`gift`/`refund`/…) or the `Income` category make it a credit, otherwise
+   a debit. A debit is never allowed to sit in the `Income` category.
+3. **`_detect_category`** maps keywords → category.
+4. Highest-confidence path wins; ambiguous input may fall through to local ML
    (`ml_nlp.py`) and then Gemini (`ai.py`). Every layer degrades gracefully.
 
 > ⚠️ `parser.py` and `ml_nlp.py` keep near-duplicate category keyword maps. When you add
 > a merchant/category, update **both** or parsing will be inconsistent.
+
+`excel_loader.py` imports **pandas lazily** (`_ensure_pandas()` + PEP 562
+module `__getattr__`) so the app boots fast when pandas isn't installed.
+Gotcha: `__getattr__` only fires on *attribute access* (`pd.DataFrame` via
+`module.pd`), **not** bare `pd` name references inside functions — every
+function that touches `pd` directly must call `_ensure_pandas()` first.
 
 ---
 

@@ -353,6 +353,17 @@ export default function NLInputBar({ onSaved }) {
     setDraft(null);
     setBulkDrafts(null);
     setSplit(false);
+    setLastPicked("");
+  };
+
+  // A suggestion pick only completes the input text (never parses). This
+  // lives here, not inside InputRow, because every tab's InputRow shares the
+  // same text state — each row needs to see the same "just picked" value or
+  // the one that didn't handle the click would reopen its list.
+  const [lastPicked, setLastPicked] = React.useState("");
+  const pickSuggestion = (suggestion) => {
+    setLastPicked(suggestion);
+    setText(suggestion);
   };
 
   const updateDraft = (key, val) => setDraft((d) => ({ ...d, [key]: val }));
@@ -394,7 +405,9 @@ export default function NLInputBar({ onSaved }) {
           <TabsContent value="single">
             <InputRow
               value={text}
-              onChange={setText}
+              onChange={(v) => { setLastPicked(""); setText(v); }}
+              onPick={pickSuggestion}
+              lastPicked={lastPicked}
               onParse={parseSingle}
               onVoiceResult={parseVoiceTranscript}
               onAudioResult={transcribeAudio}
@@ -408,7 +421,9 @@ export default function NLInputBar({ onSaved }) {
           <TabsContent value="recurring">
             <InputRow
               value={text}
-              onChange={setText}
+              onChange={(v) => { setLastPicked(""); setText(v); }}
+              onPick={pickSuggestion}
+              lastPicked={lastPicked}
               onParse={parseSingle}
               onVoiceResult={parseVoiceTranscript}
               onAudioResult={transcribeAudio}
@@ -468,7 +483,7 @@ export default function NLInputBar({ onSaved }) {
   );
 }
 
-function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, parsing, placeholder, descriptions = [], onFocus = () => {}, onBlur = () => {} }) {
+function InputRow({ value, onChange, onPick, lastPicked = "", onParse, onVoiceResult, onAudioResult, parsing, placeholder, descriptions = [], onFocus = () => {}, onBlur = () => {} }) {
   const [recording, setRecording] = React.useState(false);
   const [supported, setSupported] = React.useState(true);
   const [interim, setInterim] = React.useState("");
@@ -562,8 +577,9 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
     const q = value.trim().toLowerCase();
     // Never resurface the list while a parse is in flight: picking a suggestion
     // or hitting Enter sets the text, which would otherwise re-open the list
-    // over the result that is about to render.
-    if (!q || recording || parsing) {
+    // over the result that is about to render. The parent's `lastPicked` keeps
+    // the list closed right after a pick, so Enter submits instead of looping.
+    if (!q || recording || parsing || (lastPicked && value.trim() === lastPicked)) {
       setShowSuggestions(false);
       setFilteredSuggestions([]);
       return;
@@ -609,13 +625,14 @@ function InputRow({ value, onChange, onParse, onVoiceResult, onAudioResult, pars
   }, [parsing]);
 
   const handleSuggestionClick = (suggestion) => {
-    // Commit the pick and hide the list, then parse the chosen text directly.
-    // Clearing only here is not enough: the suggestion effect refills the list
-    // from the new `value` before the parse resolves. parseSingle clears it
-    // again once the request lands — see the parse-in-flight guard below.
-    onChange(suggestion);
+    // Picking a suggestion only completes the text — it never parses. The
+    // user then reviews/edits the line and submits with Enter or the Parse
+    // button. Clearing here is not enough: the suggestion effect refills the
+    // list from the new `value`, so the parent's lastPicked guard (passed in
+    // as a prop) keeps it closed until the text actually changes.
+    onPick(suggestion);
     setShowSuggestions(false);
-    onParse(suggestion);
+    setFilteredSuggestions([]);
   };
 
   React.useEffect(() => {
@@ -1169,15 +1186,66 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
   const fragmentCount = fragments?.length ?? 0;
   const [priceEditing, setPriceEditing] = React.useState(false);
 
+  // Flip the whole draft between money-in and money-out. The parser guesses
+  // direction from keywords; this makes the guess user-correctable before save.
+  // Mirrors the parser's own rule: a debit never carries the Income category.
+  const setSign = (debit) => {
+    const mag = Math.abs(draft.amount || 0);
+    const amt = debit ? -mag : mag;
+    updateDraft("amount", amt);
+    if (debit && draft.category === "Income") updateDraft("category", "Other");
+    if (isRecurring) updateDraft("total", round2(amt * (draft.months?.length || 0)));
+    if (fragmentCount >= 2) {
+      updateDraft(
+        "fragments",
+        fragments.map((f) => ({ ...f, amount: debit ? -Math.abs(f.amount || 0) : Math.abs(f.amount || 0) }))
+      );
+    }
+  };
+
   return (
     <div className="mt-4 rounded-2xl border border-border/80 bg-muted/20 p-4 animate-fade-up" data-testid="nl-preview">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {isRecurring ? `Repeat monthly · pick which months to apply` : "Preview — edit before saving"}
         </span>
-        <Badge variant={draft.amount >= 0 ? "success" : "destructive"}>
-          {draft.amount >= 0 ? "Credit" : "Debit"}
-        </Badge>
+        <div
+          className="inline-flex items-center rounded-full border border-border bg-muted p-0.5"
+          role="group"
+          aria-label="Transaction type"
+          data-testid="preview-type-toggle"
+        >
+          <button
+            type="button"
+            data-testid="preview-credit-toggle"
+            aria-pressed={!isDebit}
+            onClick={() => setSign(false)}
+            title="Money in (income)"
+            className={cn(
+              "rounded-full px-3 py-0.5 text-xs font-medium transition-colors",
+              !isDebit
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Credit
+          </button>
+          <button
+            type="button"
+            data-testid="preview-debit-toggle"
+            aria-pressed={isDebit}
+            onClick={() => setSign(true)}
+            title="Money out (expense)"
+            className={cn(
+              "rounded-full px-3 py-0.5 text-xs font-medium transition-colors",
+              isDebit
+                ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Debit
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
