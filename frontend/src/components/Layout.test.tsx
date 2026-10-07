@@ -80,15 +80,25 @@ describe('Layout - Responsive Behavior', () => {
     it('should have responsive padding on main content', () => {
       const { container } = renderLayout()
       const mainContent = container.querySelector('main')
-      expect(mainContent).toHaveClass('px-4', 'pt-20', 'lg:pr-6', 'lg:pt-8')
+      expect(mainContent).toHaveClass('px-4', 'pt-[5.75rem]', 'lg:pr-6', 'lg:pt-[5.5rem]')
     })
   })
 
   describe('Navigation Items', () => {
     it('should render all navigation items in desktop sidebar', () => {
       renderLayout()
-      const desktopNavItems = screen.getAllByTestId(/^nav-(?!mobile)/)
+      const desktopNavItems = screen.getAllByTestId(/^nav-(?!mobile|search)/)
       expect(desktopNavItems.length).toBe(8) // Dashboard, Transactions, Analytics, Budgets, Goals, People, AI Insights, Settings
+    })
+
+    it('should render the global search box in the top navbar', () => {
+      renderLayout()
+      // Desktop top nav + mobile bar both host the search box
+      const searchBoxes = screen.getAllByTestId('nav-search')
+      expect(searchBoxes.length).toBeGreaterThanOrEqual(1)
+      for (const box of searchBoxes) {
+        expect(box).toHaveAttribute('aria-label', 'Search transactions')
+      }
     })
 
     it('should render all navigation items in mobile menu', () => {

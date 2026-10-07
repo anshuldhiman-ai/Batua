@@ -40,6 +40,7 @@ import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
 import ReceiptScanner from "@/components/ReceiptScanner";
 import ExportDialog from "@/components/ExportDialog";
+import { useNavSearch } from "@/components/Layout";
 import { parseReceiptText, type ParsedReceipt } from "@/lib/parse-receipt";
 
 const PAGE_SIZE = 15;
@@ -65,7 +66,9 @@ const selectClass =
 
 export default function Transactions() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = React.useState("");
+  // Bound to the top-navbar search box (Layout) — typing there filters
+  // this list live.
+  const [search, setSearch] = useNavSearch();
   const debouncedSearch = useDebounce(search, 300);
   const [category, setCategory] = React.useState("All");
   const [page, setPage] = React.useState(1);

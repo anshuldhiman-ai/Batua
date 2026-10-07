@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Search,
 } from "lucide-react";
 
 import Tour from "@/components/Tour";
@@ -28,6 +29,92 @@ import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { api } from "@/lib/utils-finance";
+import { useDebounce } from "@/hooks/useDebounce";
+
+/**
+ * Cross-page transaction search, shared by the top navbar and any page
+ * that wants to consume it (Transactions reads it today). Kept in one
+ * module-level store so every Layout instance — and the tests — agree.
+ */
+type SearchListener = (value: string) => void;
+const searchListeners = new Set<SearchListener>();
+let sharedSearchValue = "";
+
+export function getNavSearch(): string {
+  return sharedSearchValue;
+}
+
+export function setNavSearch(value: string): void {
+  sharedSearchValue = value;
+  searchListeners.forEach((listener) => listener(value));
+}
+
+export function useNavSearch(): [string, (value: string) => void] {
+  const [value, setValue] = useState(sharedSearchValue);
+  useEffect(() => {
+    const listener: SearchListener = setValue;
+    searchListeners.add(listener);
+    return () => {
+      searchListeners.delete(listener);
+    };
+  }, []);
+  return [value, setNavSearch];
+}
+
+/**
+ * Global search bar for the top navbar — middle of the bar on desktop,
+ * below the bar on mobile. Typing here navigates to the Transactions
+ * page and filters it live; clearing the box returns to the unfiltered
+ * list.
+ */
+function NavSearchBar({ className }: { className?: string }) {
+  const [value, setValue] = useNavSearch();
+  const debounced = useDebounce(value, 250);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!debounced.trim()) return;
+    if (location.pathname !== "/transactions") {
+      navigate("/transactions", { replace: false });
+    }
+  }, [debounced, navigate, location.pathname]);
+
+  const onClear = () => setValue("");
+
+  return (
+    <div
+      role="search"
+      aria-label="Search transactions"
+      className={cn("relative w-full", className)}
+    >
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <input
+        type="search"
+        data-testid="nav-search"
+        aria-label="Search transactions"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Search transactions…"
+        className={cn(
+          "h-10 w-full rounded-xl border border-input bg-background pl-9 pr-9 text-sm",
+          "placeholder:text-muted-foreground/70",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        )}
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear search"
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -80,6 +167,42 @@ function ThemeToggle({ className }) {
         </motion.span>
       </AnimatePresence>
     </button>
+  );
+}
+
+/* ─── Desktop top navbar ─────────────────────────────────────── */
+function DesktopTopNav({ onLaunchTour }) {
+  return (
+    <header
+      aria-label="Top navigation"
+      className="fixed inset-x-0 top-0 z-40 hidden border-b border-border/50 bg-card/80 backdrop-blur-xl lg:block"
+    >
+      <div className="mx-auto flex h-16 w-full max-w-[calc(1600px+1.5rem)] items-center gap-4 px-6">
+        {/* Brand — left */}
+        <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
+          <Logo className="h-9 w-9 shrink-0 rounded" />
+          <span className="font-brand text-xl leading-none tracking-wide">Batua</span>
+        </NavLink>
+
+        {/* Search — middle */}
+        <NavSearchBar className="mx-auto w-full max-w-md" />
+
+        {/* Actions — right */}
+        <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle className="h-10 w-10" />
+          <button
+            type="button"
+            onClick={onLaunchTour}
+            aria-label="Take the tour"
+            data-testid="tour-launch"
+            title="Guided tour"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <CircleHelp className="h-[18px] w-[18px]" />
+          </button>
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -154,19 +277,16 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
       </nav>
 
       <div className="flex flex-col gap-2 border-t border-border/50 p-3">
-        <div className="flex items-center gap-2">
-          <ThemeToggle className="min-w-0 flex-1" />
-          <button
-            type="button"
-            onClick={onLaunchTour}
-            aria-label="Take the tour"
-            data-testid="tour-launch"
-            title="Guided tour"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <CircleHelp className="h-[18px] w-[18px]" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onLaunchTour}
+          aria-label="Take the tour"
+          data-testid="tour-launch"
+          title="Guided tour"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <CircleHelp className="h-[18px] w-[18px]" />
+        </button>
         <button
           type="button"
           onClick={onToggle}
@@ -239,6 +359,13 @@ function MobileNav({ onLaunchTour }) {
             {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
+      </div>
+
+      {/* Search — below the bar on small screens */}
+      <div
+        className="border-b border-border/40 bg-card/90 px-4 py-2 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]"
+      >
+        <NavSearchBar />
       </div>
 
       <div
@@ -342,6 +469,7 @@ export default function Layout({ splashVisible }: LayoutProps) {
       >
         Skip to main content
       </a>
+      {!splashVisible && <DesktopTopNav onLaunchTour={() => setTourOpen(true)} />}
       {!splashVisible && (
         <DesktopSidebar
           collapsed={collapsed}
@@ -360,7 +488,7 @@ export default function Layout({ splashVisible }: LayoutProps) {
       <main
         id="main-content"
         className={cn(
-          "mx-auto w-full max-w-[1600px] px-4 pb-10 pt-20 lg:pr-6 lg:pt-8",
+          "mx-auto w-full max-w-[1600px] px-4 pb-10 pt-[5.75rem] lg:pr-6 lg:pt-[5.5rem]",
           "[padding-right:max(1rem,env(safe-area-inset-right))]",
           "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom))]",
           "[padding-left:max(1rem,env(safe-area-inset-left))]",
