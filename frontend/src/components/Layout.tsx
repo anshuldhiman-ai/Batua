@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  LogOut,
   Search,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ import { TOUR_STEPS } from "@/tour-steps";
 
 import { ThemeContext } from "@/App";
 import Logo from "@/components/Logo";
+import { useAuth } from "@/components/Auth";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -172,6 +174,7 @@ function ThemeToggle({ className }) {
 
 /* ─── Desktop top navbar ─────────────────────────────────────── */
 function DesktopTopNav({ onLaunchTour }) {
+  const { logout } = useAuth();
   return (
     <header
       aria-label="Top navigation"
@@ -199,6 +202,16 @@ function DesktopTopNav({ onLaunchTour }) {
             className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <CircleHelp className="h-[18px] w-[18px]" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            aria-label="Sign out"
+            data-testid="sign-out"
+            title="Sign out"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LogOut className="h-[18px] w-[18px]" />
           </button>
         </div>
       </div>
@@ -306,6 +319,7 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
 
 /* ─── Mobile top bar + drawer ─────────────────────────────────────── */
 function MobileNav({ onLaunchTour }) {
+  const { logout } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -349,6 +363,14 @@ function MobileNav({ onLaunchTour }) {
             className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50"
           >
             <CircleHelp className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => void logout()}
+            aria-label="Sign out"
+            data-testid="sign-out-mobile"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50"
+          >
+            <LogOut className="h-5 w-5" />
           </button>
           <button
             onClick={() => setIsOpen(!isOpen)}
@@ -405,6 +427,17 @@ function MobileNav({ onLaunchTour }) {
               </NavLink>
             );
           })}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              void logout();
+            }}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-accent/40"
+          >
+            <LogOut size={18} />
+            <span>Sign out</span>
+          </button>
         </div>
       </div>
     </nav>

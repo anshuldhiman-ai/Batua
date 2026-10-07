@@ -61,6 +61,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/components/Auth";
 import { api } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 
@@ -365,6 +366,7 @@ function useFade(delay = 0) {
 export default function Settings() {
   const { theme, toggle, accent, setAccent, customColor, setCustomColor } =
     React.useContext(ThemeContext);
+  const { changePassword, logout } = useAuth();
   const customActive = accent === CUSTOM_ACCENT;
   const [activeTab, setActiveTab] = React.useState("appearance");
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -383,6 +385,13 @@ export default function Settings() {
   const [deleteCategoryOpen, setDeleteCategoryOpen] = React.useState(false);
   const [categoryToDelete, setCategoryToDelete] = React.useState(null);
   const [reassignTo, setReassignTo] = React.useState("");
+
+  // Change password form state
+  const [pwCurrent, setPwCurrent] = React.useState("");
+  const [pwNew, setPwNew] = React.useState("");
+  const [pwConfirm, setPwConfirm] = React.useState("");
+  const [pwSaving, setPwSaving] = React.useState(false);
+  const [pwMsg, setPwMsg] = React.useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   // Gemini API key management
   const [geminiKey, setGeminiKey] = React.useState("");
@@ -1103,6 +1112,110 @@ export default function Settings() {
                     );
                   })}
                 </div>
+              </Panel>
+
+              {/* ── Change Password ── */}
+              <Panel>
+                <PanelHeader
+                  icon={Lock}
+                  title="Change Password"
+                  desc="Update your local account password. You'll need to sign in again after changing it."
+                />
+                <PanelContent className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Current Password
+                    </label>
+                    <Input
+                      type="password"
+                      value={pwCurrent}
+                      onChange={(e) => setPwCurrent(e.target.value)}
+                      placeholder="••••••••"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      New Password
+                    </label>
+                    <Input
+                      type="password"
+                      value={pwNew}
+                      onChange={(e) => setPwNew(e.target.value)}
+                      placeholder="At least 4 characters"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Confirm New Password
+                    </label>
+                    <Input
+                      type="password"
+                      value={pwConfirm}
+                      onChange={(e) => setPwConfirm(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  {pwMsg && (
+                    <p
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs",
+                        pwMsg.type === "ok"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-rose-600 dark:text-rose-400"
+                      )}
+                    >
+                      {pwMsg.type === "ok" ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                      )}
+                      {pwMsg.text}
+                    </p>
+                  )}
+                  <Button
+                    onClick={async () => {
+                      setPwMsg(null);
+                      if (pwNew.length < 4) {
+                        setPwMsg({ type: "error", text: "New password must be at least 4 characters." });
+                        return;
+                      }
+                      if (pwNew !== pwConfirm) {
+                        setPwMsg({ type: "error", text: "New passwords do not match." });
+                        return;
+                      }
+                      setPwSaving(true);
+                      try {
+                        // The server clears the session token on a
+                        // password change, so this signs the user out
+                        // (Gate then shows the login screen).
+                        await changePassword(pwCurrent, pwNew);
+                        await logout();
+                        toast.success("Password updated — please sign in again.");
+                        return;
+                      } catch (e: any) {
+                        const detail = e?.response?.data?.detail;
+                        setPwMsg({ type: "error", text: typeof detail === "string" ? detail : "Password change failed." });
+                      } finally {
+                        setPwSaving(false);
+                      }
+                    }}
+                    disabled={pwSaving}
+                    className="rounded-xl"
+                  >
+                    {pwSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Updating…
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4" /> Change Password
+                      </>
+                    )}
+                  </Button>
+                </PanelContent>
               </Panel>
 
               {/* ── Footer / help ── */}

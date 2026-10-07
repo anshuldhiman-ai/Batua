@@ -97,6 +97,21 @@ class PersonEntryDB(SQLModel, table=True):
     created_at: Optional[str] = Field(default=None, nullable=True)
 
 
+class UserDB(SQLModel, table=True):
+    """Local account for single-user auth (passwords are hashed)."""
+    __tablename__ = "users"
+
+    id: str = Field(primary_key=True, index=True)
+    username: Optional[str] = Field(default="", index=True, nullable=True)
+    email: Optional[str] = Field(default="", nullable=True)
+    password_hash: Optional[str] = Field(default="", nullable=True)
+    created_at: Optional[str] = Field(default=None, nullable=True)
+    session_token: Optional[str] = Field(default=None, nullable=True)
+    session_expires_at: Optional[str] = Field(default=None, nullable=True)
+    reset_token: Optional[str] = Field(default=None, nullable=True)
+    reset_token_expires_at: Optional[float] = Field(default=None, nullable=True)
+
+
 _MODEL_MAP = {
     "transactions": TransactionDB,
     "budgets": BudgetDB,
@@ -105,6 +120,7 @@ _MODEL_MAP = {
     "custom_categories": CustomCategoryDB,
     "goals": GoalDB,
     "people": PersonEntryDB,
+    "users": UserDB,
 }
 
 

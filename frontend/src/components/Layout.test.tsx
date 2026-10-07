@@ -4,6 +4,14 @@ import { render, screen } from '@testing-library/react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './Layout'
 
+// Mock the auth context — Layout renders sign-out buttons
+// that read it, but the tests render Layout without the app.
+vi.mock('@/components/Auth', () => ({
+  useAuth: () => ({
+    logout: vi.fn(),
+  }),
+}))
+
 // Mock ThemeContext
 vi.mock('@/App', () => ({
   ThemeContext: React.createContext({ theme: 'light', toggle: vi.fn() }),

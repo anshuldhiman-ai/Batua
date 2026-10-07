@@ -6,6 +6,8 @@ import Layout from "@/components/Layout";
 import SplashScreen from "@/components/SplashScreen";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AuthProvider, useAuth } from "@/components/Auth";
+import LoginPage from "@/components/LoginPage";
 import {
   applyAccent,
   DEFAULT_ACCENT,
@@ -92,43 +94,96 @@ export function useTheme(): ThemeContextValue {
   return { theme, toggle, accent, setAccent, customColor, setCustomColor };
 }
 
+/**
+ * Routes behind the auth gate. Kept as a separate component so the
+ * gate can swap the whole tree (LoginPage vs the app) without
+ * unmounting theme state.
+ */
+function AppRoutes({ splashVisible }: { splashVisible: boolean }) {
+  return (
+    <ErrorBoundary>
+      <React.Suspense
+        fallback={
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-center min-h-screen"
+          >
+            <span className="sr-only">Loading page</span>Loading...
+          </div>
+        }
+      >
+        <Routes>
+          <Route element={<Layout splashVisible={splashVisible} />}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/transactions" element={<Transactions />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/budgets" element={<Budgets />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/people" element={<People />} />
+            {/* Reports merged into Analytics — keep old links working */}
+            <Route path="/reports" element={<Navigate to="/analytics" replace />} />
+            <Route path="/ml-insights" element={<MLInsights />} />
+            <Route path="/settings" element={<Settings />} />
+            {/* In-app API reference — themed, replaces the stock Swagger UI */}
+            <Route path="/api-docs" element={<ApiDocs />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Route>
+        </Routes>
+      </React.Suspense>
+    </ErrorBoundary>
+  );
+}
+
+/**
+ * Auth gate: while the boot probe is resolving the splash keeps the
+ * screen covered (no flash of unauthenticated content); afterwards a
+ * live session renders the app and anything else renders Login.
+ */
+function Gate({
+  splashVisible,
+  setSplashVisible,
+}: {
+  splashVisible: boolean;
+  setSplashVisible: (v: boolean) => void;
+}) {
+  const { loading, user } = useAuth();
+
+  if (loading) {
+    return <SplashScreen onHide={() => setSplashVisible(false)} />;
+  }
+  if (!user) {
+    return <LoginPage />;
+  }
+  return (
+    <>
+      <SplashScreen onHide={() => setSplashVisible(false)} />
+      <AppRoutes splashVisible={splashVisible} />
+    </>
+  );
+}
+
 export default function App() {
   const themeValue = useTheme();
   const [splashVisible, setSplashVisible] = useState(true);
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <SplashScreen onHide={() => setSplashVisible(false)} />
-      <ErrorBoundary>
-        <BrowserRouter>
-          <React.Suspense fallback={<div role="status" aria-live="polite" className="flex items-center justify-center min-h-screen"><span className="sr-only">Loading page</span>Loading...</div>}>
-            <Routes>
-              <Route element={<Layout splashVisible={splashVisible} />}>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/transactions" element={<Transactions />} />
-                <Route path="/analytics" element={<Analytics />} />
-                <Route path="/budgets" element={<Budgets />} />
-                <Route path="/goals" element={<Goals />} />
-                <Route path="/people" element={<People />} />
-                {/* Reports merged into Analytics — keep old links working */}
-                <Route path="/reports" element={<Navigate to="/analytics" replace />} />
-                <Route path="/ml-insights" element={<MLInsights />} />
-                <Route path="/settings" element={<Settings />} />
-                {/* In-app API reference — themed, replaces the stock Swagger UI */}
-                <Route path="/api-docs" element={<ApiDocs />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Route>
-            </Routes>
-          </React.Suspense>
-        </BrowserRouter>
-      </ErrorBoundary>
-      <Toaster
-        position="top-right"
-        richColors
-        theme={themeValue.theme}
-        toastOptions={{ className: "font-sans" }}
-      />
+      <BrowserRouter>
+        <AuthProvider>
+          <Gate
+            splashVisible={splashVisible}
+            setSplashVisible={setSplashVisible}
+          />
+        </AuthProvider>
+        <Toaster
+          position="top-right"
+          richColors
+          theme={themeValue.theme}
+          toastOptions={{ className: "font-sans" }}
+        />
+      </BrowserRouter>
     </ThemeContext.Provider>
   );
 }

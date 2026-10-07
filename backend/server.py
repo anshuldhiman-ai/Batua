@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, APIRouter  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
@@ -37,6 +38,7 @@ from app.routes import (  # noqa: E402
     people,
     goals,
     settings,
+    auth,
     api_docs,
 )
 
@@ -251,10 +253,15 @@ api.include_router(people.router, prefix="/people", tags=["people"])
 api.include_router(backup.router, tags=["backup"])
 api.include_router(goals.router, prefix="/goals", tags=["goals"])
 api.include_router(settings.router, tags=["settings"])
+api.include_router(auth.router, tags=["auth"])
 api.include_router(api_docs.router, prefix="/docs", tags=["api-docs"])
 
 # Mount API router
 app.include_router(api, prefix="/api")
+
+# Auth field-validation failures (bad email, short password) answer
+# with 400 like the auth route handlers do, not Pydantic's default 422.
+app.add_exception_handler(RequestValidationError, auth.validation_to_400)
 
 
 # Security headers + cache control.
