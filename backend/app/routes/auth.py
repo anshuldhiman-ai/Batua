@@ -118,6 +118,20 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+class ChangeUsernameRequest(BaseModel):
+    """Rename the local account's username."""
+    username: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def _username(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("username must be at least 3 characters")
+        return v
+
+
 class RecoveryTokenRequest(BaseModel):
     """Mint a one-time reset token for a username (server-side, owner-only)."""
     username: str
@@ -181,6 +195,33 @@ def _session_response(doc: dict) -> dict:
             "password_set": True,
         },
     }
+
+
+# --------------------------------------------------------------------------- #
+# Login history
+# --------------------------------------------------------------------------- #
+
+LOGIN_HISTORY_LIMIT = 30
+
+
+async def _record_login(doc: dict) -> None:
+    """Append a timestamped entry to the account's login history.
+
+    Kept on the account document itself so it survives restarts and
+    travels with the store's backups. Only the most recent
+    LOGIN_HISTORY_LIMIT entries are retained.
+    """
+    history = list(doc.get("login_history") or [])
+    history.append({"at": datetime.now(timezone.utc).isoformat()})
+    doc["login_history"] = history[-LOGIN_HISTORY_LIMIT:]
+
+
+async def _login_history(storage) -> list[dict]:
+    doc = await _load_account(storage)
+    if not doc:
+        return []
+    # Newest first — the list is stored oldest-first.
+    return list(reversed(doc.get("login_history") or []))
 
 
 # --------------------------------------------------------------------------- #
@@ -252,6 +293,7 @@ async def login(payload: LoginRequest):
     token = secrets.token_urlsafe(32)
     doc["session_token"] = token
     doc["session_expires_at"] = datetime.now(timezone.utc).isoformat()
+    await _record_login(doc)
     await _save_account(storage, doc)
     return _session_response(doc)
 
@@ -300,6 +342,28 @@ async def whoami():
         "email": doc.get("email", ""),
         "created_at": doc.get("created_at"),
     }
+
+
+@router.get("/auth/login-history")
+async def login_history():
+    """Recent sign-in timestamps for the account, newest first."""
+    storage = get_storage()
+    return {"history": await _login_history(storage)}
+
+
+@router.post("/auth/change-username")
+async def change_username(payload: ChangeUsernameRequest):
+    """Change the account's username after verifying the password."""
+    storage = get_storage()
+    doc = await _load_account(storage)
+    if not doc:
+        raise HTTPException(404, "No account found — register first")
+    if not _verify_password(payload.password, doc.get("password_hash", "")):
+        raise HTTPException(401, "Password is incorrect")
+    doc["username"] = payload.username
+    await _save_account(storage, doc)
+    logger.info("Username changed to @%s", doc["username"])
+    return {"ok": True, "user": {"username": doc["username"], "email": doc.get("email", "")}}
 
 
 @router.post("/auth/recovery-token")

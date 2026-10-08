@@ -26,6 +26,7 @@ import { TOUR_STEPS } from "@/tour-steps";
 
 import { ThemeContext } from "@/App";
 import Logo from "@/components/Logo";
+import ManageProfileMenu from "@/components/ManageProfileMenu";
 import { useAuth } from "@/components/Auth";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
@@ -173,7 +174,7 @@ function ThemeToggle({ className }) {
 }
 
 /* ─── Desktop top navbar ─────────────────────────────────────── */
-function DesktopTopNav({ onLaunchTour }) {
+function DesktopTopNav() {
   const { logout } = useAuth();
   return (
     <header
@@ -184,7 +185,9 @@ function DesktopTopNav({ onLaunchTour }) {
         {/* Brand — left */}
         <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
           <Logo className="h-9 w-9 shrink-0 rounded" />
-          <span className="font-brand text-xl leading-none tracking-wide">Batua</span>
+          <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
+            Batua
+          </span>
         </NavLink>
 
         {/* Search — middle */}
@@ -193,16 +196,7 @@ function DesktopTopNav({ onLaunchTour }) {
         {/* Actions — right */}
         <div className="flex shrink-0 items-center gap-2">
           <ThemeToggle className="h-10 w-10" />
-          <button
-            type="button"
-            onClick={onLaunchTour}
-            aria-label="Take the tour"
-            data-testid="tour-launch"
-            title="Guided tour"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <CircleHelp className="h-[18px] w-[18px]" />
-          </button>
+          <ManageProfileMenu onSignOut={() => void logout()} />
           <button
             type="button"
             onClick={() => void logout()}
@@ -318,7 +312,7 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
 }
 
 /* ─── Mobile top bar + drawer ─────────────────────────────────────── */
-function MobileNav({ onLaunchTour }) {
+function MobileNav() {
   const { logout } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
@@ -352,18 +346,13 @@ function MobileNav({ onLaunchTour }) {
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
           <Logo className="h-10 w-10 shrink-0 rounded" />
-          <span className="font-brand text-xl leading-none tracking-wide">Batua</span>
+          <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
+            Batua
+          </span>
         </NavLink>
         <div className="flex items-center gap-2">
           <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />
-          <button
-            onClick={onLaunchTour}
-            aria-label="Take the tour"
-            data-testid="tour-launch-mobile"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50"
-          >
-            <CircleHelp className="h-5 w-5" />
-          </button>
+          <ManageProfileMenu onSignOut={() => void logout()} />
           <button
             onClick={() => void logout()}
             aria-label="Sign out"
@@ -502,7 +491,7 @@ export default function Layout({ splashVisible }: LayoutProps) {
       >
         Skip to main content
       </a>
-      {!splashVisible && <DesktopTopNav onLaunchTour={() => setTourOpen(true)} />}
+      {!splashVisible && <DesktopTopNav />}
       {!splashVisible && (
         <DesktopSidebar
           collapsed={collapsed}
@@ -510,7 +499,7 @@ export default function Layout({ splashVisible }: LayoutProps) {
           onLaunchTour={() => setTourOpen(true)}
         />
       )}
-      {!splashVisible && <MobileNav onLaunchTour={() => setTourOpen(true)} />}
+      {!splashVisible && <MobileNav />}
 
       <AnimatePresence>
         {tourOpen && (

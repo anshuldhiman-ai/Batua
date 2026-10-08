@@ -35,6 +35,10 @@ interface AuthContextValue {
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  /** Rename the account (requires the current password). */
+  changeUsername: (password: string, username: string) => Promise<AuthUser>;
+  /** Recent sign-in timestamps, newest first. */
+  loginHistory: () => Promise<string[]>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -144,9 +148,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const changeUsername = useCallback(
+    async (password: string, username: string) => {
+      const res = await api.post("/auth/change-username", {
+        username,
+        password,
+      });
+      const { user: u } = res.data;
+      // Keep the cached user in sync so the avatar/menus update at once.
+      persist(token, u);
+      return u as AuthUser;
+    },
+    [persist, token]
+  );
+
+  const loginHistory = useCallback(async () => {
+    const res = await api.get("/auth/login-history");
+    return (res.data?.history ?? []) as string[];
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ loading, hasAccount, user, token, login, register, logout, changePassword }}
+      value={{
+        loading,
+        hasAccount,
+        user,
+        token,
+        login,
+        register,
+        logout,
+        changePassword,
+        changeUsername,
+        loginHistory,
+      }}
     >
       {children}
     </AuthContext.Provider>
