@@ -3,6 +3,13 @@ import BatuaLogoReveal from "./BatuaLogoReveal";
 
 interface SplashScreenProps {
   onHide?: () => void;
+  /**
+   * Hold the splash open until this flips false — e.g. until the
+   * app's first data has loaded, so the logo covers the initial
+   * fetch instead of an empty page. The leave choreography still
+   * runs once released.
+   */
+  hold?: boolean;
 }
 
 // Total on-screen time for the full choreography: arrow finishes at ~1.6s
@@ -12,10 +19,12 @@ const QUICK_MS = 500;
 // Must stay in sync with the .batua-stage transition duration in CSS.
 const EXIT_MS = 450;
 
-export default function SplashScreen({ onHide }: SplashScreenProps) {
+export default function SplashScreen({ onHide, hold }: SplashScreenProps) {
   const [visible, setVisible] = useState(true);
   const [leaving, setLeaving] = useState(false);
   const [waiting, setWaiting] = useState(true);
+  // True while we're still waiting for the hold to release.
+  const [held, setHeld] = useState(!!hold);
 
   // Determine first/returning visitor *before* the first paint so we don't
   // briefly play the wrong animation (which can feel glitchy).
@@ -34,6 +43,20 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
   });
 
   useEffect(() => {
+    if (hold) {
+      // Held open — stay put until the caller releases us.
+      setHeld(true);
+      return;
+    }
+    if (!held) return;
+    // Just released: fall through to the normal choreography below
+    // by clearing the held flag first, then dismissing on the timer.
+    setHeld(false);
+  }, [hold, held]);
+
+  useEffect(() => {
+    if (held) return;
+
     // Prevent scrolling during splash screen
     document.body.style.overflow = 'hidden';
 
@@ -67,7 +90,10 @@ export default function SplashScreen({ onHide }: SplashScreenProps) {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [firstRun]);
+    // The choreography runs once the hold is released; firstRun is fixed
+    // for the component's lifetime, so it doesn't need to re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [held, firstRun]);
 
   if (!visible) return null;
 

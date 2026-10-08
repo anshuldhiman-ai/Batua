@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import Layout from "@/components/Layout";
 import SplashScreen from "@/components/SplashScreen";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useDataLoaded } from "@/hooks/useDataLoaded";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/components/Auth";
 import LoginPage from "@/components/LoginPage";
@@ -149,16 +150,23 @@ function Gate({
   setSplashVisible: (v: boolean) => void;
 }) {
   const { loading, user } = useAuth();
+  // The logo stays on screen until the app's first data
+  // (transactions / dashboard) has loaded, so the splash
+  // covers the initial fetch instead of an empty page.
+  const dataLoaded = useDataLoaded();
 
   if (loading) {
-    return <SplashScreen onHide={() => setSplashVisible(false)} />;
+    return <SplashScreen onHide={() => setSplashVisible(false)} hold />;
   }
   if (!user) {
     return <LoginPage />;
   }
   return (
     <>
-      <SplashScreen onHide={() => setSplashVisible(false)} />
+      <SplashScreen
+        onHide={() => setSplashVisible(false)}
+        hold={!dataLoaded}
+      />
       <AppRoutes splashVisible={splashVisible} />
     </>
   );
