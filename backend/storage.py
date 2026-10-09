@@ -110,6 +110,9 @@ class UserDB(SQLModel, table=True):
     session_expires_at: Optional[str] = Field(default=None, nullable=True)
     reset_token: Optional[str] = Field(default=None, nullable=True)
     reset_token_expires_at: Optional[float] = Field(default=None, nullable=True)
+    # Sign-in log, JSON-serialized. SQLite columns can't hold a
+    # Python list, so auth serializes it before writing.
+    login_history: Optional[str] = Field(default=None, nullable=True)
 
 
 _MODEL_MAP = {
@@ -144,18 +147,29 @@ def _to_dict(obj: Any, collection: str) -> Dict[str, Any]:
     d = obj.model_dump()
     # Prune only None values so the response matches MongoDB's dynamic-document
     # behaviour (MongoDB keeps empty-string fields; SQLite must too).
-    return {k: v for k, v in d.items() if v is not None}
+    result = {k: v for k, v in d.items() if v is not None}
+    if "login_history" in result and isinstance(result["login_history"], str):
+        try:
+            result["login_history"] = json.loads(result["login_history"])
+        except (json.JSONDecodeError, TypeError):
+            result["login_history"] = []
+    return result
 
 
 def _to_model(doc: Dict[str, Any], collection: str) -> Any:
     model_class = _get_model_class(collection)
     clean_doc = {k: v for k, v in doc.items() if v is not None}
-    
+
     if collection in {"sessions", "chat_sessions"}:
         session_id = doc.get("id")
         data_dict = {k: v for k, v in doc.items() if k != "id"}
         return SessionDB(id=session_id, data=json.dumps(data_dict))
-        
+
+    # auth stores the sign-in log as JSON — a Python list can't
+    # be passed to a model field typed as TEXT.
+    if "login_history" in clean_doc and not isinstance(clean_doc["login_history"], str):
+        clean_doc["login_history"] = json.dumps(clean_doc["login_history"])
+
     return model_class(**clean_doc)
 
 
@@ -218,7 +232,15 @@ class SQLiteStorage:
         existing = {row[1] for row in result}
         if existing and "price" not in existing:
             conn.execute(text("ALTER TABLE transactions ADD COLUMN price FLOAT DEFAULT 0.0"))
-        
+
+        # users.login_history — added after the first store.db files
+        # were created; without this, every SELECT on `users` fails
+        # on the older databases (auth then reports "no account").
+        result = conn.execute(text("PRAGMA table_info(users)"))
+        user_cols = {row[1] for row in result}
+        if user_cols and "login_history" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN login_history TEXT DEFAULT NULL"))
+
         # Check if custom_categories table exists, create if not
         result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
         tables = {row[0] for row in result}
@@ -390,6 +412,10 @@ class SQLiteStorage:
                 else:
                     for key, val in patch.items():
                         if hasattr(db_obj, key):
+                            # auth stores the sign-in log as JSON —
+                            # a Python list can't go in a TEXT column.
+                            if key == "login_history" and not isinstance(val, str):
+                                val = json.dumps(val)
                             setattr(db_obj, key, val)
                             
                 session.add(db_obj)

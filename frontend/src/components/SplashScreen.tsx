@@ -101,7 +101,6 @@ export default function SplashScreen({ onHide, hold }: SplashScreenProps) {
     <BatuaLogoReveal
       leaving={leaving}
       waiting={waiting}
-      tagline={true}
       firstRunKnown={firstRun}
     />
   );

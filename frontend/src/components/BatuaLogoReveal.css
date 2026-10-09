@@ -57,6 +57,11 @@
   gap: 1.5rem;
 }
 
+/* Keep the loading line tucked right under the logo mark. */
+.batua-mark + .batua-progress {
+  margin-top: 0;
+}
+
 .batua-mark {
   position: relative;
   width: clamp(96px, 17vw, 144px);
@@ -132,17 +137,19 @@
 
 /* ─── Progress hairline ────────────────────────────────────── */
 
+/* Sits directly under the logo mark (in-flow, not pinned to the
+   screen bottom), slightly wider than the mark, with a soft
+   glow so it reads as a "loading" shimmer. */
 .batua-progress {
-  position: absolute;
-  bottom: max(56px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  margin-top: 0.5rem;
 
-  width: 104px;
-  height: 1px;
+  width: clamp(140px, 22vw, 200px);
+  height: 2px;
   overflow: hidden;
-  border-radius: 1px;
-  background: hsl(var(--border));
+  border-radius: 2px;
+  background: hsl(var(--border) / 0.7);
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.25);
 
   opacity: 0;
   transition: opacity 0.4s ease;
@@ -157,7 +164,13 @@
   width: 40%;
   height: 100%;
   border-radius: inherit;
-  background: hsl(var(--primary));
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary) / 0.55),
+    hsl(var(--primary)),
+    hsl(var(--primary) / 0.55)
+  );
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.8);
   animation: hairline 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 

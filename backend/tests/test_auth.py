@@ -199,3 +199,70 @@ def test_reset_rejects_weak_password(client):
     ).json()["token"]
     response = client.post("/api/auth/reset", json={"token": token, "new_password": "12"})
     assert response.status_code == 400
+
+
+def test_change_password_rejects_same_password(client):
+    _register(client)
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": CRED["password"], "new_password": CRED["password"]},
+    )
+    assert response.status_code == 400
+    assert "different" in response.json()["detail"]
+    # The password is untouched — the old one still logs in
+    again = client.post(
+        "/api/auth/login",
+        json={"username": CRED["username"], "password": CRED["password"]},
+    )
+    assert again.status_code == 200
+
+
+def test_change_password_roundtrip(client):
+    _register(client)
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": CRED["password"], "new_password": "new-pass-99"},
+    )
+    assert response.status_code == 200, response.text
+    # Old password is dead, new one works
+    old = client.post(
+        "/api/auth/login",
+        json={"username": CRED["username"], "password": CRED["password"]},
+    )
+    assert old.status_code == 401
+    new = client.post(
+        "/api/auth/login",
+        json={"username": CRED["username"], "password": "new-pass-99"},
+    )
+    assert new.status_code == 200
+
+
+def test_change_password_rejects_wrong_current(client):
+    _register(client)
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "not-the-password", "new_password": "new-pass-99"},
+    )
+    assert response.status_code == 401
+
+
+def test_login_history_is_recorded_and_returned(client):
+    _register(client)
+    # First login: nothing recorded yet
+    empty = client.get("/api/auth/login-history").json()
+    assert empty["history"] == []
+
+    client.post(
+        "/api/auth/login",
+        json={"username": CRED["username"], "password": CRED["password"]},
+    )
+    client.post(
+        "/api/auth/login",
+        json={"username": CRED["username"], "password": CRED["password"]},
+    )
+
+    rows = client.get("/api/auth/login-history").json()["history"]
+    assert len(rows) == 2
+    # Newest first
+    stamps = [r["at"] for r in rows]
+    assert stamps[0] >= stamps[1]

@@ -164,7 +164,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginHistory = useCallback(async () => {
     const res = await api.get("/auth/login-history");
-    return (res.data?.history ?? []) as string[];
+    const rows = res.data?.history ?? [];
+    // Entries are stored as {"at": iso} objects; older shapes
+    // (or a test double) may return plain strings — accept both.
+    return rows.map((r: any) =>
+      typeof r === "string" ? r : r?.at
+    ) as string[];
   }, []);
 
   return (

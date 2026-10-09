@@ -216,6 +216,7 @@ function DesktopTopNav() {
 /* ─── Desktop sidebar ─────────────────────────────────────────────── */
 function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
   const location = useLocation();
+  const { logout } = useAuth();
 
   return (
     <aside
@@ -284,6 +285,9 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
       </nav>
 
       <div className="flex flex-col gap-2 border-t border-border/50 p-3">
+        {/* Profile manager — bottom-left corner. Hover shows the
+            account basics; click opens the manage-profile window. */}
+        <ManageProfileMenu variant="bottom-left" onSignOut={() => void logout()} />
         <button
           type="button"
           onClick={onLaunchTour}

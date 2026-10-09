@@ -1182,6 +1182,10 @@ export default function Settings() {
                         setPwMsg({ type: "error", text: "New password must be at least 4 characters." });
                         return;
                       }
+                      if (pwNew === pwCurrent) {
+                        setPwMsg({ type: "error", text: "New password must be different from the current one." });
+                        return;
+                      }
                       if (pwNew !== pwConfirm) {
                         setPwMsg({ type: "error", text: "New passwords do not match." });
                         return;

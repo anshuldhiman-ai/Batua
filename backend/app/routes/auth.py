@@ -117,6 +117,13 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+    @field_validator("new_password")
+    @classmethod
+    def _new_password(cls, v: str) -> str:
+        if len(v) < MIN_PASSWORD_LEN:
+            raise ValueError(f"new password must be at least {MIN_PASSWORD_LEN} characters")
+        return v
+
 
 class ChangeUsernameRequest(BaseModel):
     """Rename the local account's username."""
@@ -313,14 +320,14 @@ async def logout():
 @router.post("/auth/change-password")
 async def change_password(payload: ChangePasswordRequest):
     """Change the account password after verifying the current one."""
-    if len(payload.new_password) < MIN_PASSWORD_LEN:
-        raise HTTPException(400, f"new password must be at least {MIN_PASSWORD_LEN} characters")
     storage = get_storage()
     doc = await _load_account(storage)
     if not doc:
         raise HTTPException(404, "No account found — register first")
     if not _verify_password(payload.current_password, doc.get("password_hash", "")):
         raise HTTPException(401, "Current password is incorrect")
+    if _verify_password(payload.new_password, doc.get("password_hash", "")):
+        raise HTTPException(400, "New password must be different from the current one")
     doc["password_hash"] = _hash_password(payload.new_password)
     doc["reset_token"] = None
     doc["reset_token_expires_at"] = None

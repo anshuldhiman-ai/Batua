@@ -311,6 +311,47 @@
   }
 }
 
+/* Login showcase — ambient motion for the brand panel. All of these
+   are killed by the global prefers-reduced-motion rule above. */
+@keyframes batua-pulse-ring {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.batua-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: batua-pulse-ring 3.2s ease-out infinite;
+}
+@keyframes batua-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.batua-drift {
+  animation: batua-drift 6s ease-in-out infinite;
+}
+@keyframes batua-sweep {
+  from {
+    transform: translateX(-30%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+.batua-sweep {
+  animation: batua-sweep 9s linear infinite;
+}
+
 /* Chat "typing" indicator — three dots pulsing in sequence */
 .typing-dot {
   animation: typing-dot 1.2s ease-in-out infinite;
