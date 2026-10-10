@@ -4,12 +4,18 @@ Single-user, self-hosted auth: accounts live in the same store the rest
 of the app uses (``users`` collection in SQLite / Mongo). Passwords are
 stored as bcrypt hashes only — the plaintext never touches disk.
 
+Every account mutation goes through ``storage.mutate``: the load and
+the save happen under the same lock, so two concurrent requests (two
+tabs, a tab plus the mobile app) can't base their writes on the same
+stale snapshot and silently drop each other's change.
+
 Recovery path: a ``reset token`` can be minted from the server side
 (``POST /api/auth/recovery-token``); the owner exchanges it for a
 password reset. The app also ships a point-in-time snapshot of
 ``data/store.db`` (``store.pre-auth-*.db``) so the pre-login data is
 always restorable if anything goes wrong.
 """
+import asyncio
 import logging
 import secrets
 import time
@@ -43,12 +49,13 @@ except Exception:  # pragma: no cover - depends on install
     _BCRYPT_OK = False
 
 
-# --------------------------------------------------------------------------- #
-# Password hashing
-# --------------------------------------------------------------------------- #
-
 def _hash_password(password: str) -> str:
-    """Hash a password for storage. bcrypt when available."""
+    """Hash a password for storage. bcrypt when available.
+
+    Synchronous — bcrypt at rounds=12 blocks for ~250-400 ms, so
+    routes call this via ``asyncio.to_thread`` (never on the event
+    loop); only tests call it directly.
+    """
     if _BCRYPT_OK:
         return "bcrypt$" + bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
     # Fallback (logged loudly): sha256 with a per-account salt. Never
@@ -62,6 +69,8 @@ def _hash_password(password: str) -> str:
 
 
 def _verify_password(password: str, stored_hash: str) -> bool:
+    """Check a password against a stored hash. Synchronous — see
+    ``_hash_password``; routes await it via ``asyncio.to_thread``."""
     if stored_hash.startswith("bcrypt$"):
         if not _BCRYPT_OK:
             return False
@@ -274,7 +283,7 @@ async def register(payload: RegisterRequest):
         "id": f"user_{uuid.uuid4().hex[:12]}",
         "username": payload.username,
         "email": payload.email,
-        "password_hash": _hash_password(payload.password),
+        "password_hash": await asyncio.to_thread(_hash_password, payload.password),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "session_token": None,
         "session_expires_at": None,
@@ -294,15 +303,21 @@ async def login(payload: LoginRequest):
     if doc["username"] != payload.username:
         # Same error as a bad password so usernames aren't enumerable
         raise HTTPException(401, "Invalid username or password")
-    if not _verify_password(payload.password, doc.get("password_hash", "")):
+    if not await asyncio.to_thread(_verify_password, payload.password, doc.get("password_hash", "")):
         raise HTTPException(401, "Invalid username or password")
 
-    token = secrets.token_urlsafe(32)
-    doc["session_token"] = token
-    doc["session_expires_at"] = datetime.now(timezone.utc).isoformat()
-    await _record_login(doc)
-    await _save_account(storage, doc)
-    return _session_response(doc)
+    # Token + login-history entry are written in one locked mutation —
+    # two logins racing each other can no longer lose one another's
+    # history entry (the old load → mutate → save-from-snapshot path).
+    def _apply(account: dict) -> None:
+        account["session_token"] = secrets.token_urlsafe(32)
+        account["session_expires_at"] = datetime.now(timezone.utc).isoformat()
+        history = list(account.get("login_history") or [])
+        history.append({"at": datetime.now(timezone.utc).isoformat()})
+        account["login_history"] = history[-LOGIN_HISTORY_LIMIT:]
+
+    saved = await storage.mutate("users", doc["id"], _apply)
+    return _session_response(saved or doc)
 
 
 @router.post("/auth/logout")
@@ -311,9 +326,9 @@ async def logout():
     storage = get_storage()
     doc = await _load_account(storage)
     if doc:
-        doc["session_token"] = None
-        doc["session_expires_at"] = None
-        await _save_account(storage, doc)
+        await storage.mutate("users", doc["id"], lambda a: a.update(
+            session_token=None, session_expires_at=None
+        ))
     return {"ok": True}
 
 
@@ -324,15 +339,22 @@ async def change_password(payload: ChangePasswordRequest):
     doc = await _load_account(storage)
     if not doc:
         raise HTTPException(404, "No account found — register first")
-    if not _verify_password(payload.current_password, doc.get("password_hash", "")):
+    if not await asyncio.to_thread(_verify_password, payload.current_password, doc.get("password_hash", "")):
         raise HTTPException(401, "Current password is incorrect")
-    if _verify_password(payload.new_password, doc.get("password_hash", "")):
+    if await asyncio.to_thread(_verify_password, payload.new_password, doc.get("password_hash", "")):
         raise HTTPException(400, "New password must be different from the current one")
-    doc["password_hash"] = _hash_password(payload.new_password)
-    doc["reset_token"] = None
-    doc["reset_token_expires_at"] = None
-    doc["session_token"] = None
-    await _save_account(storage, doc)
+    new_hash = await asyncio.to_thread(_hash_password, payload.new_password)
+
+    # Password change + token/session invalidation happen in one locked
+    # mutation — the check above can't be invalidated by a concurrent
+    # login writing a fresh session token.
+    def _apply(account: dict) -> None:
+        account["password_hash"] = new_hash
+        account["reset_token"] = None
+        account["reset_token_expires_at"] = None
+        account["session_token"] = None
+
+    await storage.mutate("users", doc["id"], _apply)
     logger.info("Password changed for @%s", doc["username"])
     return {"ok": True, "message": "Password updated — please sign in again"}
 
@@ -365,12 +387,15 @@ async def change_username(payload: ChangeUsernameRequest):
     doc = await _load_account(storage)
     if not doc:
         raise HTTPException(404, "No account found — register first")
-    if not _verify_password(payload.password, doc.get("password_hash", "")):
+    if not await asyncio.to_thread(_verify_password, payload.password, doc.get("password_hash", "")):
         raise HTTPException(401, "Password is incorrect")
-    doc["username"] = payload.username
-    await _save_account(storage, doc)
-    logger.info("Username changed to @%s", doc["username"])
-    return {"ok": True, "user": {"username": doc["username"], "email": doc.get("email", "")}}
+
+    def _apply(account: dict) -> None:
+        account["username"] = payload.username
+
+    await storage.mutate("users", doc["id"], _apply)
+    logger.info("Username changed to @%s", payload.username)
+    return {"ok": True, "user": {"username": payload.username, "email": doc.get("email", "")}}
 
 
 @router.post("/auth/recovery-token")
@@ -390,9 +415,12 @@ async def mint_recovery_token(payload: RecoveryTokenRequest):
         raise HTTPException(404, "No account with that username")
 
     token = secrets.token_urlsafe(24)
-    doc["reset_token"] = token
-    doc["reset_token_expires_at"] = datetime.now(timezone.utc).timestamp() + 15 * 60
-    await _save_account(storage, doc)
+
+    def _apply(account: dict) -> None:
+        account["reset_token"] = token
+        account["reset_token_expires_at"] = datetime.now(timezone.utc).timestamp() + 15 * 60
+
+    await storage.mutate("users", doc["id"], _apply)
     logger.info("Recovery token minted for @%s", payload.username)
     return {
         "ok": True,
@@ -417,14 +445,19 @@ async def reset_password(payload: ResetRequest):
     if not token or token != payload.token:
         raise HTTPException(401, "Invalid or already-used recovery token")
     if time.time() > float(expires):
-        doc["reset_token"] = None
-        await _save_account(storage, doc)
+        await storage.mutate("users", doc["id"], lambda a: a.update(reset_token=None))
         raise HTTPException(401, "Recovery token expired — mint a new one")
+    new_hash = await asyncio.to_thread(_hash_password, payload.new_password)
 
-    doc["password_hash"] = _hash_password(payload.new_password)
-    doc["reset_token"] = None
-    doc["reset_token_expires_at"] = None
-    doc["session_token"] = None
-    await _save_account(storage, doc)
+    # The token is cleared and the password swapped in one locked
+    # mutation — a replayed token can't race a concurrent reset into
+    # applying twice.
+    def _apply(account: dict) -> None:
+        account["password_hash"] = new_hash
+        account["reset_token"] = None
+        account["reset_token_expires_at"] = None
+        account["session_token"] = None
+
+    await storage.mutate("users", doc["id"], _apply)
     logger.info("Password reset via recovery token for @%s", doc["username"])
     return {"ok": True, "message": "Password updated"}

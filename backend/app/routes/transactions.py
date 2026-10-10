@@ -10,6 +10,12 @@ import ai
 
 router = APIRouter()
 
+# How many recent rows a search is allowed to scan. Search
+# matches across several fields (description, notes, category,
+# method, date), so it can't be pushed into a DB predicate on
+# either backend — this bounds the per-keystroke cost instead.
+SEARCH_SCAN_LIMIT = 5000
+
 
 async def get_all_txns():
     """Helper to get all transactions."""
@@ -94,12 +100,20 @@ async def list_transactions(
     # search silently returns fewer/no results and the counts are wrong.
     # Search has no database-level predicate (it spans several fields),
     # so the matching rows are selected here and paginated after.
+    #
+    # The scan is bounded to the SEARCH_SCAN_LIMIT most recent rows:
+    # matching happens across description/notes/category/method/date,
+    # which neither backend can push down, so the whole-collection
+    # scan is what made typing feel laggy. Recent rows are the ones
+    # a search is almost always after; the cap keeps each keystroke
+    # O(limit) instead of O(collection).
     if search and search.strip():
         all_txns = await storage.all(
             "transactions",
             query=db_query,
             order_by="date",
             order_desc=True,
+            limit=SEARCH_SCAN_LIMIT,
         )
         matched = [t for t in all_txns if _matches_search(t)]
         total = len(matched)
@@ -114,6 +128,10 @@ async def list_transactions(
             "page": page,
             "page_size": page_size,
             "pages": (total + page_size - 1) // page_size,
+            # Tells the client the match set may be a prefix of the
+            # collection when the cap kicked in — so it can show
+            # "searching recent entries" instead of a wrong count.
+            "scan_limited": len(all_txns) >= SEARCH_SCAN_LIMIT,
         }
 
     # Get total count for pagination

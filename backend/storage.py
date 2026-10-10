@@ -407,16 +407,58 @@ class SQLiteStorage:
             results = await session.exec(statement)
             return set(results.all())
 
-    async def update(self, collection: str, _id: str, patch: dict) -> Optional[dict]:
+    async def mutate(
+        self,
+        collection: str,
+        _id: str,
+        fn,
+    ) -> Optional[dict]:
+        """Atomically read-modify-write one document.
+
+        ``fn(doc) -> None`` mutates the in-memory document (or
+        returns a fresh one); the result is saved before the lock
+        releases. The load and the save happen under the same lock,
+        so two concurrent callers can't base their writes on the
+        same stale snapshot — the classic lost-update race a plain
+        ``all()`` → ``update()`` pair has.
+        """
         await self._ensure_db()
         model_class = _get_model_class(collection)
-        
+
         async with self._lock:
             async with AsyncSession(self._engine) as session:
                 db_obj = await session.get(model_class, _id)
                 if db_obj is None:
                     return None
-                
+                doc = _to_dict(db_obj, collection)
+                result = fn(doc)
+                if isinstance(result, dict):
+                    doc = result
+                # Apply every key the mutation set — including
+                # explicit Nones (clearing a session/reset token),
+                # which `_to_dict` pruned from the snapshot and
+                # which must actually clear the column, not keep
+                # the stale value.
+                for key, val in doc.items():
+                    if hasattr(db_obj, key):
+                        if key == "login_history" and not isinstance(val, str):
+                            val = json.dumps(val)
+                        setattr(db_obj, key, val)
+                session.add(db_obj)
+                await session.commit()
+                await session.refresh(db_obj)
+                return _to_dict(db_obj, collection)
+
+    async def update(self, collection: str, _id: str, patch: dict) -> Optional[dict]:
+        await self._ensure_db()
+        model_class = _get_model_class(collection)
+
+        async with self._lock:
+            async with AsyncSession(self._engine) as session:
+                db_obj = await session.get(model_class, _id)
+                if db_obj is None:
+                    return None
+
                 if collection in {"sessions", "chat_sessions"}:
                     current_data = json.loads(db_obj.data or "{}")
                     current_data.update(patch)
@@ -429,7 +471,7 @@ class SQLiteStorage:
                             if key == "login_history" and not isinstance(val, str):
                                 val = json.dumps(val)
                             setattr(db_obj, key, val)
-                            
+
                 session.add(db_obj)
                 await session.commit()
                 await session.refresh(db_obj)
@@ -597,6 +639,28 @@ class MongoStorage:
     async def update(self, collection: str, _id: str, patch: dict) -> Optional[dict]:
         await self._db[collection].update_one({"id": _id}, {"$set": patch})
         return await self.get(collection, _id)
+
+    async def mutate(
+        self,
+        collection: str,
+        _id: str,
+        fn,
+    ) -> Optional[dict]:
+        """Atomic read-modify-write: load, apply ``fn(doc)``,
+        save — one ``find_one_and_update`` so no concurrent
+        writer can interleave (MongoDB does the locking for us
+        here; the SQLite sibling guards the same shape with its
+        own lock)."""
+        current = await self.get(collection, _id)
+        if current is None:
+            return None
+        doc = dict(current)
+        result = fn(doc)
+        if isinstance(result, dict):
+            doc = result
+        return await self._db[collection].find_one_and_update(
+            {"id": _id}, {"$set": doc}, return_document=True
+        )
 
     async def delete(self, collection: str, _id: str) -> bool:
         res = await self._db[collection].delete_one({"id": _id})
