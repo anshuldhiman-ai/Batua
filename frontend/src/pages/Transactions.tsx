@@ -131,9 +131,7 @@ export default function Transactions() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const { data } = await api.post("/transactions/scan-receipt", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const { data } = await api.post("/transactions/scan-receipt", fd);
       setEditing(null);
       setForm({
         ...EMPTY,
@@ -232,7 +230,9 @@ export default function Transactions() {
 
 
   React.useEffect(() => {
-    api.get("/categories/").then((r) => setCategories(r.data.categories));
+    api.get("/categories/")
+      .then((r) => setCategories(r.data.categories))
+      .catch(() => {});
     api.get("/categories/payment-methods")
       .then((r) => r.data?.methods?.length && setPaymentMethods(r.data.methods))
       .catch(() => {});
@@ -436,8 +436,12 @@ export default function Transactions() {
     setModalOpen(true);
   };
 
+  const [saving, setSaving] = React.useState(false);
+
   const saveForm = async () => {
     if (!form.date) return toast.error("Enter a valid date");
+    if (saving) return;
+    setSaving(true);
     try {
       if (editing) {
         await api.put(`/transactions/${editing.id}`, form);
@@ -450,6 +454,8 @@ export default function Transactions() {
       invalidateAll();
     } catch (e) {
       toast.error("Save failed");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1019,7 +1025,7 @@ export default function Transactions() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={saveForm} data-testid="form-save">{editing ? "Update" : "Add"}</Button>
+            <Button onClick={saveForm} disabled={saving} data-testid="form-save">{saving ? "Saving…" : editing ? "Update" : "Add"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

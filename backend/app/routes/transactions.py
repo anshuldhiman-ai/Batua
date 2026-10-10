@@ -66,29 +66,28 @@ async def list_transactions(
             pass
         return s in hay
 
-    # Build database-level query for filterable fields
+    # Build database-level query for filterable fields.
+    # SQLite's storage understands the $-operators too, so
+    # both backends push these predicates down to the DB.
     db_query = {}
     if category and category != "All":
         db_query["category"] = category
     if payment_method and payment_method != "All":
         db_query["payment_method"] = payment_method
-    if start_date:
-        db_query["date"] = {"$gte": start_date} if is_mongo else start_date
-    if end_date:
-        if is_mongo:
-            if "date" in db_query and isinstance(db_query["date"], dict):
-                db_query["date"]["$lte"] = end_date
-            else:
-                db_query["date"] = {"$lte": end_date}
-        # SQLite: applied in the application layer below.
+    # Date range: merge both bounds into one predicate —
+    # a plain string would be an equality match.
+    if start_date or end_date:
+        db_query["date"] = {}
+        if start_date:
+            db_query["date"]["$gte"] = start_date
+        if end_date:
+            db_query["date"]["$lte"] = end_date
 
     # Transaction type filtering
     if txn_type == "income":
-        if is_mongo:
-            db_query["amount"] = {"$gt": 0}
+        db_query["amount"] = {"$gt": 0}
     elif txn_type == "expense":
-        if is_mongo:
-            db_query["amount"] = {"$lt": 0}
+        db_query["amount"] = {"$lt": 0}
 
     # Search must narrow the *full* set BEFORE pagination — otherwise
     # page N only ever matches rows that were already on page N, so a
@@ -102,15 +101,6 @@ async def list_transactions(
             order_by="date",
             order_desc=True,
         )
-        # SQLite-only filters (same predicates the Mongo query above
-        # encodes) must apply before the search so both backends agree.
-        if not is_mongo:
-            if end_date:
-                all_txns = [t for t in all_txns if t.get("date", "") <= end_date]
-            if txn_type == "income":
-                all_txns = [t for t in all_txns if t.get("amount", 0) > 0]
-            elif txn_type == "expense":
-                all_txns = [t for t in all_txns if t.get("amount", 0) < 0]
         matched = [t for t in all_txns if _matches_search(t)]
         total = len(matched)
         page = max(1, page)
@@ -142,15 +132,8 @@ async def list_transactions(
         offset=offset
     )
 
-    # Apply SQLite-specific filters
-    if not is_mongo:
-        if end_date:
-            txns = [t for t in txns if t.get("date", "") <= end_date]
-        if txn_type == "income":
-            txns = [t for t in txns if t.get("amount", 0) > 0]
-        elif txn_type == "expense":
-            txns = [t for t in txns if t.get("amount", 0) < 0]
-
+    # The DB already applied every filter (both backends
+    # understand the query dicts now) — just shape the rows.
     items = [_with_kind(t) for t in txns]
     return {
         "items": items,

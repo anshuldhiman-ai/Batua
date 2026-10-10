@@ -123,10 +123,12 @@ describe("BudgetHealth Component", () => {
     });
   });
 
-  it("handles API error gracefully (shows empty state)", async () => {
+  it("handles API error gracefully (shows error state)", async () => {
     mockedGet.mockRejectedValue(new Error("Network error"));
     renderHealth();
-    expect(await screen.findByText("No budgets set for this month yet.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Couldn't load budgets — is the backend running?")
+    ).toBeInTheDocument();
   });
 
   it("limits visible rows to 6", async () => {

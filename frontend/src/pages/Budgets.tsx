@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Trash2, Wallet } from "lucide-react";
+import { Plus, Trash2, Wallet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import PageHeader from "@/components/PageHeader";
@@ -24,31 +24,53 @@ export default function Budgets() {
   const [categories, setCategories] = React.useState([]);
   const [newCat, setNewCat] = React.useState("");
   const [newLimit, setNewLimit] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
-    const { data } = await api.get("/budgets/status");
-    setRows(data.rows);
-    setMonth(data.month);
+    try {
+      setLoadError(null);
+      const { data } = await api.get("/budgets/status");
+      setRows(data.rows);
+      setMonth(data.month);
+    } catch (err: any) {
+      setLoadError(err?.response?.data?.detail || "Could not load budgets");
+      toast.error(err?.response?.data?.detail || "Could not load budgets");
+    }
   }, []);
 
   React.useEffect(() => {
     load();
-    api.get("/categories/").then((r) => setCategories(r.data.categories.filter((c) => c !== "Income")));
+    api.get("/categories/")
+      .then((r) => setCategories(r.data.categories.filter((c) => c !== "Income")))
+      .catch(() => {});
   }, [load]);
 
   const addBudget = async () => {
     if (!newCat || !newLimit) return toast.error("Pick a category and limit");
-    await api.post("/budgets/", { category: newCat, limit: parseFloat(newLimit) });
-    toast.success("Budget saved");
-    setNewCat("");
-    setNewLimit("");
-    load();
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.post("/budgets/", { category: newCat, limit: parseFloat(newLimit) });
+      toast.success("Budget saved");
+      setNewCat("");
+      setNewLimit("");
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Could not save the budget");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const removeBudget = async (id) => {
-    await api.delete(`/budgets/${id}`);
-    toast.success("Budget removed");
-    load();
+    try {
+      await api.delete(`/budgets/${id}`);
+      toast.success("Budget removed");
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Could not remove the budget");
+    }
   };
 
   return (
@@ -83,14 +105,22 @@ export default function Budgets() {
               placeholder="Monthly limit (₹)"
               className="sm:max-w-[200px]"
             />
-            <Button onClick={addBudget} data-testid="budget-add-btn">
-              <Plus className="h-4 w-4" /> Save Budget
+            <Button onClick={addBudget} disabled={saving} data-testid="budget-add-btn">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Save Budget
             </Button>
           </div>
         </CardContent>
       </Card>
 
       <div className="text-sm text-muted-foreground">Showing spend for <span className="font-medium text-foreground">{month}</span></div>
+
+      {loadError && rows === null && (
+        <Card className="border-rose-500/30">
+          <CardContent className="p-6 text-center text-sm text-rose-500">
+            {loadError}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="budget-progress">
         {rows === null ? (

@@ -74,9 +74,11 @@ export function useTheme(): ThemeContextValue {
       root.classList.remove("dark");
     }
 
-    // Remove transition after animation completes to avoid interfering with other interactions
+    // Remove transition + transform-origin after the animation
+    // completes so they never interfere with other interactions.
     const timeout = setTimeout(() => {
       root.style.transition = "";
+      root.style.transformOrigin = "";
     }, 500);
 
     return () => clearTimeout(timeout);

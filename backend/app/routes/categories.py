@@ -28,9 +28,13 @@ class CategoryDelete(BaseModel):
 async def categories():
     """Get all categories (default + custom + used)."""
     storage = get_storage()
-    txns = await storage.all("transactions")
-    used = {t.get("category", "Other") for t in txns}
-    
+    # DISTINCT on the category column — a full scan just to
+    # build this set was the slowest endpoint in the app.
+    try:
+        used = {c for c in await storage.distinct("transactions", "category") if c}
+    except (RuntimeError, ValueError, AttributeError):
+        used = set()
+
     # Get custom categories from storage if they exist
     custom_cats = []
     try:
@@ -38,7 +42,7 @@ async def categories():
         custom_cats = [c.get("name") for c in custom if c.get("name")]
     except (RuntimeError, ValueError, KeyError):
         pass
-    
+
     allc = list(dict.fromkeys(DEFAULT_CATEGORIES + sorted(custom_cats) + sorted(used)))
     return {"categories": allc, "custom": custom_cats}
 

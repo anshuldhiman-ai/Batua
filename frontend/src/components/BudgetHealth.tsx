@@ -22,14 +22,16 @@ const STATUS = {
  */
 export default function BudgetHealth({ month }: any) {
   const [rows, setRows] = React.useState(null);
+  const [failed, setFailed] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
     setRows(null);
+    setFailed(false);
     api
       .get("/budgets/status", { params: month ? { month } : {} })
       .then((r) => active && setRows(r.data.rows || []))
-      .catch(() => active && setRows([]));
+      .catch(() => active && setFailed(true));
     return () => {
       active = false;
     };
@@ -58,11 +60,23 @@ export default function BudgetHealth({ month }: any) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {rows === null ? (
+        {rows === null && !failed ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-16" />
             ))}
+          </div>
+        ) : failed ? (
+          <div className="py-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Couldn't load budgets — is the backend running?
+            </p>
+            <Link
+              to="/budgets"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              Open Budgets <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">

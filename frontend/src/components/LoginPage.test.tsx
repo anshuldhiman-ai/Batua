@@ -62,10 +62,13 @@ describe("LoginPage", () => {
 
   it("switches to register mode and adds the email field", () => {
     renderPage();
+    // The secondary "Create an account" link flips the form
+    // into register mode (the segmented control's other tab).
     fireEvent.click(
-      screen.getByRole("button", { name: /first time here/i })
+      screen.getByRole("button", { name: /create an account/i })
     );
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Confirm password")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /create account/i })
     ).toBeInTheDocument();
@@ -87,8 +90,14 @@ describe("LoginPage", () => {
     fill("Password", "123");
     fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
     expect(api.post).not.toHaveBeenCalled();
+    // Validation is inline on the fields, not a toast.
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalled();
+      expect(
+        screen.getByText(/username must be at least 3 characters/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/password must be at least 4 characters/i)
+      ).toBeInTheDocument();
     });
   });
 
@@ -115,11 +124,12 @@ describe("LoginPage", () => {
     });
     renderPage();
     fireEvent.click(
-      screen.getByRole("button", { name: /first time here/i })
+      screen.getByRole("button", { name: /create an account/i })
     );
     fill("Username", "anshuldhiman-ai");
     fill("Email", "anshuldhimanbadmosh2007@gmail.com");
     fill("Password", "1947");
+    fill("Confirm password", "1947");
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/auth/register", {

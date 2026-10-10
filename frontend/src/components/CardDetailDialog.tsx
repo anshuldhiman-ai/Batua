@@ -28,23 +28,29 @@ export default function CardDetailDialog({ kind, metrics, onClose }: any) {
 
   const [items, setItems] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
 
   React.useEffect(() => {
     if (!open || !isList || !month) return;
     let active = true;
     setLoading(true);
     setItems(null);
+    setFailed(false);
     api
       .get("/transactions", {
         params: {
           ...CONFIG[kind].params,
           start_date: `${month}-01`,
-          end_date: `${month}-31`,
+          // Last real day of the month — "-31" would be a
+          // nonexistent date for Feb / 30-day months.
+          end_date: new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)
+            .toISOString()
+            .slice(0, 10),
           page_size: 500,
         },
       })
       .then((r) => active && setItems(r.data.items || []))
-      .catch(() => active && setItems([]))
+      .catch(() => active && setFailed(true))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
@@ -74,6 +80,10 @@ export default function CardDetailDialog({ kind, metrics, onClose }: any) {
             <div className="flex items-center justify-center py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
+          ) : failed ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Couldn't load these transactions — is the backend running?
+            </p>
           ) : items && items.length ? (
             <ul className="max-h-[60vh] space-y-2 overflow-y-auto pr-1" data-testid="drill-list">
               {items.map((t) => (

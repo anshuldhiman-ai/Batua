@@ -311,45 +311,137 @@
   }
 }
 
-/* Login showcase — ambient motion for the brand panel. All of these
-   are killed by the global prefers-reduced-motion rule above. */
-@keyframes batua-pulse-ring {
-  0% {
-    transform: scale(0.5);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(2.4);
-    opacity: 0;
+/* ------------------------------------------------------------------ */
+/* Auth screen tokens — the login/registration surface is deliberately
+   quieter than the app: flat surfaces, one accent, no glows. These
+   variables are consumed by the auth components (LoginPage and the
+   ui/auth primitives) and exist separately from the app-wide
+   `--background`/`--card` scale above so a theme accent change never
+   re-tints the auth palette. Both palettes are dark-first; the light
+   set is used when the page is not `.dark`. */
+/* ------------------------------------------------------------------ */
+:root {
+  --auth-page: #f6f8f9;
+  --auth-panel: #ffffff;
+  --auth-surface: #f1f4f5;
+  --auth-surface-2: #e8edf0;
+  --auth-ink: #10151a;
+  --auth-ink-2: #3d4753;
+  --auth-ink-3: #5c6672;
+  --auth-line: rgba(16, 21, 26, 0.12);
+  --auth-line-strong: rgba(16, 21, 26, 0.22);
+  --auth-accent: #0f9d6e;
+  --auth-accent-hover: #0b8a5f;
+  --auth-accent-ink: #ffffff;
+  --auth-error: #d92d20;
+  --auth-warning: #b45309;
+  --auth-shadow-sm: 0 1px 2px rgba(16, 21, 26, 0.06);
+  --auth-shadow-md: 0 1px 2px rgba(16, 21, 26, 0.05), 0 8px 24px rgba(16, 21, 26, 0.08);
+  --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #101820 0%, #0b0f14 55%, #090d11 100%);
+}
+.dark {
+  --auth-page: #0b0f14;
+  --auth-panel: #11161d;
+  --auth-surface: #161c25;
+  --auth-surface-2: #1c242f;
+  --auth-ink: #f3f5f7;
+  --auth-ink-2: #a3acb9;
+  --auth-ink-3: #8b95a3;
+  --auth-line: rgba(255, 255, 255, 0.08);
+  --auth-line-strong: rgba(255, 255, 255, 0.14);
+  --auth-accent: #10b981;
+  --auth-accent-hover: #34d399;
+  --auth-accent-ink: #06281c;
+  --auth-error: #f87171;
+  --auth-warning: #fbbf24;
+  --auth-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --auth-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #131b24 0%, #0b0f14 55%, #090d11 100%);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not(.dark) {
+    --auth-page: #f6f8f9;
+    --auth-panel: #ffffff;
+    --auth-surface: #f1f4f5;
+    --auth-surface-2: #e8edf0;
+    --auth-ink: #10151a;
+    --auth-ink-2: #3d4753;
+    --auth-ink-3: #5c6672;
+    --auth-line: rgba(16, 21, 26, 0.12);
+    --auth-line-strong: rgba(16, 21, 26, 0.22);
+    --auth-accent: #0f9d6e;
+    --auth-accent-hover: #0b8a5f;
+    --auth-accent-ink: #ffffff;
+    --auth-error: #d92d20;
+    --auth-warning: #b45309;
   }
 }
-.batua-pulse-ring {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: batua-pulse-ring 3.2s ease-out infinite;
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.dark) {
+    --auth-page: #0b0f14;
+    --auth-panel: #11161d;
+    --auth-surface: #161c25;
+    --auth-surface-2: #1c242f;
+    --auth-ink: #f3f5f7;
+    --auth-ink-2: #a3acb9;
+    --auth-ink-3: #8b95a3;
+    --auth-line: rgba(255, 255, 255, 0.08);
+    --auth-line-strong: rgba(255, 255, 255, 0.14);
+    --auth-accent: #10b981;
+    --auth-accent-hover: #34d399;
+    --auth-accent-ink: #06281c;
+    --auth-error: #f87171;
+    --auth-warning: #fbbf24;
+  }
 }
-@keyframes batua-drift {
+/* Auth screen motion — only transform/opacity so everything
+   stays on the compositor. All of it is killed by the global
+   prefers-reduced-motion rule above. */
+@keyframes auth-float {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-6px);
   }
 }
-.batua-drift {
-  animation: batua-drift 6s ease-in-out infinite;
+.auth-float {
+  animation: auth-float 6s ease-in-out infinite;
 }
-@keyframes batua-sweep {
+
+@keyframes auth-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+.auth-shake {
+  animation: auth-shake 150ms ease-in-out;
+}
+
+@keyframes auth-spark-draw {
   from {
-    transform: translateX(-30%);
+    stroke-dashoffset: 60;
   }
   to {
-    transform: translateX(120%);
+    stroke-dashoffset: 0;
   }
 }
-.batua-sweep {
-  animation: batua-sweep 9s linear infinite;
+.auth-spark-line {
+  stroke-dasharray: 60;
+  animation: auth-spark-draw 900ms ease-out both;
 }
 
 /* Chat "typing" indicator — three dots pulsing in sequence */

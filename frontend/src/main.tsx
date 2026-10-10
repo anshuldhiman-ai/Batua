@@ -8,8 +8,12 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 5,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      // Fail fast: this is a local-first app, so a failed
+      // request almost always means "backend not running" —
+      // retrying 5× with up to 10s backoff (~31s) only
+      // delays the error the user needs to see.
+      retry: 1,
+      retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
     },
   },
 });

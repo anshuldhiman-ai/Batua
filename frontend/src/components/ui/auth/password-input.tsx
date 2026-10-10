@@ -1,0 +1,88 @@
+import React from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { AuthInput } from "./input";
+import { cn } from "@/lib/utils";
+
+/**
+ * Password field with a show/hide toggle.
+ *
+ * The toggle is a real button with `aria-label` and
+ * `aria-pressed`, so it works with keyboard and screen
+ * readers. Pasting is always allowed (autocomplete and
+ * password managers need it).
+ */
+
+interface PasswordInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+  id: string;
+  label: string;
+  error?: string | null;
+  hint?: string;
+  /** Caps Lock indicator, driven by the parent's key handlers. */
+  capsLock?: boolean;
+  /** Extra content under the input (strength meter, etc.). */
+  children?: React.ReactNode;
+}
+
+export const PasswordInput = React.forwardRef<
+  HTMLInputElement,
+  PasswordInputProps
+>(({ id, label, error, hint, capsLock, className, children, ...props }, ref) => {
+  const [visible, setVisible] = React.useState(false);
+
+  return (
+    <div className="space-y-1.5">
+      <AuthInput
+        ref={ref}
+        id={id}
+        label={label}
+        error={error}
+        hint={hint}
+        type={visible ? "text" : "password"}
+        autoComplete={props.autoComplete ?? "current-password"}
+        className={cn("pr-11", className)}
+        trailing={
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            aria-label={visible ? "Hide password" : "Show password"}
+            aria-pressed={visible}
+            className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-md text-[color:var(--auth-ink-3)] transition-colors hover:text-[color:var(--auth-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
+          >
+            {visible ? (
+              <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.5} />
+            ) : (
+              <Eye className="h-[18px] w-[18px]" strokeWidth={1.5} />
+            )}
+          </button>
+        }
+        {...props}
+      />
+      <div className="min-h-[18px]">
+        {capsLock && !error && (
+          <p
+            role="alert"
+            className="flex items-center gap-1.5 text-[13px] font-medium text-[color:var(--auth-warning)]"
+          >
+            <svg
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M8 1.5 1.9 13.5h12.2L8 1.5Z" />
+              <path d="M8 6v3.5" />
+              <circle cx="8" cy="11.6" r="0.5" fill="currentColor" stroke="none" />
+            </svg>
+            Caps Lock is on
+          </p>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+});
+PasswordInput.displayName = "PasswordInput";

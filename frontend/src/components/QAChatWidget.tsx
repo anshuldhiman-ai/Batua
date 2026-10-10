@@ -436,7 +436,6 @@ export default function QAChatWidget() {
           const form = new FormData();
           form.append("file", blob, "voice.webm");
           const { data } = await api.post("/transcribe", form, {
-            headers: { "Content-Type": "multipart/form-data" },
             timeout: 30000,
           });
           const transcript = data?.text?.trim();

@@ -56,24 +56,29 @@ export function ChartEmpty({ label = "No data yet" }) {
   );
 }
 
-export function TimelineChart({ data, height = 300 }) {
+export function TimelineChart({ data, height = 300, id = "tl" }) {
   if (!data || !data.length) return <ChartEmpty />;
+  // Gradient/filter ids are document-global in SVG — prefix
+  // them so two charts on one page don't share defs.
+  const incId = `${id}-gInc`;
+  const expId = `${id}-gExp`;
+  const glowId = `${id}-lineGlow`;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
         <defs>
-          <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={incId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={INCOME_COLOR} stopOpacity={0.5} />
             <stop offset="60%" stopColor={INCOME_COLOR} stopOpacity={0.12} />
             <stop offset="100%" stopColor={INCOME_COLOR} stopOpacity={0} />
           </linearGradient>
-          <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={expId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.45} />
             <stop offset="60%" stopColor={EXPENSE_COLOR} stopOpacity={0.1} />
             <stop offset="100%" stopColor={EXPENSE_COLOR} stopOpacity={0} />
           </linearGradient>
           {/* Soft glow so the stroke reads as a lit line, not a flat one. */}
-          <filter id="lineGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <filter id={glowId} x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
@@ -106,8 +111,8 @@ export function TimelineChart({ data, height = 300 }) {
           name="Income"
           stroke={INCOME_COLOR}
           strokeWidth={2.5}
-          fill="url(#gInc)"
-          style={{ filter: "url(#lineGlow)" }}
+          fill={`url(#${incId})`}
+          style={{ filter: `url(#${glowId})` }}
           dot={false}
           activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--card))" }}
           isAnimationActive
@@ -120,8 +125,8 @@ export function TimelineChart({ data, height = 300 }) {
           name="Expense"
           stroke={EXPENSE_COLOR}
           strokeWidth={2.5}
-          fill="url(#gExp)"
-          style={{ filter: "url(#lineGlow)" }}
+          fill={`url(#${expId})`}
+          style={{ filter: `url(#${glowId})` }}
           dot={false}
           activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--card))" }}
           isAnimationActive

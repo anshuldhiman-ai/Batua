@@ -156,19 +156,26 @@ function ProfileWindow(p: ProfileWindowProps) {
         onClick={close}
         aria-hidden="true"
       />
-      {/* The window */}
-      <motion.div
-        key="profile-window"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Manage profile"
-        data-testid="manage-profile-panel"
-        initial={reduce ? false : { opacity: 0, y: 16, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={reduce ? undefined : { opacity: 0, y: 16, scale: 0.98 }}
-        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-        className="fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(400px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border/60 bg-card/95 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
+      {/* Centering wrapper — the window's own motion transform only
+          animates the inner card, so the flex centering is never
+          clobbered (a transform on the fixed element itself would
+          fight the Tailwind translate classes). */}
+      <div
+        key="profile-stage"
+        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
       >
+        <motion.div
+          key="profile-window"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Manage profile"
+          data-testid="manage-profile-panel"
+          initial={reduce ? false : { opacity: 0, y: 16, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={reduce ? undefined : { opacity: 0, y: 16, scale: 0.98 }}
+          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-auto max-h-[88vh] w-[min(400px,100%)] overflow-y-auto rounded-2xl border border-border/60 bg-card/95 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
+        >
         {/* Header */}
         <div className="mb-4 flex items-center gap-3 border-b border-border/50 pb-4">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
@@ -384,7 +391,8 @@ function ProfileWindow(p: ProfileWindowProps) {
             </button>
           </form>
         )}
-      </motion.div>
+        </motion.div>
+      </div>
     </>
   );
 }
@@ -432,6 +440,9 @@ export default function ManageProfileMenu({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // The hover card is a nicety — show it while the trigger is
+  // hovered/focused, not all the time.
+  const [hovering, setHovering] = useState(false);
 
   // Close on Escape, and return focus to the trigger.
   useEffect(() => {
@@ -537,11 +548,15 @@ export default function ManageProfileMenu({
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
-      {/* Trigger: hover shows the account basics, click opens the window */}
+      {/* Trigger: hover/focus shows the account basics, click opens the window */}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+        onFocus={() => setHovering(true)}
+        onBlur={() => setHovering(false)}
         aria-label="Manage profile"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -554,7 +569,7 @@ export default function ManageProfileMenu({
 
       {/* Hover card — the account basics, without opening the window */}
       <AnimatePresence>
-        {!open && (
+        {!open && hovering && (
           <motion.div
             initial={reduce ? false : { opacity: 0, y: variant === "bottom-left" ? 4 : -4 }}
             animate={{ opacity: 1, y: 0 }}

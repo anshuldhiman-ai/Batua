@@ -1204,13 +1204,24 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
   };
 
   return (
-    <div className="mt-4 rounded-2xl border border-border/80 bg-muted/20 p-4 animate-fade-up" data-testid="nl-preview">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {isRecurring ? `Repeat monthly · pick which months to apply` : "Preview — edit before saving"}
-        </span>
+    <div
+      className="mt-5 animate-fade-up rounded-2xl border border-white/10 bg-card/60 p-4 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:p-5 dark:border-white/10 dark:bg-card/55 dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)]"
+      data-testid="nl-preview"
+    >
+      {/* Ambient glows behind the glass — one cool, one warm. */}
+      <div className="pointer-events-none absolute -left-24 -top-24 h-56 w-56 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -bottom-28 -right-20 h-52 w-52 rounded-full bg-emerald-400/10 blur-3xl" aria-hidden="true" />
+
+      {/* Header — quiet label, segmented type toggle */}
+      <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" aria-hidden="true" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {isRecurring ? "Repeat monthly" : "Entry details"}
+          </span>
+        </div>
         <div
-          className="inline-flex items-center rounded-full border border-border bg-muted p-0.5"
+          className="inline-flex items-center rounded-full border border-border/70 bg-background/60 p-0.5 backdrop-blur-sm"
           role="group"
           aria-label="Transaction type"
           data-testid="preview-type-toggle"
@@ -1222,9 +1233,9 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             onClick={() => setSign(false)}
             title="Money in (income)"
             className={cn(
-              "rounded-full px-3 py-0.5 text-xs font-medium transition-colors",
+              "rounded-full px-3.5 py-1 text-xs font-medium transition-all duration-200",
               !isDebit
-                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                ? "bg-emerald-500/15 text-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] dark:text-emerald-400"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -1237,9 +1248,9 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             onClick={() => setSign(true)}
             title="Money out (expense)"
             className={cn(
-              "rounded-full px-3 py-0.5 text-xs font-medium transition-colors",
+              "rounded-full px-3.5 py-1 text-xs font-medium transition-all duration-200",
               isDebit
-                ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                ? "bg-rose-500/15 text-rose-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] dark:text-rose-400"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -1248,12 +1259,19 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <Field label="Description">
-          <Input value={draft.description} onChange={(e) => updateDraft("description", e.target.value)} data-testid="preview-description" />
+      {/* Fields — one hairline-separated row per group. Description
+          spans the full width (it's the sentence the user typed);
+          the rest sit in a 2→4 column rhythm. */}
+      <div className="relative grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Description" className="sm:col-span-2 lg:col-span-4">
+          <GlassInput
+            value={draft.description}
+            onChange={(e) => updateDraft("description", e.target.value)}
+            data-testid="preview-description"
+          />
         </Field>
-        <Field label="Amount (₹)">
-          <Input
+        <Field label="Amount (₹)" className="sm:col-span-1">
+          <GlassInput
             type="text"
             inputMode="decimal"
             value={draft.amount}
@@ -1282,16 +1300,17 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               if (isRecurring) updateDraft("total", round2(amt * (draft.months?.length || 0)));
             }}
             data-testid="preview-amount"
+            tone={isDebit ? "debit" : "credit"}
           />
         </Field>
         {!isRecurring && (
-          <Field label="Date">
+          <Field label="Date" className="sm:col-span-1">
             <DateInput value={draft.date} onChange={(v) => updateDraft("date", v)} data-testid="preview-date" />
           </Field>
         )}
         {!isRecurring && (
-          <Field label="Qty">
-            <Input
+          <Field label="Qty" className="sm:col-span-1">
+            <GlassInput
               type="number"
               min={1}
               value={draft.quantity ?? 1}
@@ -1305,8 +1324,8 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
           </Field>
         )}
         {!isRecurring && (
-          <Field label="Price / item (₹)">
-            <Input
+          <Field label="Price / item (₹)" className="sm:col-span-1">
+            <GlassInput
               type="text"
               inputMode="decimal"
               placeholder="e.g. 10, 12+15+48, 15*2"
@@ -1337,7 +1356,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
           </Field>
         )}
         {isRecurring && (
-          <Field label="Day of month (1–31)">
+          <Field label="Day of month (1–31)" className="sm:col-span-1">
             <DayInput
               value={draft.day || 1}
               onChange={(v) => updateDraft("day", v)}
@@ -1345,7 +1364,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             />
           </Field>
         )}
-        <Field label="Category">
+        <Field label="Category" className="sm:col-span-1">
           <SearchableSelect
             value={draft.category || ""}
             options={categories}
@@ -1356,7 +1375,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             data-testid="preview-category"
           />
         </Field>
-        <Field label="Payment">
+        <Field label="Payment" className="sm:col-span-1">
           <SearchableSelect
             value={draft.payment_method || ""}
             options={paymentMethods}
@@ -1370,7 +1389,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
 
       {!isRecurring && fragmentCount >= 2 && (
         <div
-          className="mt-4 rounded-xl border border-border bg-background p-3.5"
+          className="relative mt-4 rounded-xl border border-border/60 bg-background/50 p-3.5 backdrop-blur-sm"
           data-testid="fragment-split"
         >
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
@@ -1383,6 +1402,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               variant={split ? "outline" : "default"}
               onClick={() => onToggleSplit(false)}
               data-testid="fragment-keep"
+              className="rounded-full"
             >
               Keep as one ({formatINR(draft.amount)})
             </Button>
@@ -1391,6 +1411,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               variant={split ? "default" : "outline"}
               onClick={() => onToggleSplit(true)}
               data-testid="fragment-split-btn"
+              className="rounded-full"
             >
               Split into {fragmentCount} ({formatINR(draft.amount)})
             </Button>
@@ -1400,7 +1421,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               {fragments.map((fr, i) => (
                 <li
                   key={i}
-                  className="flex items-center justify-between rounded-md bg-background/60 px-3 py-1.5 text-sm"
+                  className="flex items-center justify-between rounded-lg border border-border/50 bg-background/60 px-3 py-1.5 text-sm"
                   data-testid="fragment-item"
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -1440,10 +1461,23 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         />
       )}
 
-      <div className="mt-4 flex items-center justify-between">
-        <span className="kpi-number text-lg">{formatINR(isRecurring ? (draft.total || draft.amount) : draft.amount)}</span>
+      {/* Footer — hairline divider, total left, actions right. */}
+      <div className="relative mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+            {isRecurring ? "Per month" : "Total"}
+          </span>
+          <span
+            className={cn(
+              "kpi-number text-xl font-semibold tabular-nums",
+              isDebit ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"
+            )}
+          >
+            {formatINR(isRecurring ? (draft.total || draft.amount) : draft.amount)}
+          </span>
+        </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onDiscard} data-testid="nl-discard-btn">
+          <Button variant="outline" size="sm" onClick={onDiscard} data-testid="nl-discard-btn" className="rounded-full">
             <X className="h-4 w-4" /> Discard
           </Button>
           <Button
@@ -1451,6 +1485,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             onClick={onSave}
             disabled={saving || (isRecurring && !(draft.months?.length))}
             data-testid="nl-save-btn"
+            className="rounded-full bg-gradient-to-r from-[#22d3ee] via-[#2dd4bf] to-[#14f195] font-semibold text-[#051a15] shadow-[0_8px_24px_-8px_rgba(20,241,149,0.5)] hover:brightness-110"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             {isRecurring
@@ -1514,12 +1549,36 @@ function BulkPreview({ items, onDiscard, onSave, saving }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, className }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className={cn("flex flex-col gap-1", className)}>
       <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+/**
+ * Glass input for the entry-details card — a translucent surface
+ * with a hairline border and an inner highlight, so fields read as
+ * frosted panes rather than flat boxes. `tone` tints the value
+ * (money-out rose, money-in emerald) to match the card's type toggle.
+ *
+ * Props are typed loosely (any) to match the plain-JS style of the
+ * rest of this file.
+ */
+function GlassInput({ className, tone, ...props }: { className?: string; tone?: string; [k: string]: any }) {
+  return (
+    <input
+      {...props}
+      className={cn(
+        "w-full rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 text-sm text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm placeholder:text-muted-foreground/60",
+        "focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20",
+        tone === "debit" && "text-rose-600 dark:text-rose-400",
+        tone === "credit" && "text-emerald-600 dark:text-emerald-400",
+        className
+      )}
+    />
   );
 }
 

@@ -57,9 +57,7 @@ export default function ReceiptScanner({ onTextExtracted, onClose }: ReceiptScan
       const fd = new FormData();
       fd.append('file', file);
       try {
-        const { data } = await api.post('/transactions/scan-receipt', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const { data } = await api.post('/transactions/scan-receipt', fd);
         setProgress(100);
         setParsed(receiptFromApi(data || {}, ''));
         setSource('gemini');

@@ -252,6 +252,18 @@ class SQLiteStorage:
                 )
             """))
 
+    async def distinct(self, collection: str, field: str) -> list:
+        """Distinct values of one column (MongoDB-style distinct)."""
+        await self._ensure_db()
+        model_class = _get_model_class(collection)
+        attr = getattr(model_class, field, None)
+        if attr is None:
+            return []
+        async with AsyncSession(self._engine) as session:
+            statement = select(attr).distinct()
+            result = await session.exec(statement)
+            return [row for row in result.all() if row is not None]
+
     async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
         await self._ensure_db()
         await self._ensure_indexes()
@@ -521,6 +533,10 @@ class MongoStorage:
             logger.info("MongoDB indexes created")
         except (pymongo.errors.OperationFailure, pymongo.errors.ServerSelectionTimeoutError) as exc:
             logger.warning(f"Failed to create MongoDB indexes: {exc}")
+
+    async def distinct(self, collection: str, field: str) -> list:
+        await self._ensure_indexes()
+        return await self._db[collection].distinct(field)
 
     async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
         await self._ensure_indexes()

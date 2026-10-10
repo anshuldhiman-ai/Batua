@@ -60,6 +60,8 @@ export default function SplashScreen({ onHide, hold }: SplashScreenProps) {
     // Prevent scrolling during splash screen
     document.body.style.overflow = 'hidden';
 
+    let clearTimers: (() => void) | undefined;
+
     // Gate splash screen on document.fonts.ready
     const run = async () => {
       try {
@@ -74,20 +76,27 @@ export default function SplashScreen({ onHide, hold }: SplashScreenProps) {
       const hold = firstRun ? FULL_MS : QUICK_MS;
       const timer = setTimeout(() => {
         setLeaving(true);
-        setTimeout(() => {
+        const inner = setTimeout(() => {
           setVisible(false);
           document.body.style.overflow = '';
           onHide?.();
         }, EXIT_MS);
+        // Clear both timers if we unmount mid-exit.
+        clearTimers = () => {
+          clearTimeout(inner);
+        };
       }, hold);
 
-      return () => clearTimeout(timer);
+      clearTimers = () => clearTimeout(timer);
     };
 
-    run();
+    void run();
 
-    // Cleanup: restore scrolling if component unmounts
+    // Cleanup: restore scrolling and drop pending timers if
+    // the component unmounts (both timers otherwise fire
+    // setState on an unmounted component).
     return () => {
+      clearTimers?.();
       document.body.style.overflow = '';
     };
     // The choreography runs once the hold is released; firstRun is fixed
