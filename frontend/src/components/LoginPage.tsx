@@ -121,6 +121,9 @@ function BalanceCard() {
             <rect width="7" height="7" fill="var(--auth-accent)" opacity="0.05" />
             <line x1="0" y1="0" x2="0" y2="7" stroke="var(--auth-accent)" strokeWidth="1" opacity="0.22" />
           </pattern>
+          <filter id="auth-tooltip-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--auth-ink)" floodOpacity="0.15" />
+          </filter>
         </defs>
 
         {/* projected zone — hatched, from the forecast split to the right edge */}
@@ -152,9 +155,9 @@ function BalanceCard() {
         {/* marker: vertical rule, dot, and tooltip chip */}
         <line x1="180" y1="0" x2="180" y2="96" stroke="var(--auth-accent)" strokeOpacity="0.35" strokeWidth="1" />
         <circle cx="180" cy="22" r="4" fill="var(--auth-accent)" stroke="var(--auth-page)" strokeWidth="2" />
-        <g transform="translate(140,2)">
-          <rect width="64" height="22" rx="11" fill="var(--auth-ink)" />
-          <text x="32" y="15" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--auth-page)" fontFamily="inherit">
+        <g transform="translate(135,0)" filter="url(#auth-tooltip-shadow)">
+          <rect width="68" height="24" rx="12" fill="var(--auth-ink)" />
+          <text x="34" y="16" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--auth-page)" fontFamily="inherit">
             ₹2.84L
           </text>
         </g>
@@ -736,9 +739,9 @@ export default function LoginPage() {
       } else if (status === 404) {
         setBanner({ kind: "error", text: "No account found with that username. Create one to get started." });
       } else if (status === 401 || status === 400) {
-        setBanner({ kind: "error", text: "Couldn't sign in. Check your details and try again." });
+        setBanner({ kind: "error", text: "Invalid credentials. Please check your username and password." });
       } else if (!err?.response) {
-        setBanner({ kind: "error", text: "Couldn't reach the Batua server. Check that it's running and try again." });
+        setBanner({ kind: "error", text: "Server unreachable. Ensure the backend is running and try again." });
       } else {
         setBanner({
           kind: "error",
@@ -773,13 +776,19 @@ export default function LoginPage() {
       className="relative grid h-dvh grid-cols-1 overflow-hidden bg-[color:var(--auth-page)] [padding:env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)] lg:grid-cols-[55fr_45fr]"
       style={{ color: "var(--auth-ink)" }}
     >
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] bg-[color:var(--auth-accent)] text-white px-4 py-2 rounded-lg font-medium"
+      >
+        Skip to main content
+      </a>
       <AuthBackdrop />
 
       <BrandPanel />
 
       <div className="auth-panel-seam hidden lg:block" aria-hidden="true" />
 
-      <main className="relative z-10 order-1 min-h-0 overflow-y-auto px-4 py-8 sm:px-10 lg:order-2 lg:flex lg:px-14 lg:py-0">
+      <main id="main-content" className="relative z-10 order-1 min-h-0 overflow-y-auto px-4 py-8 sm:px-10 lg:order-2 lg:flex lg:px-14 lg:py-0">
         <motion.div
           variants={reduce ? noMotion : staggerContainer}
           initial="hidden"
@@ -790,7 +799,7 @@ export default function LoginPage() {
               lights up while any field inside has focus. */}
           <motion.div variants={item} className="auth-signin-card auth-top-highlight">
             <motion.div variants={item} className="flex flex-col items-center text-center">
-              <span className="relative flex items-center gap-2 rounded-full border border-[color:var(--auth-line)] bg-[color:var(--auth-surface)] px-3 py-1 text-[12px] font-medium text-[color:var(--auth-ink-2)]">
+              <span className="relative flex items-center gap-2 rounded-full border border-[color:var(--auth-line)] bg-[color:var(--auth-surface)] px-3 py-1 text-[12px] font-semibold text-[color:var(--auth-ink)]">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--auth-accent)] opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--auth-accent)]" />

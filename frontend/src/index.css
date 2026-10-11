@@ -385,8 +385,8 @@
   --auth-surface: rgba(255, 255, 255, 0.06);
   --auth-surface-2: rgba(255, 255, 255, 0.03);
   --auth-ink: #EDF3EF;
-  --auth-ink-2: #AEC2B5;
-  --auth-ink-3: #8CA396;
+  --auth-ink-2: #8FA396;
+  --auth-ink-3: #6B7D70;
   --auth-line: rgba(255, 255, 255, 0.08);
   --auth-line-strong: rgba(255, 255, 255, 0.16);
   --auth-track: rgba(255, 255, 255, 0.1);
@@ -449,8 +449,8 @@
     --auth-surface: rgba(255, 255, 255, 0.06);
     --auth-surface-2: rgba(255, 255, 255, 0.03);
     --auth-ink: #EDF3EF;
-    --auth-ink-2: #AEC2B5;
-    --auth-ink-3: #8CA396;
+    --auth-ink-2: #8FA396;
+    --auth-ink-3: #6B7D70;
     --auth-line: rgba(255, 255, 255, 0.08);
     --auth-line-strong: rgba(255, 255, 255, 0.16);
     --auth-track: rgba(255, 255, 255, 0.1);
@@ -769,11 +769,14 @@ input:checked + .auth-check-glyph .auth-check-path {
   border-radius: 28px;
   border: 1px solid var(--auth-glass-border);
   background: var(--auth-glass);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
-  box-shadow: var(--auth-shadow-md);
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  box-shadow:
+    0 1px 3px rgba(20, 60, 40, 0.04),
+    0 8px 30px -8px rgba(20, 60, 40, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
   padding: 32px;
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 0.2s ease;
 }
 /* Gradient hairline border on top edge */
 .auth-signin-card::before {
@@ -782,19 +785,21 @@ input:checked + .auth-check-glyph .auth-check-path {
   inset: 0;
   border-radius: 28px;
   padding: 1px;
-  background: linear-gradient(135deg, var(--auth-accent) 0%, transparent 50%, transparent 100%);
+  background: linear-gradient(135deg, var(--auth-accent) 0%, transparent 40%, transparent 100%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  opacity: 0.6;
+  opacity: 0.7;
   pointer-events: none;
 }
 .auth-signin-card:focus-within {
   border-color: var(--auth-accent);
   box-shadow:
-    var(--auth-shadow-md),
-    0 0 0 4px var(--auth-accent-soft);
+    0 1px 3px rgba(20, 60, 40, 0.04),
+    0 12px 40px -8px rgba(63, 191, 132, 0.15),
+    0 0 0 3px var(--auth-accent-soft);
+  transform: translateY(-1px);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .auth-signin-card {
@@ -890,9 +895,12 @@ input:checked + .auth-check-glyph .auth-check-path {
   background: var(--auth-glass);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: 0 1px 2px rgba(20, 60, 40, 0.05), 0 12px 28px -8px rgba(20, 60, 40, 0.12);
+  box-shadow: 0 2px 8px rgba(20, 60, 40, 0.08), 0 12px 28px -8px rgba(20, 60, 40, 0.12);
   padding: 8px 12px;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.auth-chip:hover {
+  box-shadow: 0 4px 12px rgba(20, 60, 40, 0.12), 0 16px 32px -8px rgba(20, 60, 40, 0.16);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .auth-chip {
@@ -958,11 +966,11 @@ input:checked + .auth-check-glyph .auth-check-path {
   inset: 0;
   pointer-events: none;
   background: radial-gradient(
-    600px circle at 50% 50%,
+    700px circle at 50% 50%,
     var(--auth-emerald-glow),
     transparent 70%
   );
-  filter: blur(60px);
+  filter: blur(80px);
   z-index: 1;
 }
 
