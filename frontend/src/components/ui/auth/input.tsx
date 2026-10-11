@@ -75,15 +75,14 @@ export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
               "transition-all duration-200 ease-out",
               "text-base leading-[24px] text-[color:var(--auth-ink)] sm:text-[15px]",
               "placeholder:text-[color:var(--auth-ink-3)]",
-              // Soft inner shadow for the "inset" glass feel,
-              // a gentle lift on focus plus the gradient ring.
-              "shadow-[inset_0_2px_4px_rgba(20,60,40,0.05)]",
+              // Increased border contrast with faint top inner highlight
+              "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),inset_0_2px_4px_rgba(20,60,40,0.05)]",
               "hover:border-[color:var(--auth-line-strong)]",
-              "focus:outline-none focus-visible:border-[color:var(--auth-accent)] focus-visible:shadow-[inset_0_2px_4px_rgba(20,60,40,0.05),0_0_0_4px_var(--auth-accent-soft)] focus-visible:-translate-y-px",
+              "focus:outline-none focus-visible:border-[color:var(--auth-accent)] focus-visible:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_2px_4px_rgba(20,60,40,0.05),0_0_0_2px_var(--auth-accent-soft)] focus-visible:-translate-y-px",
               "disabled:cursor-not-allowed disabled:opacity-50",
               error
-                ? "border-[color:var(--auth-error)] focus-visible:border-[color:var(--auth-error)] focus-visible:shadow-[inset_0_2px_4px_rgba(20,60,40,0.05),0_0_0_4px_var(--auth-error-soft)] focus-visible:ring-0"
-                : "border-[color:var(--auth-line)]",
+                ? "border-[color:var(--auth-error)] focus-visible:border-[color:var(--auth-error)] focus-visible:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),inset_0_2px_4px_rgba(20,60,40,0.05),0_0_0_2px_var(--auth-error-soft)] focus-visible:ring-0"
+                : "border-[color:rgba(255,255,255,0.10)]",
               // Padding is computed explicitly — mixing px-*
               // with pl-*/pr-* leaves the far side flush.
               icon ? "pl-11 pr-3.5" : "px-3.5",

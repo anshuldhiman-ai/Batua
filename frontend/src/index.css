@@ -34,7 +34,7 @@
 ::view-transition-old(root) {
   /* Old theme fades away under the wipe instead of snapping out. */
   z-index: 1;
-  animation: auth-vt-old-fade 0.28s ease-out both;
+  animation: auth-vt-old-fade 0.35s ease-out both;
 }
 ::view-transition-new(root) {
   z-index: 2147483646;
@@ -376,6 +376,8 @@
   --auth-glow-b: rgba(63, 191, 132, 0.22);
   --auth-glow-c: rgba(181, 232, 100, 0.28);
   --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #101a14 0%, #0b0f0d 55%, #090d0b 100%);
+  /* Emerald glow for hero stage */
+  --auth-emerald-glow: rgba(63, 191, 132, 0.18);
 }
 .dark {
   --auth-page: #0A0F0D;
@@ -405,6 +407,8 @@
   --auth-glow-b: rgba(20, 184, 166, 0.14);
   --auth-glow-c: rgba(181, 232, 100, 0.12);
   --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #131b16 0%, #0b0f0d 55%, #090d0b 100%);
+  /* Emerald glow for hero stage */
+  --auth-emerald-glow: rgba(63, 191, 132, 0.22);
 }
 
 @media (prefers-color-scheme: light) {
@@ -434,6 +438,7 @@
     --auth-glow-a: rgba(140, 220, 160, 0.35);
     --auth-glow-b: rgba(63, 191, 132, 0.22);
     --auth-glow-c: rgba(181, 232, 100, 0.28);
+    --auth-emerald-glow: rgba(63, 191, 132, 0.18);
   }
 }
 
@@ -464,6 +469,7 @@
     --auth-glow-a: rgba(63, 191, 132, 0.2);
     --auth-glow-b: rgba(20, 184, 166, 0.14);
     --auth-glow-c: rgba(181, 232, 100, 0.12);
+    --auth-emerald-glow: rgba(63, 191, 132, 0.22);
   }
 }
 /* Auth screen motion — only transform/opacity so everything
@@ -546,7 +552,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.04;
+  opacity: 0.06;
   mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -769,6 +775,21 @@ input:checked + .auth-check-glyph .auth-check-path {
   padding: 32px;
   transition: border-color 200ms ease, box-shadow 200ms ease;
 }
+/* Gradient hairline border on top edge */
+.auth-signin-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--auth-accent) 0%, transparent 50%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.6;
+  pointer-events: none;
+}
 .auth-signin-card:focus-within {
   border-color: var(--auth-accent);
   box-shadow:
@@ -862,6 +883,23 @@ input:checked + .auth-check-glyph .auth-check-path {
   animation: auth-fill-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Callout chip — floating badge with icon and label */
+.auth-chip {
+  border-radius: 16px;
+  border: 1px solid var(--auth-glass-border);
+  background: var(--auth-glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 1px 2px rgba(20, 60, 40, 0.05), 0 12px 28px -8px rgba(20, 60, 40, 0.12);
+  padding: 8px 12px;
+  transition: transform 0.2s ease;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-chip {
+    background: var(--auth-panel);
+  }
+}
+
 /* Budget segments fill horizontally, not vertically. */
 .auth-segment {
   animation-name: auth-fill-in-x;
@@ -912,6 +950,39 @@ input:checked + .auth-check-glyph .auth-check-path {
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
     var(--auth-shadow-md);
+}
+
+/* Hero stage emerald glow — blurred background behind the hero cards */
+.auth-hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    600px circle at 50% 50%,
+    var(--auth-emerald-glow),
+    transparent 70%
+  );
+  filter: blur(60px);
+  z-index: 1;
+}
+
+/* Panel seam gradient — soft transition between left and right panels */
+.auth-panel-seam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--auth-line) 20%,
+    var(--auth-line) 80%,
+    transparent
+  );
+  opacity: 0.4;
+  z-index: 20;
+  box-shadow: 0 0 20px var(--auth-emerald-glow);
 }
 
 /* Chat "typing" indicator — three dots pulsing in sequence */
@@ -969,4 +1040,11 @@ input:checked + .auth-check-glyph .auth-check-path {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

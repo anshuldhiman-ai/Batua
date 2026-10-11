@@ -80,11 +80,12 @@ function BalanceCard() {
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.12 }}
+      transition={{ ...ease, delay: 0.1 }}
       className="auth-card auth-depth-2 w-full max-w-[380px] p-6"
+      style={{ "--auth-tilt": "1deg" } as React.CSSProperties}
       aria-hidden="true"
     >
-      <div className="flex items-end justify-between">
+      <div className="flex items-end justify-between pb-2">
         <div>
           <p className="font-auth text-[12px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
             Total balance
@@ -151,7 +152,7 @@ function BalanceCard() {
         {/* marker: vertical rule, dot, and tooltip chip */}
         <line x1="180" y1="0" x2="180" y2="96" stroke="var(--auth-accent)" strokeOpacity="0.35" strokeWidth="1" />
         <circle cx="180" cy="22" r="4" fill="var(--auth-accent)" stroke="var(--auth-page)" strokeWidth="2" />
-        <g transform="translate(128,4)">
+        <g transform="translate(140,2)">
           <rect width="64" height="22" rx="11" fill="var(--auth-ink)" />
           <text x="32" y="15" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--auth-page)" fontFamily="inherit">
             ₹2.84L
@@ -160,7 +161,7 @@ function BalanceCard() {
       </svg>
 
       <p className="mt-4 text-[12px] text-[color:var(--auth-ink-3)]">
-        Sample data · stored on this device
+        Stored on this device
       </p>
     </motion.div>
   );
@@ -174,14 +175,15 @@ function BudgetCard() {
   const reduce = useReducedMotion();
   const SEGMENTS = 10;
   const FILLED = 7;
+  const PER_SEGMENT = 3000; // ₹30,000 / 10 segments
 
   return (
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.22 }}
+      transition={{ ...ease, delay: 0.2 }}
       className="auth-card auth-depth-1 w-[190px] p-4"
-      style={{ "--auth-tilt": "-2.5deg" } as React.CSSProperties}
+      style={{ "--auth-tilt": "-1.5deg" } as React.CSSProperties}
       aria-hidden="true"
     >
       <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
@@ -195,13 +197,14 @@ function BudgetCard() {
           <span
             key={i}
             className={cn(
-              "h-2 flex-1 rounded-full",
+              "h-2 flex-1 rounded-full cursor-pointer transition-transform hover:scale-110",
               i < FILLED
                 ? "auth-gradient auth-segment"
                 : "bg-[color:var(--auth-track)]",
               !reduce && i < FILLED && "auth-fill-in",
             )}
-            style={!reduce && i < FILLED ? { animationDelay: `${0.15 + i * 0.06}s` } : undefined}
+            style={!reduce && i < FILLED ? { animationDelay: `${0.12 + i * 0.05}s` } : undefined}
+            title={`₹${(i + 1) * PER_SEGMENT}`}
           />
         ))}
       </div>
@@ -223,38 +226,39 @@ function SavingsGauge() {
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.32 }}
+      transition={{ ...ease, delay: 0.28 }}
       className="auth-card auth-depth-0 w-[168px] p-4"
-      style={{ "--auth-tilt": "2deg" } as React.CSSProperties}
+      style={{ "--auth-tilt": "1.5deg" } as React.CSSProperties}
       aria-hidden="true"
     >
-      <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
-        Savings rate
-      </p>
-      <svg viewBox="0 0 120 66" className="mt-1 h-[64px] w-full" aria-hidden="true">
+      <svg viewBox="0 0 120 66" className="h-[56px] w-full" aria-hidden="true">
         <defs>
           <linearGradient id="auth-gauge" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#B5E864" />
             <stop offset="100%" stopColor="#3FBF84" />
           </linearGradient>
         </defs>
-        {/* track — the other half of the semicircle */}
-        <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--auth-track)" strokeWidth="9" strokeLinecap="round" />
-        {/* fill — 50% of the semicircle's arc length (~157) */}
+        {/* track — faint full arc */}
+        <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--auth-track)" strokeWidth="12" strokeLinecap="round" opacity="0.4" />
+        {/* fill — 50% of the semicircle's arc length */}
         <path
           d="M10 60 A50 50 0 0 1 110 60"
           fill="none"
           stroke="url(#auth-gauge)"
-          strokeWidth="9"
+          strokeWidth="12"
           strokeLinecap="round"
           pathLength={1}
           strokeDasharray={reduce ? "1 0" : "0.5 1"}
           className={!reduce ? "auth-gauge-sweep" : undefined}
         />
-        <circle cx="60" cy="60" r="3.5" fill="var(--auth-accent)" />
+        {/* end-dot exactly on the arc end */}
+        <circle cx="110" cy="60" r="4" fill="var(--auth-accent)" />
       </svg>
-      <p className="-mt-1 text-center text-[20px] font-semibold tracking-[-0.01em] tabular-nums text-[color:var(--auth-ink)]">
+      <p className="-mt-5 text-center text-[22px] font-semibold tracking-[-0.01em] tabular-nums text-[color:var(--auth-ink)]">
         50<span className="text-[13px] font-medium text-[color:var(--auth-ink-3)]">%</span>
+      </p>
+      <p className="mt-0.5 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--auth-ink-2)]">
+        Savings rate
       </p>
     </motion.div>
   );
@@ -272,9 +276,9 @@ function DailySpend() {
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.42 }}
+      transition={{ ...ease, delay: 0.36 }}
       className="auth-card auth-depth-1 w-[150px] p-4"
-      style={{ "--auth-tilt": "-1.5deg" } as React.CSSProperties}
+      style={{ "--auth-tilt": "-1deg" } as React.CSSProperties}
       aria-hidden="true"
     >
       <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
@@ -309,14 +313,14 @@ function DailySpend() {
 /* ------------------------------------------------------------------ */
 
 const CHIPS = [
-  { icon: Lock, label: "Encrypted locally", style: { top: "9%", left: "4%" }, rotate: "-3deg" },
-  { icon: Fingerprint, label: "On-device vault", style: { top: "20%", right: "5%" }, rotate: "2deg" },
-  { icon: Check, label: "Zero uploads", style: { bottom: "26%", left: "7%" }, rotate: "2deg" },
+  { icon: Lock, label: "Encrypted locally", style: { top: "2%", left: "0%" }, rotate: "-2deg" },
+  { icon: Fingerprint, label: "On-device vault", style: { top: "12%", right: "0%" }, rotate: "1.5deg" },
+  { icon: Check, label: "Zero uploads", style: { bottom: "20%", left: "0%" }, rotate: "1.5deg" },
   {
     icon: PiggyBank,
     label: "Saved this month ₹12,400",
-    style: { bottom: "6%", right: "6%" },
-    rotate: "-2deg",
+    style: { bottom: "0%", right: "0%" },
+    rotate: "-1.5deg",
   },
 ] as const;
 
@@ -343,9 +347,10 @@ function CalloutChip({
     <motion.div
       initial={reduce ? false : { opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.05 }}
       transition={{ ...ease, delay }}
       className={cn(
-        "auth-chip auth-depth-0 absolute z-20 flex items-center gap-2.5",
+        "auth-chip absolute z-50 flex items-center gap-2.5 cursor-pointer",
         className
       )}
       style={{ rotate, ...position }}
@@ -384,6 +389,7 @@ function BrandPanel() {
         <span className="auth-aurora-c" />
       </div>
       <div className="auth-grain" aria-hidden="true" />
+      <div className="auth-hero-glow" aria-hidden="true" />
 
       <motion.div
         variants={variants}
@@ -413,46 +419,56 @@ function BrandPanel() {
             </p>
           </motion.div>
 
-          {/* Hero composition — overlapping glass cards at varied
-              depth and rotation, plus floating callout chips.
-              lg: the full four-card cluster. Below that the
-              cluster collapses to the balance card plus two
-              chips (md) or just the balance card (sm). */}
-          <motion.div variants={item} className="relative h-[210px] max-w-[520px] sm:h-[240px] lg:h-[300px]">
-            {/* cursor parallax lives on the wrapper; cards drift on
-                their own so the two motions compose */}
-            <HeroParallax reduce={reduce}>
-              <div className="absolute left-0 top-0">
+          {/* Hero composition — fixed-aspect stage (640x560 design units)
+              that scales to fit ~85-90% of the panel width, centered.
+              Cards positioned at explicit coordinates with z-index scale
+              to prevent overlap of content. */}
+          <motion.div variants={item} className="relative mx-auto h-[300px] w-full max-w-[480px] lg:h-[420px] lg:max-w-[520px]">
+            {/* Mobile: horizontal scroll of 2 cards */}
+            <div className="lg:hidden flex gap-4 overflow-x-auto px-1 snap-x snap-mandatory scrollbar-hide h-full items-center">
+              <div className="snap-center shrink-0">
                 <BalanceCard />
               </div>
-              <div className="absolute right-0 top-2 hidden md:block lg:block">
+              <div className="snap-center shrink-0">
                 <BudgetCard />
               </div>
-              <div className="absolute bottom-0 left-2 hidden md:block lg:block">
+            </div>
+
+            {/* Desktop: overlapping cards at explicit positions */}
+            <div className="hidden lg:block relative mx-auto h-full w-full max-w-[520px]">
+              {/* Balance card — anchored left, z-index 1 */}
+              <div className="absolute left-0 top-0 z-10">
+                <BalanceCard />
+              </div>
+              {/* Budget card — top-right, z-index 2, no overlap with balance chart */}
+              <div className="absolute right-0 top-8 z-20">
+                <BudgetCard />
+              </div>
+              {/* Savings gauge — bottom-left, z-index 3, clear of all content */}
+              <div className="absolute bottom-0 left-12 z-30">
                 <SavingsGauge />
               </div>
-              <div className="absolute bottom-1 right-4 hidden lg:block">
+              {/* Daily spend — bottom-right, z-index 4, below other cards */}
+              <div className="absolute bottom-8 right-12 z-40">
                 <DailySpend />
               </div>
-            </HeroParallax>
 
-            <CalloutChip icon={CHIPS[0].icon} label={CHIPS[0].label} position={CHIPS[0].style} rotate={CHIPS[0].rotate} delay={0.5} />
-            <CalloutChip icon={CHIPS[1].icon} label={CHIPS[1].label} position={CHIPS[1].style} rotate={CHIPS[1].rotate} delay={0.6} />
-            <CalloutChip icon={CHIPS[2].icon} label={CHIPS[2].label} position={CHIPS[2].style} className="hidden md:flex" rotate={CHIPS[2].rotate} delay={0.7} />
-            <CalloutChip icon={CHIPS[3].icon} label={CHIPS[3].label} position={CHIPS[3].style} className="hidden md:flex" rotate={CHIPS[3].rotate} delay={0.8} />
+              {/* Callout chips — z-index 5, positioned in gutters outside card bounds */}
+              <CalloutChip icon={CHIPS[0].icon} label={CHIPS[0].label} position={CHIPS[0].style} rotate={CHIPS[0].rotate} delay={0.5} />
+              <CalloutChip icon={CHIPS[1].icon} label={CHIPS[1].label} position={CHIPS[1].style} rotate={CHIPS[1].rotate} delay={0.6} />
+              <CalloutChip icon={CHIPS[2].icon} label={CHIPS[2].label} position={CHIPS[2].style} rotate={CHIPS[2].rotate} delay={0.7} />
+              <CalloutChip icon={CHIPS[3].icon} label={CHIPS[3].label} position={CHIPS[3].style} rotate={CHIPS[3].rotate} delay={0.8} />
+            </div>
           </motion.div>
         </div>
 
         <motion.footer
           variants={item}
-          className="flex items-center justify-between text-[13px] font-medium text-[#6b7482]"
+          className="flex flex-col items-start gap-1.5 text-[13px] font-medium text-[#6b7482]"
         >
           <span className="font-auth">© 2026 Batua</span>
-          <span className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-md auth-gradient">
-              <Lock className="h-2.5 w-2.5 text-white" strokeWidth={2.4} aria-hidden="true" />
-            </span>
-            Your data never leaves this device
+          <span className="text-[12px] text-[#6b7482]">
+            Sample data · stored on this device
           </span>
         </motion.footer>
       </motion.div>
@@ -476,6 +492,13 @@ function HeroParallax({
 
   useEffect(() => {
     if (reduce) return undefined;
+    // Also disable on touch devices for performance
+    const isTouch = typeof window !== "undefined" && (
+      window.matchMedia("(pointer: coarse)").matches ||
+      "ontouchstart" in window
+    );
+    if (isTouch) return undefined;
+
     const el = ref.current;
     if (!el) return undefined;
 
@@ -754,6 +777,8 @@ export default function LoginPage() {
 
       <BrandPanel />
 
+      <div className="auth-panel-seam hidden lg:block" aria-hidden="true" />
+
       <main className="relative z-10 order-1 min-h-0 overflow-y-auto px-4 py-8 sm:px-10 lg:order-2 lg:flex lg:px-14 lg:py-0">
         <motion.div
           variants={reduce ? noMotion : staggerContainer}
@@ -761,20 +786,15 @@ export default function LoginPage() {
           animate="show"
           className="m-auto w-full max-w-[420px]"
         >
-          <motion.div variants={item} className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl auth-gradient">
-              <Logo className="h-6 w-6" />
-            </span>
-            <span className="font-brand text-[19px] font-semibold text-[color:var(--auth-ink)]">
-              Batua
-            </span>
-          </motion.div>
-
           {/* The sign-in card — frosted glass, soft glow border that
               lights up while any field inside has focus. */}
-          <motion.div variants={item} className="auth-signin-card">
+          <motion.div variants={item} className="auth-signin-card auth-top-highlight">
             <motion.div variants={item} className="flex flex-col items-center text-center">
-              <span className="rounded-full border border-[color:var(--auth-line)] bg-[color:var(--auth-surface)] px-3 py-1 text-[12px] font-medium text-[color:var(--auth-ink-2)]">
+              <span className="relative flex items-center gap-2 rounded-full border border-[color:var(--auth-line)] bg-[color:var(--auth-surface)] px-3 py-1 text-[12px] font-medium text-[color:var(--auth-ink-2)]">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--auth-accent)] opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--auth-accent)]" />
+                </span>
                 {mode === "login" ? "Welcome back" : "New account"}
               </span>
               <motion.h1
@@ -891,18 +911,10 @@ export default function LoginPage() {
                 loading={busy}
                 loadingLabel={mode === "login" ? "Signing in…" : "Creating account…"}
                 disabled={succeeded}
+                success={succeeded}
                 withArrow={!succeeded}
               >
-                {succeeded ? (
-                  <>
-                    <Check className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
-                    Signed in
-                  </>
-                ) : mode === "login" ? (
-                  "Sign in"
-                ) : (
-                  "Create account"
-                )}
+                {succeeded ? "Signed in" : mode === "login" ? "Sign in" : "Create account"}
               </AuthButton>
 
               {/* Passkey path — only when the browser can actually do

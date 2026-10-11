@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,6 +20,8 @@ type AuthButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   loadingLabel?: string;
   /** Show the arrow that slides in on hover (primary CTA). */
   withArrow?: boolean;
+  /** Show success state (checkmark + different styling). */
+  success?: boolean;
 };
 
 export function AuthButton({
@@ -27,6 +29,7 @@ export function AuthButton({
   loading = false,
   loadingLabel = "Signing in…",
   withArrow = false,
+  success = false,
   className,
   children,
   disabled,
@@ -48,6 +51,7 @@ export function AuthButton({
           : variant === "primary"
           ? "auth-sheen bg-[color:var(--auth-accent)] text-[color:var(--auth-accent-ink)] shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_8px_24px_-8px_rgba(16,185,129,0.45)] hover:-translate-y-px hover:bg-[color:var(--auth-accent-hover)] hover:brightness-[1.06] active:translate-y-0 active:scale-[0.985]"
           : "border border-[color:var(--auth-line-strong)] bg-transparent text-[color:var(--auth-ink-2)] transition-colors hover:border-[color:var(--auth-line-strong)] hover:bg-[color:var(--auth-surface)] hover:text-[color:var(--auth-ink)] active:scale-[0.985]",
+        success && "bg-[color:var(--auth-accent)] hover:bg-[color:var(--auth-accent)] hover:translate-y-0",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
         className
       )}
@@ -57,6 +61,11 @@ export function AuthButton({
         <>
           <span className="auth-spinner" aria-hidden="true" />
           {loadingLabel}
+        </>
+      ) : success ? (
+        <>
+          <Check className="h-4 w-4" aria-hidden="true" />
+          {children}
         </>
       ) : (
         <>
