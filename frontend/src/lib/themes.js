@@ -217,7 +217,9 @@ export function applyAccent(accentId, mode, customColor) {
  * the old frame, applies the theme (the `dark` class flip), captures the new
  * frame, and cross-fades them. A `clip-path: circle()` keyframe on the new
  * frame (the `::view-transition-new(root)` pseudo-element, animated from
- * index.css) makes the new theme grow from the click point across the screen.
+ * index.css) makes the new theme grow from the click point across the
+ * screen, while the old frame fades out underneath (index.css
+ * `auth-vt-old-fade`) instead of snapping to invisible.
  *
  * Falls back to applying the theme immediately when the API is missing
  * (older browsers) or the OS asks for reduced motion — no animation then,
@@ -254,7 +256,7 @@ export function revealTheme(applyTheme, origin) {
     const vt = start.call(document, applyTheme);
     vt.ready
       .then(() => {
-        document.documentElement.animate(
+        const anim = document.documentElement.animate(
           { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
           {
             duration: 560,
@@ -262,6 +264,10 @@ export function revealTheme(applyTheme, origin) {
             pseudoElement: "::view-transition-new(root)",
           }
         );
+        // The transition ends when the longest-running animation
+        // finishes; the clip is the last thing on screen, so wait
+        // for it rather than the (shorter) old-frame fade.
+        return anim.finished;
       })
       .catch(() => {
         /* the reveal is decorative — the theme itself already applied */

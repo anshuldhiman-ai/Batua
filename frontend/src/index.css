@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
 
 /* Rostex-Regular — local brand wordmark font.
    Lives next to this file at src/fonts/Rostex-Regular.ttf — relative URL
@@ -25,23 +25,23 @@
 
 /* Theme circular-reveal (View Transitions API). When `revealTheme` runs,
    the browser cross-fades the old/new frames under ::view-transition-old/new.
-   We disable the default cross-fade so the new theme is revealed purely by the
+   The old frame fades out gently while the new theme is revealed by the
    clip-path circle keyframe (animated from themes.js `revealTheme`) growing
-   from the toggle button. Without these rules the default fade fights the
-   circular wipe. Reduced-motion / unsupported browsers skip the transition
-   entirely (handled in JS), so the theme still changes instantly there. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 0s;
-  animation-delay: 0s;
-  mix-blend-mode: normal;
-}
+   from the toggle button. Without these rules the browser's default
+   cross-fade fights the circular wipe. Reduced-motion / unsupported
+   browsers skip the transition entirely (handled in JS), so the theme
+   still changes instantly there. */
 ::view-transition-old(root) {
-  /* Old theme stays put underneath; the new theme's circle wipes over it. */
+  /* Old theme fades away under the wipe instead of snapping out. */
   z-index: 1;
+  animation: auth-vt-old-fade 0.28s ease-out both;
 }
 ::view-transition-new(root) {
   z-index: 2147483646;
+}
+@keyframes auth-vt-old-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @layer base {
@@ -339,7 +339,12 @@
    ui/auth primitives) and exist separately from the app-wide
    `--background`/`--card` scale above so a theme accent change never
    re-tints the auth palette. Both palettes are dark-first; the light
-   set is used when the page is not `.dark`. */
+   set is used when the page is not `.dark`.
+
+   Auth typography: the brand panel runs Manrope (geometric, premium
+   editorial feel — wider apertures and taller x-height than Outfit,
+   so big headlines read clean at display sizes), while the sign-in
+   card keeps Plus Jakarta Sans from the app body scale. */
 /* ------------------------------------------------------------------ */
 :root {
   --auth-page: #EEF3EE;
@@ -565,6 +570,13 @@
   .auth-spotlight {
     display: none;
   }
+}
+
+/* The brand panel's display face — Manrope, a geometric
+   sans with wide apertures that reads "premium fintech"
+   at large sizes without a heavy display license. */
+.font-auth {
+  font-family: "Manrope", "Outfit", sans-serif;
 }
 
 @keyframes auth-float {
@@ -810,14 +822,19 @@ input:checked + .auth-check-glyph .auth-check-path {
 }
 
 /* Hero idle-drift — each card floats on its own period so the
-   cluster breathes as a whole rather than in lockstep. */
+   cluster breathes as a whole rather than in lockstep.
+   The translate is a CSS variable so a card's own rotate
+   (Tailwind `rotate-*`) survives: transform composes as
+   `rotate(var(--auth-tilt)) translateY(...)` instead of the
+   animation overwriting the class's transform, which made
+   cards lose their tilt and collide — the "crashy" hero. */
 @keyframes auth-drift-card {
   0%,
   100% {
-    transform: translateY(0);
+    transform: rotate(var(--auth-tilt, 0deg)) translateY(0);
   }
   50% {
-    transform: translateY(-7px);
+    transform: rotate(var(--auth-tilt, 0deg)) translateY(-7px);
   }
 }
 .auth-card {

@@ -53,7 +53,11 @@ describe("LoginPage renders content", () => {
     expect(
       screen.getByRole("heading", { name: /sign in/i, level: 1 })
     ).toBeInTheDocument();
-    expect(screen.getByText(/your data never leaves this device/i)).toBeInTheDocument();
+    // Both the brand footer and the card trust row carry it —
+    // query all of them rather than a single instance.
+    expect(
+      screen.getAllByText(/your data never leaves this device/i).length
+    ).toBeGreaterThan(0);
     expect(
       screen.getByRole("button", { name: /sign in/i })
     ).toBeInTheDocument();

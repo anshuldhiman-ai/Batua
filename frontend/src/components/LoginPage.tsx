@@ -86,7 +86,7 @@ function BalanceCard() {
     >
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-[12px] font-medium uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
+          <p className="font-auth text-[12px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
             Total balance
           </p>
           <p
@@ -180,10 +180,11 @@ function BudgetCard() {
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...ease, delay: 0.22 }}
-      className="auth-card auth-depth-1 w-[190px] rotate-[-2.5deg] p-4"
+      className="auth-card auth-depth-1 w-[190px] p-4"
+      style={{ "--auth-tilt": "-2.5deg" } as React.CSSProperties}
       aria-hidden="true"
     >
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
+      <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
         Monthly budget used
       </p>
       <p className="mt-1 text-[20px] font-semibold tracking-[-0.01em] tabular-nums text-[color:var(--auth-ink)]">
@@ -223,10 +224,11 @@ function SavingsGauge() {
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...ease, delay: 0.32 }}
-      className="auth-card auth-depth-0 w-[168px] rotate-[2deg] p-4"
+      className="auth-card auth-depth-0 w-[168px] p-4"
+      style={{ "--auth-tilt": "2deg" } as React.CSSProperties}
       aria-hidden="true"
     >
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
+      <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
         Savings rate
       </p>
       <svg viewBox="0 0 120 66" className="mt-1 h-[64px] w-full" aria-hidden="true">
@@ -271,10 +273,11 @@ function DailySpend() {
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...ease, delay: 0.42 }}
-      className="auth-card auth-depth-1 w-[150px] rotate-[-1.5deg] p-4"
+      className="auth-card auth-depth-1 w-[150px] p-4"
+      style={{ "--auth-tilt": "-1.5deg" } as React.CSSProperties}
       aria-hidden="true"
     >
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
+      <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
         Daily spending
       </p>
       <div className="mt-3 flex h-16 items-end gap-1.5">
@@ -351,7 +354,7 @@ function CalloutChip({
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] auth-gradient text-white shadow-sm">
         <Icon className="h-4 w-4" strokeWidth={2} />
       </span>
-      <span className="whitespace-nowrap text-[12.5px] font-medium text-[color:var(--auth-ink)]">
+      <span className="whitespace-nowrap font-auth text-[12.5px] font-semibold text-[color:var(--auth-ink)]">
         {label}
       </span>
     </motion.div>
@@ -392,17 +395,19 @@ function BrandPanel() {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl auth-gradient">
             <Logo className="h-6 w-6" />
           </span>
-          <span className="font-brand text-[19px] font-semibold text-white">Batua</span>
+          <span className="font-auth text-[20px] font-bold tracking-[-0.01em] text-white">
+            Batua
+          </span>
         </motion.div>
 
         <div className="my-auto flex flex-col gap-9">
           <motion.div variants={item} className="max-w-[460px] space-y-4">
-            <h2 className="text-[32px] font-semibold leading-[1.15] tracking-[-0.02em] text-white lg:text-[40px] lg:leading-[1.12]">
+            <h2 className="font-auth text-[32px] font-bold leading-[1.15] tracking-[-0.025em] text-white lg:text-[42px] lg:leading-[1.1]">
               Your money,
               <br />
               <span className="auth-gradient-text">kept on your device.</span>
             </h2>
-            <p className="max-w-[400px] text-[14px] leading-relaxed text-[#a3acb9] lg:text-[15px]">
+            <p className="max-w-[400px] text-[14px] font-medium leading-relaxed text-[#a3acb9] lg:text-[15px]">
               Track every rupee without uploading a single transaction.
               Your finances stay on this device.
             </p>
@@ -438,11 +443,16 @@ function BrandPanel() {
           </motion.div>
         </div>
 
-        <motion.footer variants={item} className="flex items-baseline justify-between text-[13px] text-[#6b7482]">
-          <span>© 2026 Batua</span>
-          <span className="flex items-center gap-1.5">
-            <Lock className="h-3 w-3" aria-hidden="true" />
-            Sample data · stored on this device
+        <motion.footer
+          variants={item}
+          className="flex items-center justify-between text-[13px] font-medium text-[#6b7482]"
+        >
+          <span className="font-auth">© 2026 Batua</span>
+          <span className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md auth-gradient">
+              <Lock className="h-2.5 w-2.5 text-white" strokeWidth={2.4} aria-hidden="true" />
+            </span>
+            Your data never leaves this device
           </span>
         </motion.footer>
       </motion.div>

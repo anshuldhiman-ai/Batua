@@ -67,7 +67,12 @@ export function useTheme(): ThemeContextValue {
     DEFAULT_CUSTOM_COLOR
   );
 
-  React.useEffect(() => {
+  // Reconciles the `dark` class with the stored theme. useLayoutEffect
+  // (not useEffect) so the class is in place before the browser's next
+  // paint — and, critically, before a View Transition captures its new
+  // frame. A passive effect can land after that capture, which makes the
+  // old and new frames identical and the browser skips the reveal.
+  React.useLayoutEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
@@ -85,10 +90,17 @@ export function useTheme(): ThemeContextValue {
     applyAccent(accent, theme, customColor);
   }, [accent, theme, customColor]);
 
-  const toggle = React.useCallback(
-    () => setTheme((t) => (t === "dark" ? "light" : "dark")),
-    [setTheme]
-  );
+  const toggle = React.useCallback(() => {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+    // Flip the class synchronously too — not just for this
+    // render. `startViewTransition` snapshots the DOM right
+    // after its update callback returns, which can be before
+    // even useLayoutEffect has flushed; flipping here guarantees
+    // the captured frame is the new theme.
+    const root = document.documentElement;
+    const next = theme === "dark" ? "light" : "dark";
+    root.classList.toggle("dark", next === "dark");
+  }, [setTheme, theme]);
   const toggleAt = React.useCallback(
     (origin: { x: number; y: number }) => revealTheme(toggle, origin),
     [toggle]
