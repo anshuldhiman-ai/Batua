@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
  */
 
 type AuthButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "gradient";
   /** Show the loading micro-state (spinner + disabled + "Signing in…"). */
   loading?: boolean;
   /** Replaces the label while `loading`. */
@@ -39,11 +39,13 @@ export function AuthButton({
       aria-disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        "group flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] text-[15px] font-medium",
+        "group flex h-12 w-full items-center justify-center gap-1.5 rounded-full text-[15px] font-medium",
         "transition-all duration-200 ease-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)] focus-visible:ring-offset-2",
         "focus-visible:ring-offset-[color:var(--auth-panel)]",
-        variant === "primary"
+        variant === "gradient"
+          ? "auth-gradient auth-sheen text-[color:var(--auth-accent-ink)] shadow-[0_12px_28px_-8px_rgba(63,191,132,0.5)] hover:-translate-y-px hover:brightness-[1.05] hover:shadow-[0_16px_32px_-8px_rgba(63,191,132,0.55)] active:translate-y-0 active:scale-[0.98]"
+          : variant === "primary"
           ? "auth-sheen bg-[color:var(--auth-accent)] text-[color:var(--auth-accent-ink)] shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_8px_24px_-8px_rgba(16,185,129,0.45)] hover:-translate-y-px hover:bg-[color:var(--auth-accent-hover)] hover:brightness-[1.06] active:translate-y-0 active:scale-[0.985]"
           : "border border-[color:var(--auth-line-strong)] bg-transparent text-[color:var(--auth-ink-2)] transition-colors hover:border-[color:var(--auth-line-strong)] hover:bg-[color:var(--auth-surface)] hover:text-[color:var(--auth-ink)] active:scale-[0.985]",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",

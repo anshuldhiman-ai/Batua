@@ -342,93 +342,123 @@
    set is used when the page is not `.dark`. */
 /* ------------------------------------------------------------------ */
 :root {
-  --auth-page: #f6f8f9;
-  --auth-panel: #ffffff;
-  --auth-surface: #f1f4f5;
-  --auth-surface-2: #e8edf0;
-  --auth-ink: #10151a;
-  --auth-ink-2: #3d4753;
-  --auth-ink-3: #5c6672;
-  --auth-line: rgba(16, 21, 26, 0.12);
-  --auth-line-strong: rgba(16, 21, 26, 0.22);
-  --auth-accent: #0f9d6e;
-  --auth-accent-hover: #0b8a5f;
+  --auth-page: #EEF3EE;
+  --auth-panel: rgba(255, 255, 255, 0.65);
+  --auth-surface: rgba(255, 255, 255, 0.55);
+  --auth-surface-2: rgba(255, 255, 255, 0.4);
+  --auth-ink: #1B2A1F;
+  --auth-ink-2: #3D4E43;
+  --auth-ink-3: #7A8A7E;
+  --auth-line: rgba(255, 255, 255, 0.8);
+  --auth-line-strong: rgba(255, 255, 255, 0.95);
+  --auth-track: #D9DED9;
+  --auth-accent: #3FBF84;
+  --auth-accent-hover: #2FA96F;
+  --auth-accent-deep: #1F8F5B;
+  --auth-accent-soft: rgba(63, 191, 132, 0.14);
   --auth-accent-ink: #ffffff;
-  --auth-error: #d92d20;
-  --auth-warning: #b45309;
-  --auth-shadow-sm: 0 1px 2px rgba(16, 21, 26, 0.06);
-  --auth-shadow-md: 0 1px 2px rgba(16, 21, 26, 0.05), 0 8px 24px rgba(16, 21, 26, 0.08);
-  /* Aurora atmosphere — single-hue emerald family at very
-     low alpha. One accent color, kept subtle. */
-  --auth-glow-a: rgba(15, 157, 110, 0.14);
-  --auth-glow-b: rgba(20, 184, 166, 0.09);
-  --auth-glow-c: rgba(15, 157, 110, 0.07);
-  --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #101820 0%, #0b0f14 55%, #090d11 100%);
+  --auth-gradient: linear-gradient(120deg, #B5E864 0%, #3FBF84 100%);
+  --auth-error: #C63A2E;
+  --auth-error-soft: rgba(198, 58, 46, 0.14);
+  --auth-warning: #9A6A0A;
+  --auth-shadow-sm: 0 1px 2px rgba(20, 60, 40, 0.05);
+  --auth-shadow-md: 0 1px 2px rgba(20, 60, 40, 0.04), 0 24px 60px -12px rgba(20, 60, 40, 0.10);
+  --auth-glass: rgba(255, 255, 255, 0.65);
+  --auth-glass-border: rgba(255, 255, 255, 0.8);
+  /* Aurora atmosphere — pale mint family at very
+     low alpha over the off-white page. */
+  --auth-glow-a: rgba(140, 220, 160, 0.35);
+  --auth-glow-b: rgba(63, 191, 132, 0.22);
+  --auth-glow-c: rgba(181, 232, 100, 0.28);
+  --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #101a14 0%, #0b0f0d 55%, #090d0b 100%);
 }
 .dark {
-  --auth-page: #0b0f14;
-  --auth-panel: #11161d;
-  --auth-surface: #161c25;
-  --auth-surface-2: #1c242f;
-  --auth-ink: #f3f5f7;
-  --auth-ink-2: #a3acb9;
-  --auth-ink-3: #8b95a3;
+  --auth-page: #0A0F0D;
+  --auth-panel: rgba(255, 255, 255, 0.04);
+  --auth-surface: rgba(255, 255, 255, 0.06);
+  --auth-surface-2: rgba(255, 255, 255, 0.03);
+  --auth-ink: #EDF3EF;
+  --auth-ink-2: #AEC2B5;
+  --auth-ink-3: #8CA396;
   --auth-line: rgba(255, 255, 255, 0.08);
-  --auth-line-strong: rgba(255, 255, 255, 0.14);
-  --auth-accent: #10b981;
-  --auth-accent-hover: #34d399;
+  --auth-line-strong: rgba(255, 255, 255, 0.16);
+  --auth-track: rgba(255, 255, 255, 0.1);
+  --auth-accent: #3FBF84;
+  --auth-accent-hover: #5AD69A;
+  --auth-accent-deep: #7FE3B0;
+  --auth-accent-soft: rgba(63, 191, 132, 0.16);
   --auth-accent-ink: #06281c;
-  --auth-error: #f87171;
-  --auth-warning: #fbbf24;
+  --auth-gradient: linear-gradient(120deg, #B5E864 0%, #3FBF84 100%);
+  --auth-error: #F0826F;
+  --auth-error-soft: rgba(240, 130, 111, 0.16);
+  --auth-warning: #E8B04B;
   --auth-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --auth-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
-  --auth-glow-a: rgba(16, 185, 129, 0.18);
-  --auth-glow-b: rgba(20, 184, 166, 0.12);
-  --auth-glow-c: rgba(79, 70, 229, 0.1);
-  --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #131b24 0%, #0b0f14 55%, #090d11 100%);
+  --auth-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.25), 0 24px 60px -12px rgba(0, 0, 0, 0.35);
+  --auth-glass: rgba(255, 255, 255, 0.05);
+  --auth-glass-border: rgba(255, 255, 255, 0.1);
+  --auth-glow-a: rgba(63, 191, 132, 0.2);
+  --auth-glow-b: rgba(20, 184, 166, 0.14);
+  --auth-glow-c: rgba(181, 232, 100, 0.12);
+  --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #131b16 0%, #0b0f0d 55%, #090d0b 100%);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not(.dark) {
-    --auth-page: #f6f8f9;
-    --auth-panel: #ffffff;
-    --auth-surface: #f1f4f5;
-    --auth-surface-2: #e8edf0;
-    --auth-ink: #10151a;
-    --auth-ink-2: #3d4753;
-    --auth-ink-3: #5c6672;
-    --auth-line: rgba(16, 21, 26, 0.12);
-    --auth-line-strong: rgba(16, 21, 26, 0.22);
-    --auth-accent: #0f9d6e;
-    --auth-accent-hover: #0b8a5f;
+    --auth-page: #EEF3EE;
+    --auth-panel: rgba(255, 255, 255, 0.65);
+    --auth-surface: rgba(255, 255, 255, 0.55);
+    --auth-surface-2: rgba(255, 255, 255, 0.4);
+    --auth-ink: #1B2A1F;
+    --auth-ink-2: #3D4E43;
+    --auth-ink-3: #7A8A7E;
+    --auth-line: rgba(255, 255, 255, 0.8);
+    --auth-line-strong: rgba(255, 255, 255, 0.95);
+    --auth-track: #D9DED9;
+    --auth-accent: #3FBF84;
+    --auth-accent-hover: #2FA96F;
+    --auth-accent-deep: #1F8F5B;
+    --auth-accent-soft: rgba(63, 191, 132, 0.14);
     --auth-accent-ink: #ffffff;
-    --auth-error: #d92d20;
-    --auth-warning: #b45309;
-    --auth-glow-a: rgba(15, 157, 110, 0.14);
-    --auth-glow-b: rgba(20, 184, 166, 0.09);
-    --auth-glow-c: rgba(15, 157, 110, 0.07);
+    --auth-gradient: linear-gradient(120deg, #B5E864 0%, #3FBF84 100%);
+    --auth-error: #C63A2E;
+    --auth-warning: #9A6A0A;
+    --auth-shadow-sm: 0 1px 2px rgba(20, 60, 40, 0.05);
+    --auth-shadow-md: 0 1px 2px rgba(20, 60, 40, 0.04), 0 24px 60px -12px rgba(20, 60, 40, 0.10);
+    --auth-glass: rgba(255, 255, 255, 0.65);
+    --auth-glass-border: rgba(255, 255, 255, 0.8);
+    --auth-glow-a: rgba(140, 220, 160, 0.35);
+    --auth-glow-b: rgba(63, 191, 132, 0.22);
+    --auth-glow-c: rgba(181, 232, 100, 0.28);
   }
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.dark) {
-    --auth-page: #0b0f14;
-    --auth-panel: #11161d;
-    --auth-surface: #161c25;
-    --auth-surface-2: #1c242f;
-    --auth-ink: #f3f5f7;
-    --auth-ink-2: #a3acb9;
-    --auth-ink-3: #8b95a3;
+    --auth-page: #0A0F0D;
+    --auth-panel: rgba(255, 255, 255, 0.04);
+    --auth-surface: rgba(255, 255, 255, 0.06);
+    --auth-surface-2: rgba(255, 255, 255, 0.03);
+    --auth-ink: #EDF3EF;
+    --auth-ink-2: #AEC2B5;
+    --auth-ink-3: #8CA396;
     --auth-line: rgba(255, 255, 255, 0.08);
-    --auth-line-strong: rgba(255, 255, 255, 0.14);
-    --auth-accent: #10b981;
-    --auth-accent-hover: #34d399;
+    --auth-line-strong: rgba(255, 255, 255, 0.16);
+    --auth-track: rgba(255, 255, 255, 0.1);
+    --auth-accent: #3FBF84;
+    --auth-accent-hover: #5AD69A;
+    --auth-accent-deep: #7FE3B0;
+    --auth-accent-soft: rgba(63, 191, 132, 0.16);
     --auth-accent-ink: #06281c;
-    --auth-error: #f87171;
-    --auth-warning: #fbbf24;
-    --auth-glow-a: rgba(16, 185, 129, 0.18);
-    --auth-glow-b: rgba(20, 184, 166, 0.12);
-    --auth-glow-c: rgba(79, 70, 229, 0.1);
+    --auth-gradient: linear-gradient(120deg, #B5E864 0%, #3FBF84 100%);
+    --auth-error: #F0826F;
+    --auth-warning: #E8B04B;
+    --auth-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --auth-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.25), 0 24px 60px -12px rgba(0, 0, 0, 0.35);
+    --auth-glass: rgba(255, 255, 255, 0.05);
+    --auth-glass-border: rgba(255, 255, 255, 0.1);
+    --auth-glow-a: rgba(63, 191, 132, 0.2);
+    --auth-glow-b: rgba(20, 184, 166, 0.14);
+    --auth-glow-c: rgba(181, 232, 100, 0.12);
   }
 }
 /* Auth screen motion — only transform/opacity so everything
@@ -576,19 +606,6 @@
   animation: auth-shake 150ms ease-in-out;
 }
 
-@keyframes auth-spark-draw {
-  from {
-    stroke-dashoffset: 60;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-.auth-spark-line {
-  stroke-dasharray: 60;
-  animation: auth-spark-draw 900ms ease-out both;
-}
-
 /* Count-up for the balance figure — tabular-nums keeps the
    width constant so the number never jitters as it climbs. */
 @keyframes auth-count-up {
@@ -672,6 +689,205 @@ input:checked + .auth-check-glyph .auth-check-path {
 .auth-sheen:hover::after {
   transform: translateX(120%);
 }
+
+/* ------------------------------------------------------------------ */
+/* Soft-glass system (login redesign)                                   */
+/* ------------------------------------------------------------------ */
+
+/* The signature accent gradient. Used on the primary button,
+   active states, chart fills, and meters — nothing else. */
+.auth-gradient {
+  background: var(--auth-gradient);
+}
+.auth-gradient-text {
+  background: var(--auth-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Frosted-glass card. Fallback for browsers without
+   backdrop-filter: a solid-enough surface to read on. */
+.auth-card {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid var(--auth-glass-border);
+  background: var(--auth-glass);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: var(--auth-shadow-md);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-card {
+    background: var(--auth-panel);
+  }
+}
+
+/* Depth tiers for the hero cluster — the bigger the number,
+   the "higher" the card floats (larger, softer shadow). */
+.auth-depth-0 {
+  box-shadow: 0 1px 2px rgba(20, 60, 40, 0.05), 0 12px 32px -8px rgba(20, 60, 40, 0.12);
+}
+.auth-depth-1 {
+  box-shadow: 0 1px 2px rgba(20, 60, 40, 0.05), 0 20px 48px -12px rgba(20, 60, 40, 0.16);
+}
+.auth-depth-2 {
+  box-shadow: 0 1px 2px rgba(20, 60, 40, 0.05), 0 32px 64px -16px rgba(20, 60, 40, 0.22);
+}
+.dark .auth-depth-0 {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px -8px rgba(0, 0, 0, 0.3);
+}
+.dark .auth-depth-1 {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 20px 48px -12px rgba(0, 0, 0, 0.38);
+}
+.dark .auth-depth-2 {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 32px 64px -16px rgba(0, 0, 0, 0.45);
+}
+
+/* The sign-in card — larger radius, and a soft glow border that
+   lights up while any field inside holds focus (focus-within). */
+.auth-signin-card {
+  position: relative;
+  border-radius: 28px;
+  border: 1px solid var(--auth-glass-border);
+  background: var(--auth-glass);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: var(--auth-shadow-md);
+  padding: 32px;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.auth-signin-card:focus-within {
+  border-color: var(--auth-accent);
+  box-shadow:
+    var(--auth-shadow-md),
+    0 0 0 4px var(--auth-accent-soft);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-signin-card {
+    background: var(--auth-panel);
+  }
+}
+
+/* Rounded pill toggle switch — the "Remember this device" control.
+   The native checkbox stays the real input (keyboard, a11y); only
+   its presentation changes. */
+.auth-toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex: none;
+  border-radius: 9999px;
+  border: 1px solid var(--auth-line-strong);
+  background: var(--auth-track);
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.auth-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.auth-toggle:checked {
+  background: var(--auth-gradient);
+  border-color: transparent;
+}
+.auth-toggle:checked::after {
+  transform: translateX(18px);
+}
+.auth-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--auth-accent-soft);
+}
+
+/* Hero idle-drift — each card floats on its own period so the
+   cluster breathes as a whole rather than in lockstep. */
+@keyframes auth-drift-card {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+.auth-card {
+  animation: auth-drift-card 5.5s ease-in-out infinite;
+}
+.auth-depth-1 {
+  animation-duration: 6.8s;
+  animation-delay: -1.6s;
+}
+.auth-depth-2 {
+  animation-duration: 7.6s;
+  animation-delay: -3.1s;
+}
+
+/* Segment / bar fill — grows from the bottom on mount. */
+@keyframes auth-fill-in {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.auth-fill-in {
+  animation: auth-fill-in 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Budget segments fill horizontally, not vertically. */
+.auth-segment {
+  animation-name: auth-fill-in-x;
+  transform-origin: left;
+}
+@keyframes auth-fill-in-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Gauge arc sweep — the dashoffset runs from full to the
+   held value (50% of the semicircle). */
+@keyframes auth-gauge-sweep {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0.5;
+  }
+}
+.auth-gauge-sweep {
+  animation: auth-gauge-sweep 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Line draw-in for charts using pathLength="1" — the dash
+   runs the full path, so the offset is 1 → 0, not px. */
+@keyframes auth-spark-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.auth-spark-line {
+  stroke-dasharray: 1;
+  animation: auth-spark-draw 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 
 /* Top-edge highlight line for elevated glass surfaces —
    the "inner 1px highlight" that gives depth without a glow. */

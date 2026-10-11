@@ -1,4 +1,5 @@
 import React from "react";
+import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import { AuthInput } from "./input";
 import { cn } from "@/lib/utils";
@@ -78,13 +79,22 @@ export const PasswordInput = React.forwardRef<
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? "Hide password" : "Show password"}
           aria-pressed={visible}
-          className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-md text-[color:var(--auth-ink-3)] transition-colors hover:text-[color:var(--auth-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
+          className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl text-[color:var(--auth-ink-3)] transition-colors duration-150 hover:text-[color:var(--auth-ink)] hover:bg-[color:var(--auth-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
         >
-          {visible ? (
-            <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.5} />
-          ) : (
-            <Eye className="h-[18px] w-[18px]" strokeWidth={1.5} />
-          )}
+          <span className="relative flex h-[18px] w-[18px] items-center justify-center">
+            <motion.span
+              initial={false}
+              animate={{ scale: visible ? [1, 0.75, 1] : 1, opacity: 1 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="flex"
+            >
+              {visible ? (
+                <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              ) : (
+                <Eye className="h-[18px] w-[18px]" strokeWidth={1.5} />
+              )}
+            </motion.span>
+          </span>
         </button>
       }
       {...props}
