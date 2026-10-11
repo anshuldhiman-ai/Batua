@@ -208,3 +208,67 @@ export function applyAccent(accentId, mode, customColor) {
   root.style.setProperty("--accent", vars.accent);
   root.style.setProperty("--accent-foreground", vars.accentForeground);
 }
+
+/**
+ * Switch the theme with a circular reveal that expands outward from the
+ * toggle button, instead of the whole page cross-fading at once.
+ *
+ * The mechanism is the View Transitions API: `startViewTransition` captures
+ * the old frame, applies the theme (the `dark` class flip), captures the new
+ * frame, and cross-fades them. A `clip-path: circle()` keyframe on the new
+ * frame (the `::view-transition-new(root)` pseudo-element, animated from
+ * index.css) makes the new theme grow from the click point across the screen.
+ *
+ * Falls back to applying the theme immediately when the API is missing
+ * (older browsers) or the OS asks for reduced motion — no animation then,
+ * the theme still changes. `applyTheme` is the actual class flip, supplied
+ * by the caller so this stays a pure presentation helper.
+ *
+ * @param {() => void} applyTheme - flips the `dark` class + persists the choice
+ * @param {{ x: number, y: number }} [origin] - click point; defaults to top-right
+ */
+export function revealTheme(applyTheme, origin) {
+  if (typeof document === "undefined") {
+    applyTheme();
+    return;
+  }
+  const reduce =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const start = document.startViewTransition;
+  if (reduce || typeof start !== "function") {
+    applyTheme();
+    return;
+  }
+
+  const x = origin?.x ?? window.innerWidth - 40;
+  const y = origin?.y ?? 40;
+  // Radius large enough to reach the farthest corner from the click point.
+  const radius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y)
+  );
+
+  try {
+    const vt = start.call(document, applyTheme);
+    vt.ready
+      .then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+          {
+            duration: 560,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          }
+        );
+      })
+      .catch(() => {
+        /* the reveal is decorative — the theme itself already applied */
+      });
+  } catch {
+    // If startViewTransition throws (e.g. an existing transition mid-flight),
+    // make sure the theme still applies.
+    applyTheme();
+  }
+}

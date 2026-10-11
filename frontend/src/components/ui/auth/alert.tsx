@@ -28,8 +28,8 @@ export function AuthAlert({
       className={cn(
         "flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm",
         isError
-          ? "border-[color:var(--auth-error)]/40 bg-[color:var(--auth-error)]/10 text-[color:var(--auth-error)]"
-          : "border-[color:var(--auth-warning)]/40 bg-[color:var(--auth-warning)]/10 text-[color:var(--auth-warning)]",
+          ? "border-[color:var(--auth-error)] bg-[color:var(--auth-surface)] text-[color:var(--auth-error)]"
+          : "border-[color:var(--auth-warning)] bg-[color:var(--auth-surface)] text-[color:var(--auth-warning)]",
         className
       )}
     >

@@ -113,6 +113,9 @@ class UserDB(SQLModel, table=True):
     # Sign-in log, JSON-serialized. SQLite columns can't hold a
     # Python list, so auth serializes it before writing.
     login_history: Optional[str] = Field(default=None, nullable=True)
+    # Session log (sign-in time / duration / exit time),
+    # JSON-serialized for the same reason.
+    session_log: Optional[str] = Field(default=None, nullable=True)
 
 
 _MODEL_MAP = {
@@ -148,11 +151,12 @@ def _to_dict(obj: Any, collection: str) -> Dict[str, Any]:
     # Prune only None values so the response matches MongoDB's dynamic-document
     # behaviour (MongoDB keeps empty-string fields; SQLite must too).
     result = {k: v for k, v in d.items() if v is not None}
-    if "login_history" in result and isinstance(result["login_history"], str):
-        try:
-            result["login_history"] = json.loads(result["login_history"])
-        except (json.JSONDecodeError, TypeError):
-            result["login_history"] = []
+    for _json_list in ("login_history", "session_log"):
+        if _json_list in result and isinstance(result[_json_list], str):
+            try:
+                result[_json_list] = json.loads(result[_json_list])
+            except (json.JSONDecodeError, TypeError):
+                result[_json_list] = []
     return result
 
 
@@ -167,8 +171,9 @@ def _to_model(doc: Dict[str, Any], collection: str) -> Any:
 
     # auth stores the sign-in log as JSON — a Python list can't
     # be passed to a model field typed as TEXT.
-    if "login_history" in clean_doc and not isinstance(clean_doc["login_history"], str):
-        clean_doc["login_history"] = json.dumps(clean_doc["login_history"])
+    for _json_list in ("login_history", "session_log"):
+        if _json_list in clean_doc and not isinstance(clean_doc[_json_list], str):
+            clean_doc[_json_list] = json.dumps(clean_doc[_json_list])
 
     return model_class(**clean_doc)
 
@@ -240,6 +245,12 @@ class SQLiteStorage:
         user_cols = {row[1] for row in result}
         if user_cols and "login_history" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN login_history TEXT DEFAULT NULL"))
+        # users.session_log — sign-in time / duration / exit time.
+        # Same rule as login_history: any new column on a SQLModel
+        # table needs an entry here or every read of `users` breaks
+        # on existing databases.
+        if user_cols and "session_log" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN session_log TEXT DEFAULT NULL"))
 
         # Check if custom_categories table exists, create if not
         result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
@@ -441,7 +452,7 @@ class SQLiteStorage:
                 # the stale value.
                 for key, val in doc.items():
                     if hasattr(db_obj, key):
-                        if key == "login_history" and not isinstance(val, str):
+                        if key in {"login_history", "session_log"} and not isinstance(val, str):
                             val = json.dumps(val)
                         setattr(db_obj, key, val)
                 session.add(db_obj)
@@ -468,7 +479,7 @@ class SQLiteStorage:
                         if hasattr(db_obj, key):
                             # auth stores the sign-in log as JSON —
                             # a Python list can't go in a TEXT column.
-                            if key == "login_history" and not isinstance(val, str):
+                            if key in {"login_history", "session_log"} and not isinstance(val, str):
                                 val = json.dumps(val)
                             setattr(db_obj, key, val)
 

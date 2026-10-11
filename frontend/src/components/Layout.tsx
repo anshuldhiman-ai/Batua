@@ -19,6 +19,7 @@ import {
   CircleHelp,
   LogOut,
   Search,
+  LayoutGrid,
 } from "lucide-react";
 
 import Tour from "@/components/Tour";
@@ -64,13 +65,27 @@ export function useNavSearch(): [string, (value: string) => void] {
   return [value, setNavSearch];
 }
 
+/** Routes that show the navbar search box — Dashboard and Transactions only. */
+const SEARCH_ROUTES = ["/dashboard", "/transactions"] as const;
+
+function routeHasSearch(pathname: string): boolean {
+  return SEARCH_ROUTES.some((r) => pathname.startsWith(r));
+}
+
 /**
- * Global search bar for the top navbar — middle of the bar on desktop,
- * below the bar on mobile. Typing here navigates to the Transactions
- * page and filters it live; clearing the box returns to the unfiltered
- * list.
+ * Scoped navbar search — rendered only on the Dashboard and Transactions
+ * pages, not app-wide. Typing navigates to Transactions (which filters live
+ * off the shared value). The placeholder names the page so the box reads as
+ * that page's search, not a global one. When the route leaves the searchable
+ * set the shared value is cleared so it never lingers into another page.
  */
-function NavSearchBar({ className }: { className?: string }) {
+function NavSearchBar({
+  className,
+  placeholder = "Search transactions…",
+}: {
+  className?: string;
+  placeholder?: string;
+}) {
   const [value, setValue] = useNavSearch();
   const debounced = useDebounce(value, 250);
   const navigate = useNavigate();
@@ -95,10 +110,10 @@ function NavSearchBar({ className }: { className?: string }) {
       <input
         type="search"
         data-testid="nav-search"
-        aria-label="Search transactions"
+        aria-label={placeholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search transactions…"
+        placeholder={placeholder}
         className={cn(
           "h-10 w-full rounded-xl border border-input bg-background pl-9 pr-9 text-sm",
           "placeholder:text-muted-foreground/70",
@@ -142,12 +157,28 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 function ThemeToggle({ className }) {
-  const { theme, toggle } = React.useContext(ThemeContext);
+  const { theme, toggle, toggleAt } = React.useContext(ThemeContext);
   const reduce = useReducedMotion();
   const isDark = theme === "dark";
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+
+  // Circular reveal grows from the button's centre. Falls back to the plain
+  // toggle (instant change) when the View Transitions API or layout metrics
+  // aren't available.
+  const onToggle = () => {
+    const el = btnRef.current;
+    if (el && typeof toggleAt === "function") {
+      const r = el.getBoundingClientRect();
+      toggleAt({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    } else {
+      toggle();
+    }
+  };
+
   return (
     <button
-      onClick={toggle}
+      ref={btnRef}
+      onClick={onToggle}
       data-testid="dark-mode-toggle"
       aria-label="Toggle dark mode"
       className={cn(
@@ -176,22 +207,44 @@ function ThemeToggle({ className }) {
 /* ─── Desktop top navbar ─────────────────────────────────────── */
 function DesktopTopNav() {
   const { logout } = useAuth();
+  const location = useLocation();
+  const showSearch = routeHasSearch(location.pathname);
+  const pageTitle = PAGE_TITLES[location.pathname];
   return (
     <header
       aria-label="Top navigation"
       className="fixed inset-x-0 top-0 z-40 hidden border-b border-border/50 bg-card/80 backdrop-blur-xl lg:block"
     >
       <div className="mx-auto flex h-16 w-full max-w-[calc(1600px+1.5rem)] items-center gap-4 px-6">
-        {/* Brand — left */}
+        {/* Brand — left. The wordmark sits on the logo's optical baseline:
+            Rostex's metrics leave extra space under "Batua", so leading-none
+            alone reads a touch high; the small translate centres it. */}
         <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
           <Logo className="h-9 w-9 shrink-0 rounded" />
-          <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
+          <span className="shrink-0 translate-y-px font-brand text-xl leading-none tracking-wide">
             Batua
           </span>
         </NavLink>
 
-        {/* Search — middle */}
-        <NavSearchBar className="mx-auto w-full max-w-md" />
+        {/* Middle — scoped search on Dashboard/Transactions; otherwise a
+            quiet page label so the bar never has a dead gap. */}
+        {showSearch ? (
+          <NavSearchBar
+            className="mx-auto w-full max-w-md"
+            placeholder={
+              location.pathname.startsWith("/dashboard")
+                ? "Search dashboard…"
+                : "Search transactions…"
+            }
+          />
+        ) : pageTitle ? (
+          <div className="mx-auto flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+            <span>{pageTitle}</span>
+          </div>
+        ) : (
+          <div className="mx-auto" />
+        )}
 
         {/* Actions — right */}
         <div className="flex shrink-0 items-center gap-2">
@@ -237,7 +290,7 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
       >
         <Logo className="h-11 w-11 shrink-0" />
         {!collapsed && (
-          <span className="hidden font-brand text-[22px] leading-none tracking-wide lg:inline">
+          <span className="hidden translate-y-px font-brand text-[22px] leading-none tracking-wide lg:inline">
             Batua
           </span>
         )}
@@ -330,6 +383,8 @@ function MobileNav() {
     setIsOpen(false);
   }, [location.pathname]);
 
+  const showSearch = routeHasSearch(location.pathname);
+
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
     return () => {
@@ -350,7 +405,7 @@ function MobileNav() {
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
           <Logo className="h-10 w-10 shrink-0 rounded" />
-          <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
+          <span className="shrink-0 translate-y-px font-brand text-xl leading-none tracking-wide">
             Batua
           </span>
         </NavLink>
@@ -376,12 +431,20 @@ function MobileNav() {
         </div>
       </div>
 
-      {/* Search — below the bar on small screens */}
-      <div
-        className="border-b border-border/40 bg-card/90 px-4 py-2 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]"
-      >
-        <NavSearchBar />
-      </div>
+      {/* Search — below the bar on small screens, Dashboard/Transactions only */}
+      {showSearch && (
+        <div
+          className="border-b border-border/40 bg-card/90 px-4 py-2 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]"
+        >
+          <NavSearchBar
+            placeholder={
+              location.pathname.startsWith("/dashboard")
+                ? "Search dashboard…"
+                : "Search transactions…"
+            }
+          />
+        </div>
+      )}
 
       <div
         className={cn(
@@ -452,6 +515,12 @@ export default function Layout({ splashVisible }: LayoutProps) {
     const path = location.pathname;
     const pageTitle = PAGE_TITLES[path] || "Batua";
     document.title = `${pageTitle} — Batua`;
+  }, [location.pathname]);
+
+  // Search is scoped to Dashboard + Transactions. Leaving those pages clears
+  // the shared value so a stale query never filters the next visit.
+  useEffect(() => {
+    if (!routeHasSearch(location.pathname)) setNavSearch("");
   }, [location.pathname]);
 
   // Pre-load AI Insights data on app mount for smoother experience

@@ -4,10 +4,13 @@ import { cn } from "@/lib/utils";
 /**
  * Labelled text field for the auth surface.
  *
- * The label is always above the input (never placeholder-only) —
- * placeholders are hints at most. Errors set `error`, which
- * adds the red border, the icon and the `aria-describedby`
- * message below the field.
+ * The label is always above the input (never
+ * placeholder-only) — placeholders are hints at
+ * most. Errors set `error`, which adds the red
+ * border, the icon and the `aria-describedby`
+ * message below the field. An optional leading
+ * `icon` (Lucide element) gives the field
+ * structure; it never replaces the label.
  */
 
 interface AuthInputProps
@@ -21,20 +24,15 @@ interface AuthInputProps
   labelAction?: React.ReactNode;
   /** Trailing element inside the input box (e.g. show/hide eye). */
   trailing?: React.ReactNode;
+  /** Leading icon inside the input (e.g. User, Lock). */
+  icon?: React.ReactNode;
+  /** Content shown under the field when there is no error or hint. */
+  footer?: React.ReactNode;
 }
 
 export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
   (
-    {
-      id,
-      label,
-      hint,
-      error,
-      labelAction,
-      trailing,
-      className,
-      ...props
-    },
+    { id, label, hint, error, labelAction, trailing, icon, footer, className, ...props },
     ref
   ) => {
     const errorId = `${id}-error`;
@@ -59,24 +57,36 @@ export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
           {labelAction}
         </div>
         <div className="relative">
+          {icon && (
+            <span
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--auth-ink-3)]"
+              aria-hidden="true"
+            >
+              {icon}
+            </span>
+          )}
           <input
             ref={ref}
             id={id}
             aria-invalid={error ? true : undefined}
             aria-describedby={describedBy}
             className={cn(
-              "h-12 w-full rounded-lg border bg-[color:var(--auth-surface)] px-3.5 py-2",
-              // 16px below sm so iOS doesn't zoom on focus; the
-              // spec's 15px body size applies once there's room.
+              "h-12 w-full rounded-[10px] border bg-[color:var(--auth-surface)] py-2",
+              "transition-all duration-150 ease-out",
               "text-base leading-[24px] text-[color:var(--auth-ink)] sm:text-[15px]",
               "placeholder:text-[color:var(--auth-ink-3)]",
-              "transition-colors",
+              // Hover brightens the border; focus is a 2px
+              // accent ring at 35% plus an accent border.
               "hover:border-[color:var(--auth-line-strong)]",
-              "focus:outline-none focus-visible:border-[color:var(--auth-accent)] focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]/40",
+              "focus:outline-none focus-visible:border-[color:var(--auth-accent)] focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]",
               "disabled:cursor-not-allowed disabled:opacity-50",
               error
-                ? "border-[color:var(--auth-error)] focus-visible:border-[color:var(--auth-error)]"
+                ? "border-[color:var(--auth-error)] focus-visible:border-[color:var(--auth-error)] focus-visible:ring-[color:var(--auth-error)]"
                 : "border-[color:var(--auth-line)]",
+              // Padding is computed explicitly — mixing px-*
+              // with pl-*/pr-* leaves the far side flush.
+              icon ? "pl-10 pr-3.5" : "px-3.5",
+              trailing ? "pr-11" : "",
               className
             )}
             {...props}
@@ -87,25 +97,26 @@ export const AuthInput = React.forwardRef<HTMLInputElement, AuthInputProps>(
             </div>
           )}
         </div>
-        {/* Fixed-height slot so the form never jumps when an
-            error appears or the strength meter mounts. */}
-        <div className="min-h-[18px] text-[13px] leading-[18px]">
-          {error && (
-            <p
-              id={errorId}
-              role="alert"
-              className="flex items-center gap-1.5 text-[color:var(--auth-error)]"
-            >
-              <ErrorGlyph aria-hidden="true" />
-              {error}
-            </p>
-          )}
-          {!error && hint && (
-            <p id={hintId} className="text-[color:var(--auth-ink-3)]">
-              {hint}
-            </p>
-          )}
-        </div>
+        {(error || (!error && (hint || footer))) && (
+          <div className="text-[13px] leading-[18px]">
+            {error && (
+              <p
+                id={errorId}
+                role="alert"
+                className="flex items-center gap-1.5 text-[color:var(--auth-error)]"
+              >
+                <ErrorGlyph aria-hidden="true" />
+                {error}
+              </p>
+            )}
+            {!error && hint && (
+              <p id={hintId} className="text-[color:var(--auth-ink-3)]">
+                {hint}
+              </p>
+            )}
+            {!error && !hint && footer}
+          </div>
+        )}
       </div>
     );
   }

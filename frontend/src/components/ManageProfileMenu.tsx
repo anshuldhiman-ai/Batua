@@ -8,6 +8,7 @@ import {
   LogOut,
   UserRound,
   UserCircle2,
+  ShieldCheck,
   X,
 } from "lucide-react";
 
@@ -114,6 +115,10 @@ interface ProfileWindowProps {
   logout: () => Promise<void>;
 }
 
+function ProfilePortal({ children }: { children: React.ReactNode }) {
+  return createPortal(children, document.body);
+}
+
 function ProfileWindow(p: ProfileWindowProps) {
   const {
     reduce,
@@ -174,10 +179,10 @@ function ProfileWindow(p: ProfileWindowProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={reduce ? undefined : { opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-auto max-h-[88vh] w-[min(400px,100%)] overflow-y-auto rounded-2xl border border-border/60 bg-card/95 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl"
+          className="pointer-events-auto flex max-h-[88vh] w-[min(620px,100%)] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-2xl shadow-black/20 backdrop-blur-xl"
         >
-        {/* Header */}
-        <div className="mb-4 flex items-center gap-3 border-b border-border/50 pb-4">
+        {/* Header — spans the full window width */}
+        <div className="flex items-center gap-3 border-b border-border/50 px-5 py-4">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
             {initials}
           </span>
@@ -189,6 +194,10 @@ function ProfileWindow(p: ProfileWindowProps) {
               {user?.email || "Local account"}
             </p>
           </div>
+          <span className="ml-2 hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 sm:flex">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            Local account
+          </span>
           <button
             type="button"
             onClick={close}
@@ -199,59 +208,74 @@ function ProfileWindow(p: ProfileWindowProps) {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-accent/40 p-1">
-          {(
-            [
-              ["overview", "Overview", UserRound],
-              ["history", "Sign-in log", History],
-              ["password", "Password", KeyRound],
-              ["username", "Username", UserRound],
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              data-testid={`profile-tab-${key}`}
-              aria-selected={tab === key}
-              className={cn(
-                "flex h-8 items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
-                tab === key
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Body — nav rail (left) + content pane (right). The rail is
+            icon-only on narrow screens, labelled on sm+. */}
+        <div className="flex min-h-0 flex-1">
+          <nav
+            aria-label="Profile sections"
+            className="flex w-14 shrink-0 flex-col gap-1 border-r border-border/50 p-2.5 sm:w-48 sm:p-3"
+          >
+            {(
+              [
+                ["overview", "Overview", UserRound],
+                ["history", "Sign-in log", History],
+                ["password", "Password", KeyRound],
+                ["username", "Username", UserRound],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                data-testid={`profile-tab-${key}`}
+                aria-selected={tab === key}
+                title={label}
+                className={cn(
+                  "flex items-center justify-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors sm:justify-start",
+                  tab === key
+                    ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/15"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="hidden truncate sm:inline">{label}</span>
+              </button>
+            ))}
+          </nav>
 
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
         {/* Tab panels */}
         {tab === "overview" && (
-          <div className="space-y-2 text-sm">
-            <div className="rounded-xl bg-accent/30 px-3 py-2.5">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Account type
-              </p>
-              <p className="mt-0.5 text-sm">Local single-user account</p>
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Account type
+                </p>
+                <p className="mt-1 text-sm font-medium">Local single-user</p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Storage
+                </p>
+                <p className="mt-1 text-sm font-medium">On this device</p>
+              </div>
             </div>
-            <div className="rounded-xl bg-accent/30 px-3 py-2.5">
+            <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Username
               </p>
-              <p className="mt-0.5 truncate text-sm">{user?.username ?? "—"}</p>
+              <p className="mt-1 truncate text-sm font-medium">{user?.username ?? "—"}</p>
             </div>
-            <div className="rounded-xl bg-accent/30 px-3 py-2.5">
+            <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Email
               </p>
-              <p className="mt-0.5 truncate text-sm">{user?.email || "—"}</p>
+              <p className="mt-1 truncate text-sm font-medium">{user?.email || "—"}</p>
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
               Change your password, rename your username, or review the
-              sign-in log from the tabs above.
+              sign-in log from the sections on the left.
             </p>
             <button
               type="button"
@@ -391,6 +415,8 @@ function ProfileWindow(p: ProfileWindowProps) {
             </button>
           </form>
         )}
+          </div>
+        </div>
         </motion.div>
       </div>
     </>
@@ -608,8 +634,8 @@ export default function ManageProfileMenu({
           Rendered through a portal so the fixed positioning is
           never clipped by the navbar's stacking context. */}
       <AnimatePresence>
-        {open &&
-          createPortal(
+        {open && (
+          <ProfilePortal key="profile-portal">
             <ProfileWindow
               reduce={reduce}
               tab={tab}
@@ -636,9 +662,9 @@ export default function ManageProfileMenu({
               submitUsername={submitUsername}
               close={close}
               logout={logout}
-            />,
-            document.body
-          )}
+            />
+          </ProfilePortal>
+        )}
       </AnimatePresence>
     </div>
   );

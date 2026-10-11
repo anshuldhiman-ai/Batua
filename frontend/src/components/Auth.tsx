@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 
-import { api } from "@/lib/utils-finance";
+import { api, apiUrl } from "@/lib/utils-finance";
 
 /**
  * Auth session for Batua's single local account.
@@ -46,6 +46,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const TOKEN_KEY = "batua-session-token";
 const USER_KEY = "batua-session-user";
 
+/** The open session's sign-in epoch-ms, kept in sessionStorage
+ *  so a reload mid-session still reports an honest duration. */
+const SESSION_START_KEY = "batua-session-start";
+
 function readSavedUser(): AuthUser | null {
   try {
     const raw = sessionStorage.getItem(USER_KEY);
@@ -55,6 +59,35 @@ function readSavedUser(): AuthUser | null {
   }
 }
 
+/** POST with keepalive — this rides beforeunload, where
+ *  nothing may be awaited. `apiUrl` gives the same
+ *  baseURL axios uses, so the beacon hits the same server. */
+function fireAndForget(url: string, body: unknown) {
+  try {
+    void fetch(`${apiUrl("")}${url}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    /* offline — the session simply stays open server-side */
+  }
+}
+
+/** Close the open session entry. Called on sign-out and on
+ *  tab/browser close. Durations under 1s are ignored (the
+ *  beacon fires on quick bounces) and a missing start time
+ *  means no session to close. */
+function closeSession(reason: "logout" | "close") {
+  const started = Number(sessionStorage.getItem(SESSION_START_KEY) || 0);
+  if (!started) return;
+  const duration = Math.round((Date.now() - started) / 1000);
+  sessionStorage.removeItem(SESSION_START_KEY);
+  if (duration < 1) return;
+  fireAndForget("/auth/session/close", { duration_seconds: duration, reason });
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [hasAccount, setHasAccount] = useState(true);
@@ -62,6 +95,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(
     () => sessionStorage.getItem(TOKEN_KEY)
   );
+
+  // A session was restored (reload) — re-open the log entry so
+  // the sign-in time reflects this visit, then keep the start
+  // clock running. Without this, a reload would attribute the
+  // whole visit to the pre-reload entry's (never-closed) row.
+  useEffect(() => {
+    if (!token) return undefined;
+    fireAndForget("/auth/session/open", {});
+    sessionStorage.setItem(SESSION_START_KEY, String(Date.now()));
+    return undefined;
+  }, [token]);
+
+  // Exit beacon: tab close / browser close / navigation away.
+  // `sendBeacon`-style keepalive fetch survives the unload;
+  // pagehide is the modern event (bfcache-safe).
+  useEffect(() => {
+    const onHide = () => closeSession("close");
+    window.addEventListener("pagehide", onHide);
+    document.addEventListener("visibilitychange", () => {
+      // Mobile: the OS may kill the tab without a pagehide.
+      if (document.visibilityState === "hidden") closeSession("close");
+    });
+    return () => window.removeEventListener("pagehide", onHide);
+  }, []);
 
   // Boot probe: does this install have an account yet, and is a
   // saved session still worth keeping? A saved token is only
@@ -115,6 +172,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (username: string, password: string) => {
       const res = await api.post("/auth/login", { username, password });
       const { user: u, token: tk } = res.data;
+      // persist() flips the token, which fires the
+      // session-log effect below (the single place a
+      // session is opened — keeps reloads and fresh
+      // logins on one path, no duplicate open rows).
       persist(tk ?? null, u);
     },
     [persist]
@@ -130,6 +191,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Close the session log entry (duration + exit time)
+    // before clearing the token, so the visit is recorded.
+    closeSession("logout");
     try {
       await api.post("/auth/logout");
     } finally {

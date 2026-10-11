@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "@/components/Auth";
 import LoginPage from "@/components/LoginPage";
 import {
   applyAccent,
+  revealTheme,
   DEFAULT_ACCENT,
   DEFAULT_CUSTOM_COLOR,
   type ThemeMode,
@@ -31,6 +32,12 @@ const ApiDocs = React.lazy(() => import("./pages/ApiDocs"));
 export interface ThemeContextValue {
   theme: ThemeMode;
   toggle: () => void;
+  /**
+   * Toggle with a circular reveal that grows from the given viewport
+   * point (the toggle button). Falls back to `toggle()`'s instant change
+   * when the View Transitions API is missing or reduced motion is on.
+   */
+  toggleAt: (origin: { x: number; y: number }) => void;
   /** Accent id from `ACCENTS`, or `CUSTOM_ACCENT`. */
   accent: string;
   setAccent: (value: string | ((prev: string) => string)) => void;
@@ -42,6 +49,7 @@ export interface ThemeContextValue {
 export const ThemeContext = React.createContext<ThemeContextValue>({
   theme: "light",
   toggle: () => {},
+  toggleAt: () => {},
   accent: DEFAULT_ACCENT,
   setAccent: () => {},
   customColor: DEFAULT_CUSTOM_COLOR,
@@ -61,27 +69,14 @@ export function useTheme(): ThemeContextValue {
 
   React.useEffect(() => {
     const root = document.documentElement;
-
-    // Enhanced smooth transition for theme switching with multiple properties
-    root.style.transition = "background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.5s cubic-bezier(0.4, 0, 0.2, 1)";
-
-    // Add a subtle scale effect during transition
-    root.style.transformOrigin = "center center";
-
     if (theme === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
-
-    // Remove transition + transform-origin after the animation
-    // completes so they never interfere with other interactions.
-    const timeout = setTimeout(() => {
-      root.style.transition = "";
-      root.style.transformOrigin = "";
-    }, 500);
-
-    return () => clearTimeout(timeout);
+    // No flat color cross-fade here: the theme change is animated by the
+    // circular reveal in `toggleAt` (View Transitions). A plain transition
+    // on <html> would fight that reveal and double-animate every surface.
   }, [theme]);
 
   // Re-apply accent variables whenever the accent, custom color, or mode
@@ -94,7 +89,11 @@ export function useTheme(): ThemeContextValue {
     () => setTheme((t) => (t === "dark" ? "light" : "dark")),
     [setTheme]
   );
-  return { theme, toggle, accent, setAccent, customColor, setCustomColor };
+  const toggleAt = React.useCallback(
+    (origin: { x: number; y: number }) => revealTheme(toggle, origin),
+    [toggle]
+  );
+  return { theme, toggle, toggleAt, accent, setAccent, customColor, setCustomColor };
 }
 
 /**

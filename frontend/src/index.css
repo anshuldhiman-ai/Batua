@@ -23,6 +23,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme circular-reveal (View Transitions API). When `revealTheme` runs,
+   the browser cross-fades the old/new frames under ::view-transition-old/new.
+   We disable the default cross-fade so the new theme is revealed purely by the
+   clip-path circle keyframe (animated from themes.js `revealTheme`) growing
+   from the toggle button. Without these rules the default fade fights the
+   circular wipe. Reduced-motion / unsupported browsers skip the transition
+   entirely (handled in JS), so the theme still changes instantly there. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0s;
+  animation-delay: 0s;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  /* Old theme stays put underneath; the new theme's circle wipes over it. */
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2147483646;
+}
+
 @layer base {
   :root {
     --background: 150 20% 99%;
@@ -337,6 +358,11 @@
   --auth-warning: #b45309;
   --auth-shadow-sm: 0 1px 2px rgba(16, 21, 26, 0.06);
   --auth-shadow-md: 0 1px 2px rgba(16, 21, 26, 0.05), 0 8px 24px rgba(16, 21, 26, 0.08);
+  /* Aurora atmosphere — single-hue emerald family at very
+     low alpha. One accent color, kept subtle. */
+  --auth-glow-a: rgba(15, 157, 110, 0.14);
+  --auth-glow-b: rgba(20, 184, 166, 0.09);
+  --auth-glow-c: rgba(15, 157, 110, 0.07);
   --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #101820 0%, #0b0f14 55%, #090d11 100%);
 }
 .dark {
@@ -356,6 +382,9 @@
   --auth-warning: #fbbf24;
   --auth-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --auth-shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --auth-glow-a: rgba(16, 185, 129, 0.18);
+  --auth-glow-b: rgba(20, 184, 166, 0.12);
+  --auth-glow-c: rgba(79, 70, 229, 0.1);
   --auth-brand-grad: radial-gradient(120% 90% at 0% 0%, #131b24 0%, #0b0f14 55%, #090d11 100%);
 }
 
@@ -375,6 +404,9 @@
     --auth-accent-ink: #ffffff;
     --auth-error: #d92d20;
     --auth-warning: #b45309;
+    --auth-glow-a: rgba(15, 157, 110, 0.14);
+    --auth-glow-b: rgba(20, 184, 166, 0.09);
+    --auth-glow-c: rgba(15, 157, 110, 0.07);
   }
 }
 
@@ -394,11 +426,117 @@
     --auth-accent-ink: #06281c;
     --auth-error: #f87171;
     --auth-warning: #fbbf24;
+    --auth-glow-a: rgba(16, 185, 129, 0.18);
+    --auth-glow-b: rgba(20, 184, 166, 0.12);
+    --auth-glow-c: rgba(79, 70, 229, 0.1);
   }
 }
 /* Auth screen motion — only transform/opacity so everything
    stays on the compositor. All of it is killed by the global
    prefers-reduced-motion rule above. */
+
+/* Atmosphere. Two things live on the page root:
+   1. `.auth-aurora` — 3 huge, very faint tinted radial gradients
+      that drift on a 22s loop (transform only). These are the
+      "atmosphere, not neon" layer.
+   2. `.auth-grain` — an SVG feTurbulence noise tile at ~4%
+      opacity, blended, to stop the smooth gradients banding.
+   Both are pointer-events-none and sit behind all content. */
+@keyframes auth-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(6%, -4%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-5%, 5%, 0) scale(1.04);
+  }
+}
+@keyframes auth-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-7%, -5%, 0) scale(1);
+  }
+}
+@keyframes auth-drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  50% {
+    transform: translate3d(4%, 6%, 0) scale(1.09);
+  }
+}
+.auth-aurora {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+}
+.auth-aurora > span {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(120px);
+  will-change: transform;
+}
+.auth-aurora-a {
+  width: 55%;
+  height: 60%;
+  top: -12%;
+  left: -10%;
+  background: radial-gradient(closest-side, var(--auth-glow-a), transparent);
+  animation: auth-drift-a 22s ease-in-out infinite;
+}
+.auth-aurora-b {
+  width: 48%;
+  height: 55%;
+  bottom: -14%;
+  right: -8%;
+  background: radial-gradient(closest-side, var(--auth-glow-b), transparent);
+  animation: auth-drift-b 26s ease-in-out infinite;
+}
+.auth-aurora-c {
+  width: 42%;
+  height: 48%;
+  top: 22%;
+  right: 18%;
+  background: radial-gradient(closest-side, var(--auth-glow-c), transparent);
+  animation: auth-drift-c 24s ease-in-out infinite;
+}
+.auth-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Spotlight — a soft radial highlight that follows the cursor across
+   the whole page. Driven by --auth-mx/--auth-my (set in JS, lerped).
+   Only enabled for fine pointers; touch gets nothing. */
+.auth-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    520px circle at var(--auth-mx, 50%) var(--auth-my, 40%),
+    var(--auth-glow-a),
+    transparent 70%
+  );
+  opacity: 0.5;
+  transition: opacity 0.4s ease;
+}
+@media (hover: none), (pointer: coarse) {
+  .auth-spotlight {
+    display: none;
+  }
+}
+
 @keyframes auth-float {
   0%,
   100% {
@@ -410,6 +548,13 @@
 }
 .auth-float {
   animation: auth-float 6s ease-in-out infinite;
+}
+/* Stagger the satellite cards so the cluster breathes as one. */
+.auth-float-slow {
+  animation: auth-float 7.5s ease-in-out -1.8s infinite;
+}
+.auth-float-slower {
+  animation: auth-float 8.5s ease-in-out -3.4s infinite;
 }
 
 @keyframes auth-shake {
@@ -442,6 +587,98 @@
 .auth-spark-line {
   stroke-dasharray: 60;
   animation: auth-spark-draw 900ms ease-out both;
+}
+
+/* Count-up for the balance figure — tabular-nums keeps the
+   width constant so the number never jitters as it climbs. */
+@keyframes auth-count-up {
+  from {
+    opacity: 0.25;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.auth-count-up {
+  animation: auth-count-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Checkbox checkmark draw — the SVG path draws itself when
+   checked, 180ms, then holds. */
+.auth-check-path {
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  transition: stroke-dashoffset 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+input:checked + .auth-check-glyph .auth-check-path {
+  stroke-dashoffset: 0;
+}
+
+/* Savings-goal ring — the progress arc sweeps itself
+   in on load, then holds at 68%. */
+@keyframes auth-donut-sweep {
+  from {
+    stroke-dashoffset: 68;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.auth-donut {
+  stroke-dashoffset: 0;
+  animation: auth-donut-sweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Spinner for the loading button — a border-only ring, no
+   glyphs, so it renders before any font loads. */
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.auth-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: auth-spin 600ms linear infinite;
+}
+
+/* Card shimmer sweep — a faint emerald sheen that crosses the
+   primary button on hover. Hidden until hover so it reads as
+   feedback, not decoration. */
+.auth-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.auth-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 60%
+  );
+  transform: translateX(-120%);
+  transition: transform 600ms ease;
+  pointer-events: none;
+}
+.auth-sheen:hover::after {
+  transform: translateX(120%);
+}
+
+/* Top-edge highlight line for elevated glass surfaces —
+   the "inner 1px highlight" that gives depth without a glow. */
+.auth-top-highlight {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+    var(--auth-shadow-md);
 }
 
 /* Chat "typing" indicator — three dots pulsing in sequence */

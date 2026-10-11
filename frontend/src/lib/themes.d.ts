@@ -47,3 +47,15 @@ export function applyAccent(
   mode: ThemeMode,
   customColor?: string
 ): void;
+
+/**
+ * Switch the theme with a circular reveal that expands outward from the
+ * toggle button (View Transitions API), falling back to an instant change
+ * when the API is missing or reduced motion is on.
+ * @param applyTheme - flips the `dark` class + persists the choice
+ * @param origin - click point in viewport coords; defaults to top-right
+ */
+export function revealTheme(
+  applyTheme: () => void,
+  origin?: { x: number; y: number }
+): void;

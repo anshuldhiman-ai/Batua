@@ -158,6 +158,29 @@ class ResetRequest(BaseModel):
     new_password: str
 
 
+class SessionOpenRequest(BaseModel):
+    """Client reports a sign-in happened (after the token was issued)."""
+
+
+class SessionCloseRequest(BaseModel):
+    """Client reports the session ended — duration in seconds,
+    plus how it ended (manual sign-out vs. tab/browser close)."""
+
+    duration_seconds: int = 0
+    ended_at: str | None = None
+    reason: str = "close"
+
+    @field_validator("duration_seconds")
+    @classmethod
+    def _duration(cls, v: int) -> int:
+        return max(0, min(v, 30 * 24 * 3600))
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, v: str) -> str:
+        return v if v in {"logout", "close", "timeout"} else "close"
+
+
 class RecoveryCodesResponse(BaseModel):
     """Recovery information returned alongside login success."""
     recovery_hint: str
@@ -241,6 +264,43 @@ async def _login_history(storage) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
+# Session log — sign-in time, time stayed, exit time
+# --------------------------------------------------------------------------- #
+
+SESSION_LOG_LIMIT = 100
+
+
+def _append_session_log(
+    doc: dict,
+    entry: dict,
+) -> None:
+    """Append one entry to the session log, in place.
+
+    The log answers "when did I sign in, how long did I stay,
+    when did I leave" — entries are written twice: once at
+    sign-in (``ended_at: null``) and again at exit (duration
+    + end time filled in), matched by ``session_id``.
+    """
+    log = list(doc.get("session_log") or [])
+    if entry.get("session_id"):
+        # Closing an existing entry — update it, don't append.
+        for i, row in enumerate(log):
+            if row.get("session_id") == entry["session_id"]:
+                log[i] = {**row, **entry}
+                doc["session_log"] = log[-SESSION_LOG_LIMIT:]
+                return
+    log.append(entry)
+    doc["session_log"] = log[-SESSION_LOG_LIMIT:]
+
+
+async def _session_log(storage) -> list[dict]:
+    doc = await _load_account(storage)
+    if not doc:
+        return []
+    return list(doc.get("session_log") or [])
+
+
+# --------------------------------------------------------------------------- #
 # Request validation
 # --------------------------------------------------------------------------- #
 
@@ -318,6 +378,86 @@ async def login(payload: LoginRequest):
 
     saved = await storage.mutate("users", doc["id"], _apply)
     return _session_response(saved or doc)
+
+
+@router.post("/auth/session/open")
+async def session_open(_payload: SessionOpenRequest | None = None):
+    """Mark the start of a session: the sign-in time.
+
+    Called by the client right after login succeeds, so the
+    sign-in timestamp is captured at the moment the vault
+    opened — not just when the token was minted. The entry
+    starts open (``ended_at: null``) and is closed by
+    ``POST /auth/session/close``.
+    """
+    storage = get_storage()
+    doc = await _load_account(storage)
+    if doc is None:
+        raise HTTPException(404, "No account found")
+    session_id = secrets.token_hex(8)
+    entry = {
+        "session_id": session_id,
+        "sign_in_at": datetime.now(timezone.utc).isoformat(),
+        "ended_at": None,
+        "duration_seconds": 0,
+        "reason": None,
+    }
+
+    def _apply(account: dict) -> None:
+        _append_session_log(account, entry)
+
+    await storage.mutate("users", doc["id"], _apply)
+    return {"ok": True, "session_id": session_id}
+
+
+@router.post("/auth/session/close")
+async def session_close(payload: SessionCloseRequest):
+    """Close the most recent open session entry.
+
+    The client reports how long the user stayed and how the
+    session ended — an explicit sign-out, or the tab/browser
+    closing (the beacon fires from ``beforeunload``). If the
+    browser died without the beacon, the entry stays open and
+    is reported as such (``ended_at: null``) — honest over
+    fabricated.
+    """
+    storage = get_storage()
+    doc = await _load_account(storage)
+    if doc is None:
+        raise HTTPException(404, "No account found")
+
+    # Attach to the newest OPEN entry when the client didn't
+    # tell us which session this was (tab-close beacons can't
+    # await anything, so they don't send the id).
+    entry = {
+        "ended_at": payload.ended_at
+        or datetime.now(timezone.utc).isoformat(),
+        "duration_seconds": payload.duration_seconds,
+        "reason": payload.reason,
+    }
+    log = list(doc.get("session_log") or [])
+    target = None
+    for row in reversed(log):
+        if row.get("ended_at") is None:
+            target = row.get("session_id")
+            break
+    if target:
+        entry["session_id"] = target
+
+    def _apply(account: dict) -> None:
+        _append_session_log(account, entry)
+
+    await storage.mutate("users", doc["id"], _apply)
+    return {"ok": True}
+
+
+@router.get("/auth/sessions")
+async def sessions():
+    """Recent session log, newest first — sign-in time,
+    duration, and exit time per visit."""
+    storage = get_storage()
+    log = _session_log(storage)
+    return {"sessions": list(reversed(log))}
 
 
 @router.post("/auth/logout")

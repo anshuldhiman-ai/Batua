@@ -105,7 +105,7 @@ describe('Layout - Responsive Behavior', () => {
       const searchBoxes = screen.getAllByTestId('nav-search')
       expect(searchBoxes.length).toBeGreaterThanOrEqual(1)
       for (const box of searchBoxes) {
-        expect(box).toHaveAttribute('aria-label', 'Search transactions')
+        expect(box).toHaveAttribute('aria-label', 'Search dashboard…')
       }
     })
 
