@@ -554,18 +554,23 @@ function RecoveryDialog({
   onClose: () => void;
 }) {
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const request = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || !username.trim()) return;
+    if (busy || !username.trim() || !password) return;
     setBusy(true);
     setError(null);
     try {
+      // The server requires the current password: the token
+      // replaces the password, so only someone who already
+      // holds it may mint one.
       const { data } = await api.post("/auth/recovery-token", {
         username: username.trim(),
+        password,
       });
       setToken(data.token ?? null);
     } catch (err: any) {
@@ -602,7 +607,15 @@ function RecoveryDialog({
               onChange={(e) => setUsername(e.target.value)}
               error={username.trim() && username.trim().length < USERNAME_MIN ? `At least ${USERNAME_MIN} characters` : null}
             />
-            <AuthButton type="submit" variant="primary" loading={busy} loadingLabel="Creating…" disabled={!username.trim()}>
+            <AuthInput
+              id="recovery-password"
+              label="Current password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <AuthButton type="submit" variant="primary" loading={busy} loadingLabel="Creating…" disabled={!username.trim() || !password}>
               Create token
             </AuthButton>
           </form>

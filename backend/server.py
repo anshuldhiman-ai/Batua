@@ -259,6 +259,28 @@ api.include_router(api_docs.router, prefix="/docs", tags=["api-docs"])
 # Mount API router
 app.include_router(api, prefix="/api")
 
+
+# --------------------------------------------------------------------------- #
+# Session enforcement
+# --------------------------------------------------------------------------- #
+# The auth routes mint a session token at login; every other /api
+# route now requires it. This used to be a no-op — the token was
+# issued but never checked, so any caller who could reach the
+# server could read (or wipe) the whole ledger. The middleware
+# runs before routing: a bad/missing token on a protected path
+# answers 401 without touching the handler.
+@app.middleware("http")
+async def _require_session(request, call_next):
+    from app.dependencies import verify_session_token
+
+    result = await verify_session_token(request)
+    if result is None:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Not authenticated"},
+        )
+    return await call_next(request)
+
 # Auth field-validation failures (bad email, short password) answer
 # with 400 like the auth route handlers do, not Pydantic's default 422.
 app.add_exception_handler(RequestValidationError, auth.validation_to_400)
@@ -291,7 +313,6 @@ _DOCS_CSP = (
 async def _security_headers(request, call_next):
     """Attach security headers to every response and disable API caching."""
     response = await call_next(request)
-
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")

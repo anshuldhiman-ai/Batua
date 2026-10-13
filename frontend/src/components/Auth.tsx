@@ -61,12 +61,22 @@ function readSavedUser(): AuthUser | null {
 
 /** POST with keepalive — this rides beforeunload, where
  *  nothing may be awaited. `apiUrl` gives the same
- *  baseURL axios uses, so the beacon hits the same server. */
+ *  baseURL axios uses, so the beacon hits the same server.
+ *  The session-log routes require the Bearer token, so
+ *  it's attached here too (raw fetch can't go through
+ *  the axios interceptor). */
 function fireAndForget(url: string, body: unknown) {
+  let headers: Record<string, string> = { "Content-Type": "application/json" };
+  try {
+    const tk = sessionStorage.getItem(TOKEN_KEY);
+    if (tk) headers = { ...headers, Authorization: `Bearer ${tk}` };
+  } catch {
+    /* sessionStorage unavailable — send without a token */
+  }
   try {
     void fetch(`${apiUrl("")}${url}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       keepalive: true,
     }).catch(() => undefined);
@@ -148,6 +158,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (status === 404) {
           // No account on this server — first run, go to register.
           setHasAccount(false);
+        }
+        if (status === 401) {
+          // The saved token was rejected (revoked server-side
+          // after a password change/reset, or expired) — drop
+          // it so the user lands on the login form, not a
+          // loop of failing requests.
+          persist(null, null);
         }
         // Any other failure (backend offline): assume an account
         // exists so the user sees the login form, whose error

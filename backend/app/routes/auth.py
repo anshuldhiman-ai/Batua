@@ -149,8 +149,15 @@ class ChangeUsernameRequest(BaseModel):
 
 
 class RecoveryTokenRequest(BaseModel):
-    """Mint a one-time reset token for a username (server-side, owner-only)."""
+    """Mint a one-time reset token for a username (server-side, owner-only).
+
+    ``password`` is required when an account exists: a reset token
+    hands over the account, so it may only be minted by someone who
+    already holds the password. (On first run — no account yet — the
+    register screen is the right path, and the route 404s.)
+    """
     username: str
+    password: str = ""
 
 
 class ResetRequest(BaseModel):
@@ -550,6 +557,12 @@ async def mint_recovery_token(payload: RecoveryTokenRequest):
     button) *before* you ever need it, keep the token somewhere safe,
     and exchange it at /auth/reset if the password is ever forgotten.
     Tokens expire after 15 minutes and are single-use.
+
+    Requires the account's current password — the token
+    replaces the password, so anyone who can mint one
+    owns the account. Without this check, knowing the
+    username alone (often guessable) was enough to take
+    over the account.
     """
     storage = get_storage()
     doc = await _load_account(storage)
@@ -557,6 +570,8 @@ async def mint_recovery_token(payload: RecoveryTokenRequest):
         raise HTTPException(404, "No account found — register first")
     if doc["username"] != payload.username:
         raise HTTPException(404, "No account with that username")
+    if not await asyncio.to_thread(_verify_password, payload.password, doc.get("password_hash", "")):
+        raise HTTPException(401, "Incorrect password")
 
     token = secrets.token_urlsafe(24)
 

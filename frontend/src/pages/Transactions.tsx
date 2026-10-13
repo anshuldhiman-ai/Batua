@@ -265,7 +265,6 @@ export default function Transactions() {
 
     const fd = new FormData();
     fd.append("file", files[0]);
-    let pollHandle = null;
     try {
       // First, preview the file to show column mapping
       const { data: preview } = await api.post("/upload-excel/preview", fd);
@@ -295,8 +294,7 @@ export default function Transactions() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("mapping", JSON.stringify(columnMapping));
-    
-    let pollHandle = null;
+
     const startedAt = Date.now();
     try {
       // Replacing transactions is destructive, so create a downloadable recovery copy first.
@@ -390,8 +388,6 @@ export default function Transactions() {
         setUploading(false);
         setUploadFile(null);
       }, 2500);
-    } finally {
-      if (pollHandle) clearTimeout(pollHandle);
     }
   }, [invalidateAll, aiCategorize, columnMapping]);
 

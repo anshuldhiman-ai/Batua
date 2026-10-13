@@ -7,6 +7,29 @@ const BASE = baseUrl.replace(/\/+$/, "") + "/api";
 
 export const api = axios.create({ baseURL: BASE });
 
+// The server requires the session token on every /api call
+// except the auth flow itself (register/login/recovery).
+// The token lives in sessionStorage (see Auth.tsx); an
+// interceptor attaches it here so every request carries it,
+// including ones fired from pages that don't use the
+// Auth context. 401s bubble up to the caller — Auth.tsx's
+// boot probe handles the "session revoked" case by
+// dropping the token.
+const TOKEN_KEY = "batua-session-token";
+api.interceptors.request.use((config) => {
+  let token: string | null = null;
+  try {
+    token = sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    /* sessionStorage unavailable (private mode) */
+  }
+  if (token && !config.headers?.Authorization) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Build an absolute API URL (used for file downloads / window.open).
 export const apiUrl = (path) => `${BASE}${path}`;
 

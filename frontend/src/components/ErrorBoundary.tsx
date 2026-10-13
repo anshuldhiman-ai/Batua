@@ -25,24 +25,27 @@ export class ErrorBoundary extends React.Component<any, any> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
+        // Theme tokens, not hardcoded grays — the crash
+        // screen used to render light-mode colors in dark
+        // mode (audit #24).
+        <div className="flex items-center justify-center min-h-screen bg-background p-4">
           <Card className="max-w-md w-full">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-600">
+              <CardTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
                 Something went wrong
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 An unexpected error occurred. Please try refreshing the page.
               </p>
               {(import.meta as any).env.DEV && this.state.error && (
                 <details className="mt-4">
-                  <summary className="cursor-pointer text-sm font-mono text-gray-500 hover:text-gray-700">
+                  <summary className="cursor-pointer text-sm font-mono text-muted-foreground hover:text-foreground">
                     Error details
                   </summary>
-                  <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-40">
+                  <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto max-h-40">
                     {this.state.error.toString()}
                     {this.state.errorInfo && this.state.errorInfo.componentStack}
                   </pre>

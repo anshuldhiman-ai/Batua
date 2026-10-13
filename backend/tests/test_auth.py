@@ -130,7 +130,7 @@ def test_recovery_token_resets_password(client):
     _register(client)
 
     # Mint a one-time token
-    minted = client.post("/api/auth/recovery-token", json={"username": CRED["username"]})
+    minted = client.post("/api/auth/recovery-token", json={"username": CRED["username"], "password": CRED["password"]})
     assert minted.status_code == 200, minted.text
     token = minted.json()["token"]
     assert token
@@ -156,7 +156,8 @@ def test_recovery_token_resets_password(client):
 def test_recovery_token_is_single_use(client):
     _register(client)
     token = client.post(
-        "/api/auth/recovery-token", json={"username": CRED["username"]}
+        "/api/auth/recovery-token",
+        json={"username": CRED["username"], "password": CRED["password"]},
     ).json()["token"]
 
     first = client.post("/api/auth/reset", json={"token": token, "new_password": "second-pass"})
@@ -167,7 +168,7 @@ def test_recovery_token_is_single_use(client):
 
 def test_recovery_token_rejects_wrong_username(client):
     _register(client)
-    response = client.post("/api/auth/recovery-token", json={"username": "someone-else"})
+    response = client.post("/api/auth/recovery-token", json={"username": "someone-else", "password": CRED["password"]})
     assert response.status_code == 404
 
 
@@ -195,7 +196,8 @@ def test_register_validation(client):
 def test_reset_rejects_weak_password(client):
     _register(client)
     token = client.post(
-        "/api/auth/recovery-token", json={"username": CRED["username"]}
+        "/api/auth/recovery-token",
+        json={"username": CRED["username"], "password": CRED["password"]},
     ).json()["token"]
     response = client.post("/api/auth/reset", json={"token": token, "new_password": "12"})
     assert response.status_code == 400
