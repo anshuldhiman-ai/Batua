@@ -926,10 +926,11 @@ export default function LoginPage() {
                 {succeeded ? "Signed in" : mode === "login" ? "Sign in" : "Create account"}
               </AuthButton>
 
-              {/* Passkey path — only when the browser can actually do
-                  WebAuthn. The handler is wired up by the caller; until
-                  then the button is the only thing that changes. */}
-              {mode === "login" && typeof window !== "undefined" &&
+              {/* Passkey path — disabled until the backend issues a
+                  WebAuthn challenge: a button that visibly does
+                  nothing reads as broken. Re-enable this block when
+                  POST /auth/passkey-options exists. */}
+              {false && mode === "login" && typeof window !== "undefined" &&
                 (window.PublicKeyCredential !== undefined) && (
                   <>
                     <div className="flex items-center gap-3" aria-hidden="true">

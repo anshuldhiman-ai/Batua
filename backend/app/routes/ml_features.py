@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query
 from starlette.concurrency import run_in_threadpool
 from app.dependencies import get_storage
-from app.cache import invalidate_analytics_cache
+from app.cache import get_cache, invalidate_analytics_cache
 import ml_nlp
 import ml_analytics
 import ml_goals
@@ -104,9 +104,17 @@ async def recategorize_transactions(apply: bool = Query(False)):
         })
 
     if apply:
+        # One bulk update per target category instead of N sequential
+        # locked single-row updates (each storage.update takes the
+        # write lock and commits separately).
+        by_target: dict[str, list[str]] = {}
         for change in changes:
             if change["id"]:
-                await storage.update("transactions", change["id"], {"category": change["to"]})
+                by_target.setdefault(change["to"], []).append(change["id"])
+        for target_category, ids in by_target.items():
+            await storage.update_many(
+                "transactions", {"id": {"$in": ids}}, {"category": target_category}
+            )
         if changes:
             invalidate_analytics_cache()
 
@@ -133,24 +141,43 @@ async def ml_status():
 
 @router.get("/spending-patterns")
 async def analyze_spending_patterns():
-    """Analyze spending patterns using ML."""
+    """Analyze spending patterns using ML.
+
+    Cached briefly: the app preloads this (plus forecast and
+    recommendations) on every mount, so an uncached miss re-runs a
+    full-scan + ML pass each navigation. The ``analytics_`` prefix
+    means transaction writes drop it (see invalidate_analytics_cache).
+    """
+    cache = get_cache()
+    cached = cache.get("analytics_ml_patterns")
+    if cached is not None:
+        return cached
     try:
         storage = get_storage()
         transactions = await storage.all("transactions")
         analyzer = ml_analytics.get_pattern_analyzer()
-        return analyzer.analyze_patterns(transactions)
+        result = analyzer.analyze_patterns(transactions)
+        cache.set("analytics_ml_patterns", result, ttl=60)
+        return result
     except Exception as exc:
         raise _server_error("analyze spending patterns", exc) from exc
 
 
 @router.get("/cash-flow-forecast")
 async def forecast_cash_flow(months_ahead: int = Query(3, ge=1, le=12)):
-    """Forecast cash flow for the next N months."""
+    """Forecast cash flow for the next N months (cached 60s)."""
+    cache = get_cache()
+    cache_key = f"analytics_ml_forecast_{months_ahead}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
     try:
         storage = get_storage()
         transactions = await storage.all("transactions")
         forecaster = ml_analytics.get_forecaster()
-        return forecaster.forecast_cash_flow(transactions, months_ahead)
+        result = forecaster.forecast_cash_flow(transactions, months_ahead)
+        cache.set(cache_key, result, ttl=60)
+        return result
     except Exception as exc:
         raise _server_error("forecast cash flow", exc) from exc
 
@@ -304,12 +331,18 @@ async def analyze_spending_impact(goal_id: str):
 
 @router.get("/recommendations")
 async def get_recommendations():
-    """Generate personalized savings recommendations."""
+    """Generate personalized savings recommendations (cached 60s)."""
+    cache = get_cache()
+    cached = cache.get("analytics_ml_recommendations")
+    if cached is not None:
+        return cached
     try:
         storage = get_storage()
         transactions = await storage.all("transactions")
         engine = ml_goals.get_recommendation_engine()
-        return engine.generate_recommendations(transactions)
+        result = engine.generate_recommendations(transactions)
+        cache.set("analytics_ml_recommendations", result, ttl=60)
+        return result
     except Exception as exc:
         raise _server_error("generate recommendations", exc) from exc
 

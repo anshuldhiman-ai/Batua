@@ -72,6 +72,13 @@ class Cache:
         with self._lock:
             self._store.pop(key, None)
 
+    def invalidate_prefixes(self, prefixes: tuple[str, ...]) -> None:
+        """Drop every key starting with any of ``prefixes``."""
+        with self._lock:
+            stale = [key for key in self._store if key.startswith(prefixes)]
+            for key in stale:
+                self._store.pop(key, None)
+
     def clear(self) -> None:
         """Clear all cache entries."""
         with self._lock:
@@ -92,14 +99,23 @@ def get_cache() -> Cache:
     return _analytics_cache
 
 
+# Cache keys that depend on the transaction data and must be dropped on
+# every write. Deliberately EXCLUDES the expensive LLM outputs
+# (``insights_llm``/``insights_mixed``, 5-min TTL) and their in-flight
+# pending flags: one POST /transactions shouldn't discard a 6-9s Gemini
+# call that just landed — a 5-min-stale coaching line is far cheaper
+# than re-paying the generation.
+_INVALIDATE_ON_WRITE = ("analytics_", "insights_rules", "dashboard_")
+
+
 def invalidate_analytics_cache() -> None:
-    """Invalidate all analytics cache entries when transactions change.
+    """Invalidate data-derived cache entries when transactions change.
 
     Called after any insert/update/delete so the next /dashboard/metrics or
     /analytics/timeline call rebuilds from scratch. Also drops the
-    insights cache so the user immediately sees fresh coaching lines.
+    rules-insights cache so the user immediately sees fresh coaching lines.
     """
-    _analytics_cache.clear()
+    _analytics_cache.invalidate_prefixes(_INVALIDATE_ON_WRITE)
 
 
 def pre_bucket_transactions(txns: list[dict]) -> dict[str, dict]:

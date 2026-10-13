@@ -41,6 +41,7 @@ INCOME_WORDS = [
     "reimbursement", "payout", "deposit",
     "pocketmoney", "pocket money", "allowance", "gift", "gifted",
     "prize", "won", "sold", "returns", "rebate", "scholarship",
+    "earned", "earning", "earnings", "commission",
 ]
 
 # Category -> keywords. Order matters: the first category with a hit wins, so
@@ -817,12 +818,20 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
                 result["date"] = ml_result["date"]
             # Only borrow the ML amount when the regex found none AND no counted
             # quantity was detected — otherwise the ML parser would mistake the
-            # item count ("2 packet") for the price.
+            # item count ("2 packet") for the price. The ML amount is UNSIGNED
+            # (its rules flip it by its own income list, which disagrees with
+            # ours) — so adopt only its magnitude and keep our sign decision,
+            # exactly like the Gemini path below. This is the fix for the
+            # "stays credit / won't shift to debit" bug: without it, an
+            # expense whose amount the local ML extracted (e.g. via a
+            # "rs 500" prefix our regex missed) came back positive.
             if amount_abs is None and quantity == 1 and not each_enum and ml_result.get("amount") not in (None, 0):
                 try:
-                    result["amount"] = float(ml_result["amount"])
+                    ml_amount = abs(float(ml_result["amount"]))
                 except (TypeError, ValueError):
-                    pass
+                    ml_amount = None
+                if ml_amount is not None:
+                    result["amount"] = ml_amount if is_income else -ml_amount
 
     # Gemini fallback ONLY when local ML also couldn't classify the category
     if result["category"] == "Other" and ai.is_enabled():

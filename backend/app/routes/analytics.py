@@ -207,11 +207,25 @@ async def analytics_summary(
 
     storage = get_storage()
     db_query: dict = {"date": {"$gte": prev_start, "$lte": end}}
-    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True)
+    # Only the fields the aggregators and the recent-transactions
+    # panel read are needed — projecting a fixed column list skips
+    # deserializing notes/metadata for every row in range. Keep this
+    # list in sync with compute_categories/trends (category,
+    # description) and RecentTransactionsPanel (id, payment_method).
+    txns = await storage.all(
+        "transactions", query=db_query, order_by="date", order_desc=True,
+        fields=("id", "date", "amount", "category", "description", "payment_method"),
+    )
 
     # 2. Main series & comparison series aggregation
-    series = aggregate_series(txns, start, end, granularity)
-    prev_series = aggregate_series(txns, prev_start, prev_end, granularity)
+    # One pre-filtered pass for the current window — the summary used to
+    # re-filter the same rows in 5 helpers (5× O(N) scans).
+    curr_txns = _in_range(txns, start, end)
+    prev_txns = _in_range(txns, prev_start, prev_end)
+    # Callers pre-filter by date; skip aggregate_series' own
+    # O(N) re-scan when the caller guarantees the range.
+    series = aggregate_series(curr_txns, start, end, granularity, prefiltered=True)
+    prev_series = aggregate_series(prev_txns, prev_start, prev_end, granularity, prefiltered=True)
     
     # Align previous period data with current period keys
     aligned_prev = []
@@ -241,22 +255,22 @@ async def analytics_summary(
     }
     
     # 3. Monthly series (always monthly buckets, regardless of selected view)
-    monthly_series = aggregate_series(txns, start, end, "monthly")
-    
+    monthly_series = aggregate_series(curr_txns, start, end, "monthly")
+
     # 4. Categories breakdown
-    categories = compute_categories(txns, start, end)
-    
+    categories = compute_categories(curr_txns, start, end)
+
     # 5. Summary KPIs
-    summary = compute_summary_kpis(txns, start, end, series)
-    
+    summary = compute_summary_kpis(curr_txns, start, end, series)
+
     # 6. Trends KPIs
-    trends = compute_trends_analysis(txns, start, end, categories)
-    
+    trends = compute_trends_analysis(curr_txns, start, end, categories)
+
     # 7. Weekday spending pattern
-    weekday_pattern = compute_weekday_pattern(txns, start, end)
-    
+    weekday_pattern = compute_weekday_pattern(curr_txns, start, end)
+
     # 8. Recent transactions
-    in_range = [t for t in txns if start <= t.get("date", "") <= end]
+    in_range = curr_txns
     recent_transactions = sorted(in_range, key=lambda x: x.get("date", ""), reverse=True)[:8]
     
     # Clean UUID fields in recent transactions so they serialize nicely
@@ -287,11 +301,17 @@ async def analytics_summary(
     return result
 
 
-def aggregate_series(txns, start_str: str, end_str: str, granularity: str) -> list[dict]:
+def _in_range(txns: list, start_str: str, end_str: str) -> list:
+    return [t for t in txns if t.get("date") and start_str <= t["date"][:10] <= end_str]
+
+
+def aggregate_series(txns, start_str: str, end_str: str, granularity: str, prefiltered: bool = False) -> list[dict]:
     start_dt = datetime.strptime(start_str, "%Y-%m-%d")
     end_dt = datetime.strptime(end_str, "%Y-%m-%d")
-    
-    in_range = [t for t in txns if t.get("date") and start_str <= t["date"][:10] <= end_str]
+
+    # Callers that already sliced the rows to [start_str, end_str]
+    # (analytics_summary does this once) can skip this second O(N) scan.
+    in_range = txns if prefiltered else _in_range(txns, start_str, end_str)
     buckets = {}
     
     if granularity == "daily":

@@ -74,9 +74,13 @@ async def insights(
     cache = get_cache()
     rules = cache.get("insights_rules")
     if rules is None:
-        txns = await get_all_txns()
         metrics = await dashboard_metrics()
         cats = (await category_breakdown(month=metrics.get("current_month")))["data"]
+        # _rule_based_insights only falls back to raw txns when
+        # metrics has no current_month (it can't happen — the
+        # metrics route always stamps it), so the full scan is
+        # skipped on the common cold path.
+        txns = [] if metrics.get("current_month") else await get_all_txns()
         rules = {"insights": _rule_based_insights(metrics, cats, txns)}
         cache.set("insights_rules", rules, ttl=_RULES_CACHE_TTL)
 
@@ -226,16 +230,19 @@ async def refresh_ai_insights(background_tasks: BackgroundTasks):
     """Kick off a Gemini refresh in the background.
 
     Returns immediately with a status flag so the UI doesn't block.
+    Routed through the pending-flag guard so rapid refreshes don't
+    fan out into concurrent 20s Gemini calls.
     """
     if not ai.is_enabled():
         return {"status": "disabled", "message": "Gemini is not configured."}
-    background_tasks.add_task(_refresh_llm_insights)
+    _schedule_llm_refresh(background_tasks, "insights_llm", _refresh_gemini_insights)
     return {"status": "queued"}
 
 
-async def _refresh_llm_insights() -> None:
+async def _refresh_gemini_insights() -> None:
     """Run Gemini with a strict scope, validate, cache on success, fall
     back to rules on failure."""
+    cache = get_cache()
     try:
         metrics = await dashboard_metrics()
         timeline_data = await analytics_timeline()
@@ -247,7 +254,7 @@ async def _refresh_llm_insights() -> None:
             timeout=_LLM_TIMEOUT,
         )
         if llm_lines:
-            get_cache().set(
+            cache.set(
                 "insights_llm",
                 {
                     "insights": llm_lines,
@@ -260,6 +267,11 @@ async def _refresh_llm_insights() -> None:
         logger.warning("Gemini insights timed out after %.1fs", _LLM_TIMEOUT)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Gemini insights failed: %s", exc)
+    finally:
+        # The refresh route now goes through the pending-flag guard
+        # (shared with the llama worker); always release it, even on
+        # timeout/failure, or the key wedges until its 60s TTL lapses.
+        cache.invalidate("insights_llm_pending")
 
 
 def _sanitize_metric(value: Any) -> Any:

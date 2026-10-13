@@ -112,12 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // pagehide is the modern event (bfcache-safe).
   useEffect(() => {
     const onHide = () => closeSession("close");
-    window.addEventListener("pagehide", onHide);
-    document.addEventListener("visibilitychange", () => {
+    const onVisibility = () => {
       // Mobile: the OS may kill the tab without a pagehide.
       if (document.visibilityState === "hidden") closeSession("close");
-    });
-    return () => window.removeEventListener("pagehide", onHide);
+    };
+    window.addEventListener("pagehide", onHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   // Boot probe: does this install have an account yet, and is a

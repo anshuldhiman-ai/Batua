@@ -275,13 +275,27 @@ class SQLiteStorage:
             result = await session.exec(statement)
             return [row for row in result.all() if row is not None]
 
-    async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
+    async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None, fields: Optional[tuple[str, ...]] = None) -> list[dict]:
         await self._ensure_db()
         await self._ensure_indexes()
         model_class = _get_model_class(collection)
-        
+
         async with AsyncSession(self._engine) as session:
-            statement = select(model_class)
+            # Project only the columns the caller reads — analytics
+            # aggregators need date/amount and don't pay for
+            # deserializing description/notes on every row.
+            if fields:
+                # Project only the columns that exist on the model, in
+                # request order, so the row shaping below stays aligned
+                # with the field names (a skipped column must not shift
+                # values onto the wrong key).
+                present = [f for f in fields if hasattr(model_class, f)]
+                if present:
+                    statement = select(*[getattr(model_class, f) for f in present])
+                else:
+                    statement = select(model_class)
+            else:
+                statement = select(model_class)
             if query:
                 for key, value in query.items():
                     # Handle complex MongoDB-style queries for SQLite
@@ -306,7 +320,7 @@ class SQLiteStorage:
                         attr = getattr(model_class, key, None)
                         if attr is not None:
                             statement = statement.where(attr == value)
-            
+
             # Add ordering
             if order_by:
                 attr = getattr(model_class, order_by, None)
@@ -315,15 +329,24 @@ class SQLiteStorage:
                         statement = statement.order_by(attr.desc())
                     else:
                         statement = statement.order_by(attr)
-            
+
             # Add pagination
             if offset is not None:
                 statement = statement.offset(offset)
             if limit is not None:
                 statement = statement.limit(limit)
-            
+
             results = await session.exec(statement)
             db_objs = results.all()
+            if fields:
+                # Rows are tuples of the projected columns — keep only
+                # the fields that were actually projected.
+                present = [f for f in fields if hasattr(model_class, f)]
+                if present:
+                    return [
+                        {f: row[i] for i, f in enumerate(present)}
+                        for row in db_objs
+                    ]
             return [_to_dict(obj, collection) for obj in db_objs]
     
     async def count(self, collection: str, query: Optional[dict] = None) -> int:
@@ -489,7 +512,11 @@ class SQLiteStorage:
                 return _to_dict(db_obj, collection)
 
     async def update_many(self, collection: str, query: dict, patch: dict) -> int:
-        """Apply one validated patch to every row matching an equality query."""
+        """Apply one validated patch to every row matching an equality query.
+
+        Values of the shape ``{"$in": [...]}`` match column membership
+        (mirrors the Mongo-style operators ``all()`` already accepts).
+        """
         if collection in {"sessions", "chat_sessions"}:
             raise ValueError("Bulk updates are not supported for session collections")
         await self._ensure_db()
@@ -497,7 +524,11 @@ class SQLiteStorage:
         filters = []
         for key, value in query.items():
             attr = getattr(model_class, key, None)
-            if attr is not None:
+            if attr is None:
+                continue
+            if isinstance(value, dict) and set(value) == {"$in"}:
+                filters.append(attr.in_(value["$in"]))
+            else:
                 filters.append(attr == value)
         values = {key: value for key, value in patch.items() if hasattr(model_class, key)}
         if not filters or not values:
@@ -591,9 +622,12 @@ class MongoStorage:
         await self._ensure_indexes()
         return await self._db[collection].distinct(field)
 
-    async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None) -> list[dict]:
+    async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None, fields: Optional[list[str]] = None) -> list[dict]:
         await self._ensure_indexes()
         cursor = self._db[collection].find(query or {}, {"_id": 0})
+        if fields:
+            # Project only the requested fields (Mongo-side).
+            cursor.projection({f: 1 for f in fields})
         
         # Add ordering
         if order_by:

@@ -284,11 +284,15 @@ def _append_session_log(
     log = list(doc.get("session_log") or [])
     if entry.get("session_id"):
         # Closing an existing entry — update it, don't append.
-        for i, row in enumerate(log):
-            if row.get("session_id") == entry["session_id"]:
-                log[i] = {**row, **entry}
-                doc["session_log"] = log[-SESSION_LOG_LIMIT:]
-                return
+        # Dict lookup instead of a linear scan: this runs on
+        # every sign-in and sign-out, and a scan made the two
+        # writes O(N) each (O(N²) across a long log).
+        by_id = {row.get("session_id"): i for i, row in enumerate(log)}
+        idx = by_id.get(entry["session_id"])
+        if idx is not None:
+            log[idx] = {**log[idx], **entry}
+            doc["session_log"] = log[-SESSION_LOG_LIMIT:]
+            return
     log.append(entry)
     doc["session_log"] = log[-SESSION_LOG_LIMIT:]
 
@@ -456,7 +460,7 @@ async def sessions():
     """Recent session log, newest first — sign-in time,
     duration, and exit time per visit."""
     storage = get_storage()
-    log = _session_log(storage)
+    log = await _session_log(storage)
     return {"sessions": list(reversed(log))}
 
 

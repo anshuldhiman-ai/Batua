@@ -63,20 +63,29 @@ def test_cache_proactive_expiry():
 
 
 def test_cache_invalidation():
-    """Test that analytics cache can be invalidated."""
+    """Test that analytics cache can be invalidated.
+
+    invalidate_analytics_cache() drops the data-derived prefixes
+    (analytics_/insights_rules/dashboard_), not unrelated keys —
+    LLM outputs and other entries must survive a transaction write.
+    """
     cache = get_cache()
-    
+
     # Set some cache entries
-    cache.set("test_key1", "value1")
-    cache.set("test_key2", "value2")
-    
+    cache.set("analytics_test_key1", "value1")
+    cache.set("analytics_test_key2", "value2")
+    cache.set("unrelated_key", "value3")
+
     assert len(cache) > 0
-    
+
     # Invalidate cache
     invalidate_analytics_cache()
-    
-    # Cache should be empty
-    assert len(cache) == 0
+
+    # Data-derived entries are gone...
+    assert cache.get("analytics_test_key1") is None
+    assert cache.get("analytics_test_key2") is None
+    # ...but unrelated entries survive
+    assert cache.get("unrelated_key") == "value3"
 
 
 def test_cache_max_size_enforcement():
