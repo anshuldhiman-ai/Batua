@@ -79,6 +79,27 @@ def test_cash_flow_forecast(client):
     assert r.status_code == 200, r.text
 
 
+def test_cash_flow_forecast_contract_has_bands_and_backtest():
+    from ml_analytics import CashFlowForecaster
+
+    txns = []
+    for m in range(1, 9):
+        date = f"2026-{m:02d}-10"
+        txns.append({"date": date, "amount": 50000.0, "category": "Income"})
+        txns.append({"date": date, "amount": -(15000.0 + 500.0 * m), "category": "Expenses"})
+    result = CashFlowForecaster().forecast_cash_flow(txns, months_ahead=3)
+    assert result["empty"] is False
+    assert result["method"] == "linear_trend"
+    assert len(result["forecast"]) == 3
+    for row in result["forecast"]:
+        assert row["lower"] <= row["predicted_cashflow"] <= row["upper"]
+    widths = [row["upper"] - row["lower"] for row in result["forecast"]]
+    assert widths == sorted(widths)
+    assert result["backtest"]["folds"] == 3
+    assert result["backtest"]["beats_baseline"] is True
+    assert result["confidence"] in {"high", "medium", "low"}
+
+
 def test_optimize_budget(client):
     _seed(client)
     r = client.post("/api/ml/optimize-budget", params={"total_budget": 30000})

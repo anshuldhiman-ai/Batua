@@ -237,6 +237,46 @@ class SpendingPatternAnalyzer:
         }
 
 
+TREND_WINDOW = 6
+BAND_Z = 1.28  # ~80% interval
+
+
+def _linear_trend_forecast(series, horizon: int):
+    x = np.arange(len(series), dtype=float)
+    slope, intercept = np.polyfit(x, series, 1)
+    future_x = np.arange(len(series), len(series) + horizon, dtype=float)
+    return intercept + slope * future_x
+
+
+def _backtest_cashflow(series) -> Dict | None:
+    """Walk-forward check: predict each recent month from the months before it.
+
+    Compares the linear-trend model against a 3-month moving average (the
+    method this endpoint used before), so the UI can say whether the model
+    actually predicts better than the naive baseline.
+    """
+    n = len(series)
+    if n < 4:
+        return None
+    model_err, base_err, signed = [], [], []
+    for t in range(max(3, n - 3), n):
+        pred = _linear_trend_forecast(series[max(0, t - TREND_WINDOW):t], 1)[0]
+        base = float(series[t - 3:t].mean())
+        model_err.append(abs(series[t] - pred))
+        base_err.append(abs(series[t] - base))
+        signed.append(series[t] - pred)
+    model_mae = float(np.mean(model_err))
+    baseline_mae = float(np.mean(base_err))
+    return {
+        "folds": len(model_err),
+        "model_mae": model_mae,
+        "baseline_mae": baseline_mae,
+        "baseline": "3-month average",
+        "beats_baseline": model_mae < baseline_mae,
+        "residual_sd": float(np.std(signed)) if len(signed) > 1 else model_mae,
+    }
+
+
 class CashFlowForecaster:
     """Forecast cash flow using time series models."""
     
@@ -268,14 +308,17 @@ class CashFlowForecaster:
             monthly_cashflow['month'] = monthly_cashflow['month'].astype(str)
             
             months_observed = len(monthly_cashflow)
+            series = monthly_cashflow['amount'].to_numpy(dtype=float)
+            backtest = _backtest_cashflow(series)
             if months_observed < 3:
-                # Not enough data for forecasting, use simple average
-                avg_cashflow = monthly_cashflow['amount'].mean()
-                forecast = [avg_cashflow] * months_ahead
+                method = "average"
+                center = np.full(months_ahead, float(series.mean()))
+                sigma = float(np.std(series))
             else:
-                # Use simple moving average for forecasting
-                recent_avg = monthly_cashflow['amount'].tail(3).mean()
-                forecast = [recent_avg] * months_ahead
+                method = "linear_trend"
+                center = _linear_trend_forecast(series[-TREND_WINDOW:], months_ahead)
+                sigma = backtest["residual_sd"] if backtest else float(np.std(series))
+            half_width = BAND_Z * sigma * np.sqrt(np.arange(1, months_ahead + 1))
             
             # Generate future month labels
             last_month = pd.to_datetime(monthly_cashflow['month'].iloc[-1])
@@ -284,20 +327,29 @@ class CashFlowForecaster:
                 future_date = last_month + pd.DateOffset(months=i)
                 future_months.append(future_date.strftime('%Y-%m'))
             
-            forecast_rows = [{"month": month, "predicted_cashflow": float(cf)} for month, cf in zip(future_months, forecast)]
-            confidence_score = min(0.9, 0.35 + (months_observed * 0.08))
-            confidence = "high" if confidence_score >= 0.75 else "medium" if confidence_score >= 0.55 else "low"
+            forecast_rows = [
+                {"month": month, "predicted_cashflow": float(c), "lower": float(c - h), "upper": float(c + h)}
+                for month, c, h in zip(future_months, center, half_width)
+            ]
+            scale = max(float(np.mean(np.abs(series))), 1.0)
+            rel_error = backtest["model_mae"] / scale if backtest else None
+            if rel_error is None or not backtest["beats_baseline"]:
+                confidence = "low"
+            else:
+                confidence = "high" if rel_error < 0.15 else "medium" if rel_error < 0.35 else "low"
+            history = [{"month": m, "net": float(v)} for m, v in zip(monthly_cashflow['month'], series)][-12:]
 
             return {
                 "empty": False,
                 "forecast": forecast_rows,
+                "history": history,
                 "next_month_forecast": forecast_rows[0] if forecast_rows else None,
                 "three_month_forecast": forecast_rows[:3],
                 "three_month_total": float(sum(row["predicted_cashflow"] for row in forecast_rows[:3])),
-                "method": "moving_average",
+                "method": method,
                 "confidence": confidence,
-                "confidence_score": round(confidence_score, 2),
                 "months_observed": int(months_observed),
+                "backtest": backtest,
             }
             
         except Exception as exc:

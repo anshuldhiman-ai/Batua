@@ -79,6 +79,11 @@ function hasMeaningfulData(value) {
   return Boolean(value && !value.empty && Object.keys(value).length > 0);
 }
 
+const FORECAST_METHOD_LABEL: Record<string, string> = {
+  linear_trend: "Linear trend (last 6 months)",
+  average: "Average of available months",
+};
+
 const CLUSTER_TIERS = [
   { label: "High spending volume", classes: "border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-400" },
   { label: "Moderate spending volume", classes: "border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400" },
@@ -193,6 +198,11 @@ export default function MLInsights() {
   const { monthly_patterns, weekday_patterns, category_trends, spending_clusters, seasonal_patterns } = patterns || {};
   const patternsReady = hasMeaningfulData(patterns);
   const forecastReady = hasMeaningfulData(forecast);
+  const forecastChartData = (forecast?.forecast || []).map((f) => ({
+    ...f,
+    bandBase: f.lower,
+    bandWidth: Math.max(0, f.upper - f.lower),
+  }));
   const recsReady = hasMeaningfulData(recs);
   const weekendTotal = weekday_patterns?.weekend_vs_weekday?.total || (
     (weekday_patterns?.weekend_vs_weekday?.weekend || 0) + (weekday_patterns?.weekend_vs_weekday?.weekday || 0)
@@ -437,14 +447,33 @@ export default function MLInsights() {
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Methodology</span>
-                      <span className="text-sm capitalize text-foreground">{forecast?.method?.replace("_", " ") || "Moving Average"}</span>
+                      <span className="text-sm text-muted-foreground">Method</span>
+                      <span className="text-sm text-foreground">{FORECAST_METHOD_LABEL[forecast?.method ?? ""] || "Linear trend"}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">3-Month Total</span>
                       <span className="text-sm font-semibold tabular-nums">{formatINR(forecast?.three_month_total || 0)}</span>
                     </div>
                   </div>
+
+                  {forecast?.backtest && (
+                    <div className="space-y-2 rounded-xl border bg-muted/20 p-4 text-xs">
+                      <div className="text-sm font-semibold">Backtest vs. baseline</div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Model avg. error</span>
+                        <span className="font-semibold text-foreground tabular-nums">{formatINR(forecast.backtest.model_mae)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>{forecast.backtest.baseline} error</span>
+                        <span className="font-semibold text-foreground tabular-nums">{formatINR(forecast.backtest.baseline_mae)}</span>
+                      </div>
+                      <p className="pt-1 leading-relaxed text-muted-foreground">
+                        {forecast.backtest.beats_baseline
+                          ? `The model was closer than the ${forecast.backtest.baseline.toLowerCase()} on the last ${forecast.backtest.folds} months.`
+                          : `The model did not beat the ${forecast.backtest.baseline.toLowerCase()} on the last ${forecast.backtest.folds} months, so treat this forecast as a rough guide.`}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-3">
                     <h4 className="text-sm font-semibold">Expected Cash Flow</h4>
@@ -468,12 +497,12 @@ export default function MLInsights() {
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle>3-Month Forecast Projection</CardTitle>
-                  <CardDescription>Estimated future net flow calculated from historical trend lines</CardDescription>
+                  <CardDescription>Projected net flow with an ~80% range from the historical trend</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {forecast?.forecast?.length ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={forecast.forecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} {...CHART_DEFAULTS}>
+                      <AreaChart data={forecastChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} {...CHART_DEFAULTS}>
                         <defs>
                           <linearGradient id="gForecast" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -484,6 +513,8 @@ export default function MLInsights() {
                         <XAxis dataKey="month" stroke={CHART_AXIS} fontSize={11} tickLine={false} tickFormatter={formatMonth} />
                         <YAxis stroke={CHART_AXIS} fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => formatINR(v, { compact: true })} />
                         <Tooltip content={<ChartTooltip labelFormatter={formatMonth} />} />
+                        <Area type="monotone" dataKey="bandBase" stackId="band" stroke="none" fill="transparent" legendType="none" tooltipType="none" isAnimationActive={false} />
+                        <Area type="monotone" dataKey="bandWidth" stackId="band" stroke="none" fill="hsl(var(--primary))" fillOpacity={0.12} legendType="none" tooltipType="none" isAnimationActive={false} />
                         <Area
                           type="monotone"
                           dataKey="predicted_cashflow"

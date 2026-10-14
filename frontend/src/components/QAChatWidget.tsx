@@ -88,7 +88,7 @@ function AnswerDetails({ msg }) {
           <div className="mb-1 font-semibold">Recent Matching Transactions:</div>
           <div className="space-y-1">
             {details.transactions.map((t, idx) => (
-              <div key={idx} className="flex items-center justify-between gap-3 rounded-md bg-background/50 p-1.5">
+              <div key={idx} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background p-1.5">
                 <span className="truncate">{t.description} ({t.date})</span>
                 <span className="shrink-0 font-semibold">{formatINR(t.amount)}</span>
               </div>
@@ -105,26 +105,25 @@ function AnswerDetails({ msg }) {
       )}
 
       {type === "monthly_summary" && details.data && (
-        <div className="mt-1 grid grid-cols-3 gap-2 rounded-lg bg-background/50 p-1.5 text-center text-xs">
-          <div>
-            <div className="text-[9px] font-semibold uppercase text-muted-foreground">Income</div>
-            <div className="mt-0.5 font-bold text-emerald-600 dark:text-emerald-400">{formatINR(details.data.income)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] font-semibold uppercase text-muted-foreground">Expense</div>
-            <div className="mt-0.5 font-bold text-rose-500">{formatINR(details.data.expense)}</div>
-          </div>
-          <div>
-            <div className="text-[9px] font-semibold uppercase text-muted-foreground">Net</div>
-            <div className="mt-0.5 font-bold">{formatINR(details.data.net)}</div>
-          </div>
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          {[
+            { label: "Income", value: details.data.income, tone: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" },
+            { label: "Expense", value: details.data.expense, tone: "text-rose-500", bar: "bg-rose-500" },
+            { label: "Net", value: details.data.net, tone: "text-foreground", bar: "bg-primary" },
+          ].map((t) => (
+            <div key={t.label} className="relative overflow-hidden rounded-xl border border-border/60 bg-background px-2 py-2">
+              <span className={cn("absolute inset-x-0 top-0 h-0.5", t.bar)} />
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{t.label}</div>
+              <div className={cn("mt-0.5 font-bold tabular-nums", t.tone)}>{formatINR(t.value)}</div>
+            </div>
+          ))}
         </div>
       )}
 
       {type === "advice" && (
         <div className="space-y-1.5 text-[11px]">
           {details.recommendations?.map((r, idx) => (
-            <div key={idx} className="rounded-md bg-background/50 p-1.5">
+            <div key={idx} className="rounded-lg border border-border/60 bg-background p-1.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{r.title}</span>
                 <span className="shrink-0 text-emerald-600 dark:text-emerald-400">
@@ -134,7 +133,7 @@ function AnswerDetails({ msg }) {
             </div>
           ))}
           {details.investment_nudge && (
-            <div className="rounded-md bg-background/50 p-1.5 font-medium">
+            <div className="rounded-lg border border-border/60 bg-background p-1.5 font-medium">
               {details.investment_nudge.title}
             </div>
           )}
@@ -144,7 +143,7 @@ function AnswerDetails({ msg }) {
       {type === "anomaly_report" && details.anomalies?.length > 0 && (
         <div className="space-y-1.5 text-[11px]">
           {details.anomalies.map((a, idx) => (
-            <div key={idx} className="flex items-start justify-between gap-2 rounded-md bg-background/50 p-1.5">
+            <div key={idx} className="flex items-start justify-between gap-2 rounded-lg border border-border/60 bg-background p-1.5">
               <span className="truncate">{a.description}</span>
               <Badge variant={a.severity === "high" ? "destructive" : "warning"} className="shrink-0 capitalize">
                 {a.severity}
@@ -164,11 +163,11 @@ function AnswerDetails({ msg }) {
 
       {type === "comparison" && details.left && details.right && (
         <div className="grid grid-cols-2 gap-2 text-center text-xs">
-          <div className="rounded-md bg-background/50 p-1.5">
+          <div className="rounded-lg border border-border/60 bg-background p-1.5">
             <div className="truncate text-[9px] uppercase text-muted-foreground">{details.left.label}</div>
             <div className="mt-0.5 font-bold">{formatINR(details.left.value)}</div>
           </div>
-          <div className="rounded-md bg-background/50 p-1.5">
+          <div className="rounded-lg border border-border/60 bg-background p-1.5">
             <div className="truncate text-[9px] uppercase text-muted-foreground">{details.right.label}</div>
             <div className="mt-0.5 font-bold">{formatINR(details.right.value)}</div>
           </div>
@@ -673,13 +672,16 @@ export default function QAChatWidget() {
             className="relative flex-1 space-y-3 overflow-y-auto scroll-smooth px-3.5 py-4"
           >
             {history.length === 0 ? (
-              <div className="flex h-full min-h-[220px] flex-col items-center justify-center px-2 text-center">
-                <AssistantAvatar className="mb-3 h-12 w-12" />
-                <p className="font-display text-sm font-semibold">Hi, I'm Batua 👋</p>
-                <p className="mt-1 max-w-[260px] text-xs text-muted-foreground">
-                  Ask me anything about your money — I answer from your own transactions.
+              <div className="flex min-h-[260px] flex-col items-center justify-center px-1 text-center">
+                <div className="relative mb-3">
+                  <div className="absolute inset-0 rounded-full bg-primary/25 blur-xl" />
+                  <AssistantAvatar className="relative h-12 w-12" />
+                </div>
+                <p className="font-display text-base font-semibold tracking-tight">Ask Batua anything</p>
+                <p className="mt-1 max-w-[280px] text-xs leading-relaxed text-muted-foreground">
+                  Answers come straight from your own transactions, not guesses.
                 </p>
-                <div className="mt-4 grid w-full grid-cols-1 gap-2">
+                <div className="mt-4 grid w-full grid-cols-2 gap-2">
                   {starters.map((s, i) => {
                     const Icon = STARTER_ICONS[i % STARTER_ICONS.length];
                     return (
@@ -688,13 +690,12 @@ export default function QAChatWidget() {
                         type="button"
                         onClick={() => submit(s)}
                         disabled={loading}
-                        className="group flex items-center gap-2.5 rounded-xl border border-border/70 bg-background px-3 py-2.5 text-left text-xs transition-all hover:border-primary/40 hover:bg-accent/50 hover:shadow-sm disabled:opacity-50"
+                        className="group flex flex-col items-start gap-2 rounded-2xl border border-border/70 bg-background p-3 text-left text-xs transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md disabled:opacity-50"
                       >
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                           <Icon className="h-3.5 w-3.5" />
                         </span>
-                        <span className="flex-1 font-medium">{s}</span>
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                        <span className="font-medium leading-snug">{s}</span>
                       </button>
                     );
                   })}
@@ -715,10 +716,10 @@ export default function QAChatWidget() {
                         className={cn(
                           "rounded-2xl px-3.5 py-2 text-sm shadow-sm",
                           isUser
-                            ? "rounded-br-md bg-primary text-primary-foreground"
+                            ? "rounded-br-md bg-gradient-to-br from-primary to-primary/85 text-primary-foreground"
                             : msg.type === "error"
                             ? "rounded-bl-md border border-destructive/30 bg-destructive/10 text-foreground"
-                            : "rounded-bl-md border border-border/60 bg-muted text-foreground"
+                            : "rounded-bl-md border border-border/60 bg-background text-foreground"
                         )}
                       >
                         <span className="whitespace-pre-wrap break-words leading-relaxed">{msg.content}</span>
