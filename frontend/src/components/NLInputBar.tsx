@@ -1205,23 +1205,16 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
 
   return (
     <div
-      className="mt-5 animate-fade-up rounded-2xl border border-white/10 bg-card/60 p-4 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:p-5 dark:border-white/10 dark:bg-card/55 dark:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)]"
+      className="mt-4 animate-fade-up rounded-xl border border-border/70 bg-muted/30 p-4"
       data-testid="nl-preview"
     >
-      {/* Ambient glows behind the glass — one cool, one warm. */}
-      <div className="pointer-events-none absolute -left-24 -top-24 h-56 w-56 rounded-full bg-primary/10 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute -bottom-28 -right-20 h-52 w-52 rounded-full bg-emerald-400/10 blur-3xl" aria-hidden="true" />
-
-      {/* Header — quiet label, segmented type toggle */}
-      <div className="relative mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" aria-hidden="true" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {isRecurring ? "Repeat monthly" : "Entry details"}
-          </span>
-        </div>
+      {/* Header — quiet label, credit/debit direction toggle */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          {isRecurring ? "Repeat monthly" : "Entry details"}
+        </span>
         <div
-          className="inline-flex items-center rounded-full border border-border/70 bg-background/60 p-0.5 backdrop-blur-sm"
+          className="inline-flex items-center rounded-full bg-muted p-0.5"
           role="group"
           aria-label="Transaction type"
           data-testid="preview-type-toggle"
@@ -1233,9 +1226,9 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             onClick={() => setSign(false)}
             title="Money in (income)"
             className={cn(
-              "rounded-full px-3.5 py-1 text-xs font-medium transition-all duration-200",
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
               !isDebit
-                ? "bg-emerald-500/15 text-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] dark:text-emerald-400"
+                ? "bg-background text-emerald-700 shadow-sm dark:text-emerald-400"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -1248,9 +1241,9 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             onClick={() => setSign(true)}
             title="Money out (expense)"
             className={cn(
-              "rounded-full px-3.5 py-1 text-xs font-medium transition-all duration-200",
+              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
               isDebit
-                ? "bg-rose-500/15 text-rose-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] dark:text-rose-400"
+                ? "bg-background text-rose-600 shadow-sm dark:text-rose-400"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
@@ -1259,19 +1252,22 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
         </div>
       </div>
 
-      {/* Fields — one hairline-separated row per group. Description
-          spans the full width (it's the sentence the user typed);
-          the rest sit in a 2→4 column rhythm. */}
-      <div className="relative grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Description" className="sm:col-span-2 lg:col-span-4">
-          <GlassInput
+      {/* Fields — description full width, the rest compact in one row on desktop. */}
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-x-2.5 gap-y-2.5 sm:grid-cols-4",
+          isRecurring ? "lg:grid-cols-4" : "lg:grid-cols-6"
+        )}
+      >
+        <Field label="Description" className="col-span-2 sm:col-span-4 lg:col-span-full">
+          <PreviewInput
             value={draft.description}
             onChange={(e) => updateDraft("description", e.target.value)}
             data-testid="preview-description"
           />
         </Field>
-        <Field label="Amount (₹)" className="sm:col-span-1">
-          <GlassInput
+        <Field label="Amount (₹)">
+          <PreviewInput
             type="text"
             inputMode="decimal"
             value={draft.amount}
@@ -1304,13 +1300,13 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
           />
         </Field>
         {!isRecurring && (
-          <Field label="Date" className="sm:col-span-1">
-            <DateInput value={draft.date} onChange={(v) => updateDraft("date", v)} data-testid="preview-date" />
+          <Field label="Date">
+            <DateInput className="h-8 rounded-md px-2.5" value={draft.date} onChange={(v) => updateDraft("date", v)} data-testid="preview-date" />
           </Field>
         )}
         {!isRecurring && (
-          <Field label="Qty" className="sm:col-span-1">
-            <GlassInput
+          <Field label="Qty">
+            <PreviewInput
               type="number"
               min={1}
               value={draft.quantity ?? 1}
@@ -1324,8 +1320,8 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
           </Field>
         )}
         {!isRecurring && (
-          <Field label="Price / item (₹)" className="sm:col-span-1">
-            <GlassInput
+          <Field label="Price / item (₹)">
+            <PreviewInput
               type="text"
               inputMode="decimal"
               placeholder="e.g. 10, 12+15+48, 15*2"
@@ -1349,23 +1345,25 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               data-testid="preview-price"
             />
             {draft.price_text && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
                 = <span className="font-medium tabular-nums">{formatINR(Math.abs(draft.amount || 0))}</span> total
               </p>
             )}
           </Field>
         )}
         {isRecurring && (
-          <Field label="Day of month (1–31)" className="sm:col-span-1">
+          <Field label="Day of month (1–31)">
             <DayInput
+              className="h-8 rounded-md px-2.5"
               value={draft.day || 1}
               onChange={(v) => updateDraft("day", v)}
               data-testid="preview-day"
             />
           </Field>
         )}
-        <Field label="Category" className="sm:col-span-1">
+        <Field label="Category">
           <SearchableSelect
+            size="compact"
             value={draft.category || ""}
             options={categories}
             onChange={(v) => updateDraft("category", v)}
@@ -1375,8 +1373,9 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             data-testid="preview-category"
           />
         </Field>
-        <Field label="Payment" className="sm:col-span-1">
+        <Field label="Payment">
           <SearchableSelect
+            size="compact"
             value={draft.payment_method || ""}
             options={paymentMethods}
             onChange={(v) => updateDraft("payment_method", v)}
@@ -1389,10 +1388,10 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
 
       {!isRecurring && fragmentCount >= 2 && (
         <div
-          className="relative mt-4 rounded-xl border border-border/60 bg-background/50 p-3.5 backdrop-blur-sm"
+          className="mt-3 rounded-lg border border-border/60 bg-background/60 p-3"
           data-testid="fragment-split"
         >
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-foreground">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-foreground">
             <Split className="h-3.5 w-3.5 text-primary" />
             {fragmentCount} items detected in this line
           </div>
@@ -1402,26 +1401,24 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
               variant={split ? "outline" : "default"}
               onClick={() => onToggleSplit(false)}
               data-testid="fragment-keep"
-              className="rounded-full"
             >
-              Keep as one ({formatINR(draft.amount)})
+              Keep as one
             </Button>
             <Button
               size="sm"
               variant={split ? "default" : "outline"}
               onClick={() => onToggleSplit(true)}
               data-testid="fragment-split-btn"
-              className="rounded-full"
             >
-              Split into {fragmentCount} ({formatINR(draft.amount)})
+              Split into {fragmentCount}
             </Button>
           </div>
           {split && (
-            <ul className="mt-3 space-y-1.5">
+            <ul className="mt-2.5 space-y-1">
               {fragments.map((fr, i) => (
                 <li
                   key={i}
-                  className="flex items-center justify-between rounded-lg border border-border/50 bg-background/60 px-3 py-1.5 text-sm"
+                  className="flex items-center justify-between rounded-md border border-border/50 bg-background px-3 py-1.5 text-sm"
                   data-testid="fragment-item"
                 >
                   <span className="flex min-w-0 items-center gap-2">
@@ -1440,7 +1437,7 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
                   <span
                     className={cn(
                       "shrink-0 tabular-nums font-medium",
-                      fr.amount >= 0 ? "text-emerald-600" : "text-rose-500"
+                      fr.amount >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                     )}
                   >
                     {formatINR(fr.amount)}
@@ -1454,30 +1451,30 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
 
       {isRecurring && (
         <MonthPicker
-          className="mt-4"
+          className="mt-3"
           months={draft.months || []}
           amount={draft.amount}
           onChange={setDraftMonths}
         />
       )}
 
-      {/* Footer — hairline divider, total left, actions right. */}
-      <div className="relative mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
+      {/* Footer — divider, total left, actions right. */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+          <span className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
             {isRecurring ? "Per month" : "Total"}
           </span>
           <span
             className={cn(
-              "kpi-number text-xl font-semibold tabular-nums",
-              isDebit ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"
+              "kpi-number text-lg font-semibold tabular-nums",
+              isDebit ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
             )}
           >
             {formatINR(isRecurring ? (draft.total || draft.amount) : draft.amount)}
           </span>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onDiscard} data-testid="nl-discard-btn" className="rounded-full">
+          <Button variant="outline" size="sm" onClick={onDiscard} data-testid="nl-discard-btn">
             <X className="h-4 w-4" /> Discard
           </Button>
           <Button
@@ -1485,7 +1482,6 @@ function PreviewPanel({ draft, updateDraft, setDraftMonths, onDiscard, onSave, s
             onClick={onSave}
             disabled={saving || (isRecurring && !(draft.months?.length))}
             data-testid="nl-save-btn"
-            className="rounded-full bg-gradient-to-r from-[#22d3ee] via-[#2dd4bf] to-[#14f195] font-semibold text-[#051a15] shadow-[0_8px_24px_-8px_rgba(20,241,149,0.5)] hover:brightness-110"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             {isRecurring
@@ -1506,13 +1502,13 @@ function BulkPreview({ items, onDiscard, onSave, saving }) {
   const recurringCount = recurring.reduce((n, r) => n + (r.count || r.months?.length || 0), 0);
 
   return (
-    <div className="mt-4 rounded-lg border border-border bg-background/60 p-4 animate-fade-up" data-testid="nl-bulk-preview">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="mt-4 animate-fade-up rounded-xl border border-border/70 bg-muted/30 p-4" data-testid="nl-bulk-preview">
+      <div className="mb-2.5 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         {items.length} lines parsed · {singles} one-off · {recurringCount} recurring entries
       </div>
-      <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
+      <ul className="max-h-48 space-y-1.5 overflow-y-auto text-sm">
         {items.map((item, i) => (
-          <li key={i} className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+          <li key={i} className="flex items-center justify-between rounded-md border border-border/60 bg-background px-3 py-2">
             <span className="flex min-w-0 flex-col">
               <span className="truncate font-medium">
                 {item.description}
@@ -1531,14 +1527,14 @@ function BulkPreview({ items, onDiscard, onSave, saving }) {
               {item.kind === "recurring" && (
                 <Badge variant="outline">{item.count || item.months?.length}×</Badge>
               )}
-              <span className={cn("tabular-nums", item.amount >= 0 ? "text-emerald-600" : "text-rose-500")}>
+              <span className={cn("tabular-nums font-medium", item.amount >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
                 {formatINR(item.amount)}
               </span>
             </span>
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex justify-end gap-2">
+      <div className="mt-3 flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onDiscard}>Discard</Button>
         <Button size="sm" onClick={onSave} disabled={saving} data-testid="nl-bulk-save-btn">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -1549,31 +1545,30 @@ function BulkPreview({ items, onDiscard, onSave, saving }) {
   );
 }
 
-function Field({ label, children, className }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <label className={cn("flex flex-col gap-1", className)}>
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
   );
 }
 
-/**
- * Glass input for the entry-details card — a translucent surface
- * with a hairline border and an inner highlight, so fields read as
- * frosted panes rather than flat boxes. `tone` tints the value
- * (money-out rose, money-in emerald) to match the card's type toggle.
- *
- * Props are typed loosely (any) to match the plain-JS style of the
- * rest of this file.
- */
-function GlassInput({ className, tone, ...props }: { className?: string; tone?: string; [k: string]: any }) {
+/** Compact app input (h-8), with an optional credit/debit tone on the value. */
+function PreviewInput({ className, tone, ...props }: { className?: string; tone?: string; [k: string]: any }) {
   return (
     <input
       {...props}
       className={cn(
-        "w-full rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 text-sm text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm placeholder:text-muted-foreground/60",
-        "focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20",
+        "flex h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         tone === "debit" && "text-rose-600 dark:text-rose-400",
         tone === "credit" && "text-emerald-600 dark:text-emerald-400",
         className

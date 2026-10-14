@@ -177,15 +177,28 @@ export default function Dashboard() {
 
   // Discover once whether Gemini is enabled
   React.useEffect(() => {
-    api.get("/")
+    const controller = new AbortController();
+    api.get("/", { signal: controller.signal })
       .then((r) => setGeminiAvailable(Boolean(r.data?.ai)))
-      .catch(() => setGeminiAvailable(false));
+      .catch(() => {
+        if (!controller.signal.aborted) setGeminiAvailable(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const refreshAI = React.useCallback(async () => {
     setRefreshing(true);
     try {
       const { data: kick } = await api.post("/insights/refresh", null, { timeout: 10000 });
+      if (!mountedRef.current) return;
       if (kick?.status !== "queued") {
         toast.info(kick?.message || "AI refresh is unavailable right now.");
         return;
@@ -194,8 +207,9 @@ export default function Dashboard() {
       
       const before = insights?.generated_at;
       const deadline = Date.now() + 30000;
-      while (Date.now() < deadline) {
+      while (Date.now() < deadline && mountedRef.current) {
         await new Promise((r) => setTimeout(r, 1500));
+        if (!mountedRef.current) return;
         try {
           const { data } = await api.get("/insights");
           if (data.source === "gemini" && data.generated_at !== before) {
@@ -206,11 +220,11 @@ export default function Dashboard() {
           // transient network blip — keep polling
         }
       }
-      toast.warning("Still generating — refresh the page in a moment.");
+      if (mountedRef.current) toast.warning("Still generating — refresh the page in a moment.");
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Could not refresh AI insights");
+      if (mountedRef.current) toast.error(e.response?.data?.detail || "Could not refresh AI insights");
     } finally {
-      setRefreshing(false);
+      if (mountedRef.current) setRefreshing(false);
     }
   }, [insights, insightsMode, queryClient]);
 

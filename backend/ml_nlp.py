@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import threading
 from collections import OrderedDict
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -1730,6 +1731,7 @@ class TransactionClassifier:
         self._vectorizer = None
         self._word_vectorizer = None
         self._initialized = False
+        self._init_lock = threading.Lock()
         self._predict_cache = _PredictCache()
         self._training_fingerprint: Optional[str] = None
         self._categories = [
@@ -1929,29 +1931,32 @@ class TransactionClassifier:
     def _initialize(self) -> bool:
         if self._initialized:
             return True
-        try:
-            merged = self._merge_training_data()
-            if not merged:
-                logger.warning("No training data available — classifier disabled")
-                return False
-
-            fingerprint = self._fingerprint(merged)
-            if self._try_load_persisted(fingerprint):
+        with self._init_lock:
+            if self._initialized:
                 return True
+            try:
+                merged = self._merge_training_data()
+                if not merged:
+                    logger.warning("No training data available — classifier disabled")
+                    return False
 
-            self._fit_model(merged)
-            self._training_fingerprint = fingerprint
-            self._initialized = True
-            self._persist(fingerprint, len(merged))
-            logger.info(
-                "ML transaction classifier trained on %d samples across %d categories",
-                len(merged),
-                len(set(cat for _, cat in merged)),
-            )
-            return True
-        except Exception as exc:
-            logger.warning("Failed to initialize ML classifier: %s", exc)
-            return False
+                fingerprint = self._fingerprint(merged)
+                if self._try_load_persisted(fingerprint):
+                    return True
+
+                self._fit_model(merged)
+                self._training_fingerprint = fingerprint
+                self._initialized = True
+                self._persist(fingerprint, len(merged))
+                logger.info(
+                    "ML transaction classifier trained on %d samples across %d categories",
+                    len(merged),
+                    len(set(cat for _, cat in merged)),
+                )
+                return True
+            except Exception as exc:
+                logger.warning("Failed to initialize ML classifier: %s", exc)
+                return False
 
     # ------------------------------------------------------------------ #
     # Inference

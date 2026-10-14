@@ -20,6 +20,7 @@ export default function SearchableSelect({
   search = false,
   allowCustom = false,
   className,
+  size = "default",
   "data-testid": dataTestid,
 }: any) {
   const [open, setOpen] = useState(false);
@@ -114,7 +115,10 @@ export default function SearchableSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         data-testid={dataTestid}
-        className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          size === "compact" ? "h-8 px-2.5" : "h-10 px-3 py-2"
+        )}
       >
         <span className={cn("truncate text-left", !value && "text-muted-foreground")}>
           {value || placeholder}

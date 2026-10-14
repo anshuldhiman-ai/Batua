@@ -525,20 +525,14 @@ export default function Layout({ splashVisible }: LayoutProps) {
 
   // Pre-load AI Insights data on app mount for smoother experience
   useEffect(() => {
-    const preloadAIInsights = async () => {
-      try {
-        // Fire and forget - cache the data for when user visits AI Insights
-        await Promise.allSettled([
-          api.get("/ml/spending-patterns"),
-          api.get("/ml/cash-flow-forecast"),
-          api.get("/ml/recommendations"),
-        ]);
-      } catch (error) {
-        // Silently fail - this is just pre-loading
-        console.debug("Pre-loading AI Insights failed:", error);
-      }
-    };
-    preloadAIInsights();
+    const controller = new AbortController();
+    const { signal } = controller;
+    Promise.allSettled([
+      api.get("/ml/spending-patterns", { signal }),
+      api.get("/ml/cash-flow-forecast", { signal }),
+      api.get("/ml/recommendations", { signal }),
+    ]);
+    return () => controller.abort();
   }, []);
 
   // First-time visitors get the onboarding tour automatically — after the page

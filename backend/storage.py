@@ -197,6 +197,7 @@ class SQLiteStorage:
             future=True
         )
         self._initialized = False
+        self._indexes_ready = False
 
     async def _ensure_db(self):
         if self._initialized:
@@ -211,8 +212,12 @@ class SQLiteStorage:
 
     async def _ensure_indexes(self):
         """Create indexes on frequently queried columns if they don't exist."""
+        if self._indexes_ready:
+            return
         from sqlalchemy import text
         async with self._lock:
+            if self._indexes_ready:
+                return
             async with self._engine.begin() as conn:
                 result = await conn.execute(text("PRAGMA index_list(transactions)"))
                 existing = {row[1] for row in result}
@@ -227,6 +232,7 @@ class SQLiteStorage:
                             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_payment_method ON transactions(payment_method)"))
                         elif idx_name == "idx_transactions_txn_type":
                             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_txn_type ON transactions(txn_type)"))
+            self._indexes_ready = True
 
     @staticmethod
     def _migrate_columns(conn):

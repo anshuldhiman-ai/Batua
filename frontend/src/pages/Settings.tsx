@@ -735,12 +735,14 @@ export default function Settings() {
     try {
       if (chatSessionId) {
         await api.delete(`/ml/chat/${chatSessionId}`);
+        toast.success("Conversation memory cleared");
       } else {
         // No session known — clear every stored session so the action is a
         // real operation, not a silent no-op that pretends to succeed.
-        await api.delete("/ml/chat");
+        const { data } = await api.delete("/ml/chat");
+        const n = Number(data?.deleted) || 0;
+        toast.success(n > 0 ? `Cleared ${n} conversation${n === 1 ? "" : "s"}` : "No conversation memory to clear");
       }
-      toast.success("Conversation memory cleared");
     } catch {
       toast.error("Could not clear conversation memory — backend unreachable.");
     }
