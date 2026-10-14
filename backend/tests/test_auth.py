@@ -5,7 +5,6 @@ SQLite store), so the hashing + storage round-trip is exercised, not mocked.
 """
 import asyncio
 
-import pytest
 from fastapi.testclient import TestClient
 
 

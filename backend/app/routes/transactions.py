@@ -51,7 +51,6 @@ async def list_transactions(
     page_size: int = 25,
 ):
     storage = get_storage()
-    is_mongo = storage.__class__.__name__ == "MongoStorage"
 
     def _matches_search(t) -> bool:
         """Search across the whole record — description, notes,

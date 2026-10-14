@@ -1,6 +1,6 @@
 """Dependencies for route modules."""
 import secrets
-from typing import Any, Optional
+from typing import Optional
 
 # Global storage reference - set during startup
 _storage = None

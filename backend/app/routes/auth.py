@@ -28,7 +28,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.dependencies import get_storage
-from app.cache import invalidate_analytics_cache
 
 logger = logging.getLogger("batua.auth")
 
