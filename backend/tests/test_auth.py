@@ -48,7 +48,9 @@ def test_register_roundtrip(client):
     assert data["user"]["email"] == CRED["email"]
 
     # /auth/me exposes metadata, never the password hash
-    me = client.get("/api/auth/me").json()
+    me_response = client.get("/api/auth/me")
+    assert me_response.status_code == 200, f"Expected 200, got {me_response.status_code}: {me_response.text}"
+    me = me_response.json()
     assert me["username"] == CRED["username"]
     assert "password_hash" not in me
 
