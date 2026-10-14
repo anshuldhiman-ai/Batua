@@ -2,10 +2,9 @@
 
 Base URL: `http://localhost:8001/api/` (dev) · all routes are mounted under `/api`.
 
-> **Last updated:** 2026-08-02 · Reflects the code at the latest working tree on `main`.
-> This doc describes **intended** behavior; where current behavior deviates (known bugs),
-> the affected rows carry a `⚠️` note pointing to the CLAUDE.md audit entry. Docs drift —
-> check `/openapi.json` (with `ENABLE_DOCS=1`) for the live source of truth.
+> **Last updated:** 2026-10-14 · Reflects the code at the latest working tree on `main`.
+> Critical bugs from the Oct 2026 audit have been fixed (SQLite schema migration, auth session flow).
+> Check `/openapi.json` (with `ENABLE_DOCS=1`) for the live source of truth.
 
 > **Interactive docs:** run the backend with `ENABLE_DOCS=1`, then open
 > `/docs` (Swagger UI), `/redoc`, or `/openapi.json`.
@@ -116,7 +115,7 @@ debit), but an explicit `+`/`-` typed next to the amount always wins (e.g.
 | POST | `/ml/qa` | Ask the grounded Q&A assistant `{ query, session_id }` |
 | GET | `/ml/qa/suggestions` | Question suggestions |
 | GET | `/ml/chat/{session_id}` | Chat history |
-| DELETE | `/ml/chat/{session_id}` | Clear chat memory. ⚠️ Frontend `clearChatMemory()` (Settings.tsx) guards on `if (chatSessionId)` — if no session id exists it skips the call entirely and shows a success toast regardless. That's **H14** in the CLAUDE.md audit; the endpoint itself is clean |
+| DELETE | `/ml/chat/{session_id}` | Clear chat memory |
 
 ---
 
@@ -181,7 +180,7 @@ debit), but an explicit `+`/`-` typed next to the amount always wins (e.g.
 | GET | `/backup` | Export full JSON backup |
 | POST | `/restore` | Restore from JSON backup |
 | GET | `/settings/gemini-key` | Get Gemini key presence (never the key itself) |
-| PUT | `/settings/gemini-key` | Set Gemini key — **validated live** against the Gemini API before persisting; `400`/`502` on failure, so a bad key is rejected rather than silently stored. ⚠️ Validation is a network call at write time; it does *not* guarantee the key still works later, and `configured` is only `True` on success |
+| PUT | `/settings/gemini-key` | Set Gemini key — **validated live** against the Gemini API before persisting; `400`/`502` on failure, so a bad key is rejected rather than silently stored |
 | POST | `/settings/gemini-key/test` | Validate the currently configured key against the live API |
 | GET | `/settings/system-metrics` | Server/process metrics (psutil; `null` fields if unavailable) |
 

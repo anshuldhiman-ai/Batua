@@ -120,7 +120,7 @@ graph TD
 ## 🔬 Engineering Highlights
 
 ### 1 · Transparent dual-database failover
-On startup the storage controller pings MongoDB with a 1.5 s budget. If it's unreachable, Batua hot-fails-over to an async SQLite store (`aiosqlite`, WAL journaling). **Both backends implement the identical async interface** (`all / get / insert / update / delete / …`), so not a single route knows or cares which engine is live. Result: the app runs with zero setup on any machine, and scales up to Mongo Atlas by setting one env var.
+On startup the storage controller pings MongoDB with a 1.5 s budget. If it's unreachable, Batua hot-fails-over to an async SQLite store (`aiosqlite`, WAL journaling). **Both backends implement the identical async interface** (`all / get / insert / update / delete / …`), so not a single route knows or cares which engine is live. The SQLite backend includes automatic schema migration (`_migrate_columns`) so new fields are ALTER TABLEd in without breaking existing databases. Result: the app runs with zero setup on any machine, and scales up to Mongo Atlas by setting one env var.
 
 ### 2 · Single-pass analytics with cache invalidation
 Dashboard and analytics endpoints bucket transactions by month in a **single pass** and serve from an in-memory TTL cache (`app/cache.py`). Every write path calls `invalidate_analytics_cache()`, binding cache lifetime to data mutations — so metrics are always fresh *and* fast.
@@ -132,10 +132,10 @@ The Q&A engine computes verified figures from your transactions, wraps them in a
 A local regex + heuristic pipeline resolves the vast majority of entries instantly. Only genuinely ambiguous input falls through to Gemini — and if no key is configured, the rule-based parser still returns a best-effort result. Every external dependency in the app is *optional* and *degradable*.
 
 ### 5 · Non-blocking by construction
-Every synchronous hot spot — the NL parser, receipt scanning, Excel parsing, LLM calls — is offloaded to a worker thread (`asyncio.to_thread` / `run_in_executor`) instead of running inline in the `async def` handler. A single 30 s Gemini timeout therefore stalls one request, not the whole process. Regression tests assert both that the helper leaves the loop thread *and* that the loop keeps ticking while it works (`backend/tests/test_async_offload.py`).
+Every synchronous hot spot — the NL parser, receipt scanning, Excel parsing, LLM calls, bcrypt hashing — is offloaded to a worker thread (`asyncio.to_thread` / `run_in_executor`) instead of running inline in the `async def` handler. A single 30 s Gemini timeout therefore stalls one request, not the whole process. Regression tests assert both that the helper leaves the loop thread *and* that the loop keeps ticking while it works (`backend/tests/test_async_offload.py`).
 
 ### 6 · Production hardening
-Security headers on every response, environment-gated API docs, sanitised error responses with correlation IDs, API credentials sent as headers (never URL query params), and content-fingerprint idempotency on imports. See [Security](#-security).
+Security headers on every response, environment-gated API docs, sanitised error responses with correlation IDs, session-based authentication with bcrypt password hashing, API credentials sent as headers (never URL query params), and content-fingerprint idempotency on imports. See [Security](#-security).
 
 ---
 

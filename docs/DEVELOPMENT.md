@@ -5,9 +5,9 @@ It covers architecture, the request lifecycle, how to add a feature, and how sto
 parsing, and the AI layers fit together. For the API surface, see [`API.md`](API.md);
 for production, see [`DEPLOYMENT.md`](../DEPLOYMENT.md).
 
-> **Last updated:** 2026-08-02 · This guide reflects **intended** architecture. Where
-> current behavior deviates (known bugs), the code may differ from the happy path
-> described here — see §9 and the authoritative audit in `CLAUDE.md` → *Known Issues*.
+> **Last updated:** 2026-10-14 · Critical bugs from the Oct 2026 audit have been fixed
+> (SQLite schema migration, auth session flow, fixed-position dialog portaling). See
+> `CLAUDE.md` → *Bug & Issue Audit* for the current state of open findings.
 
 ---
 
@@ -155,31 +155,25 @@ Live in CI via `.github/workflows/ci.yml` on every push.
 
 ## 9. Current known issues
 
-The authoritative, full audit (critical/high/medium/low, ~50 findings) lives in
-`CLAUDE.md` → **Known Issues**. That is the source of truth and **will outdate this
-section** — check it before editing any of the files flagged below. The ones that most
-affect day-to-day development (IDs match the CLAUDE.md audit):
+The authoritative audit (25 findings across critical/high/performance/frontend) lives in
+`CLAUDE.md` → **Bug & Issue Audit — 2026-10-09**. Check it before editing flagged files.
 
-- **Critical**
-  - C1 — `pytest-asyncio==1.4.0` pin in `requirements.txt` is a version that never
-    existed; CI pre-installs separately to work around it.
-  - C2 — no `test` script in `frontend/package.json`; CI never runs frontend tests.
-  - C3 — the `"credit"` keyword in `INCOME_WORDS` misclassifies credit-card expenses as
-    income. **Fix this first if you touch the parser.**
-  - C4 — race condition in analytics cache expiry (`app/cache.py`) — don't reintroduce
-    the double-`del`.
-  - C5 — 70+ bare `except Exception:` handlers across the backend silently swallow bugs.
-  - C7 — Excel import sends `undefined` as the file (`Transactions.tsx:518`).
-- **High**
-  - H1 — every endpoint loads all txns into memory via `get_all_txns()`; fine for a
-    personal ledger, will struggle past ~50 k rows.
-  - H7 — `parser.py` vs `ml_nlp.py` category maps can drift — keep in sync.
-  - H14 — `clearChatMemory()` (Settings.tsx) no-ops with a success toast when no chat
-    session id exists.
-- **Medium**
-  - M1 — `local_llm.py` uses a sync `httpx.Client()` in async FastAPI.
-  - M7 — frontend BASE URL can double-slash (`http://localhost:8001//api`).
-  - M8 — `test_chat_engine.py` uses clock-dependent dates → non-deterministic tests.
-  - M13 — `fastest_growing` analytics stub always returns `10.0`.
-- **Other constraint:** the Android/Chaquopy spike is **blocked** on `pydantic-core`
-  (Rust) having no Android wheel — don't add heavy mandatory deps that would deepen it.
+### Fixed (2026-10-09)
+- SQLite schema migration — new columns are now ALTER TABLEd in via `_migrate_columns`
+- Auth login 404 — the above fix resolved the `login_history` column issue
+- Fixed-position dialogs — ManageProfileMenu now portal-rendered to avoid clipping
+
+### Open high-impact items
+- **#2** — 78 broad `except Exception:` handlers swallow real errors across 19 files
+- **#3** — `_record_login` is a read-modify-write race (auth.py:214-223)
+- **#4** — bcrypt runs synchronously on the event loop (wrap in `asyncio.to_thread`)
+- **#8** — `GET /categories/` full-scans transactions just to build a `used` set
+- **#9** — Navbar/Transactions search loads entire collection before filtering
+- **#10** — Every app mount fires 3 unbounded ML endpoints (Layout.tsx:457-473)
+- **#13** — Every transaction mutation clears the ENTIRE analytics cache
+
+Performance fixes (#8-#13) would have the biggest user-visible impact. See the full audit
+for detailed descriptions and line numbers.
+
+**Android constraint:** the Chaquopy spike is **blocked** on `pydantic-core` (Rust)
+having no Android wheel — avoid adding heavy mandatory deps that would deepen it.
