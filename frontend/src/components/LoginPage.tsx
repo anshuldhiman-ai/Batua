@@ -74,32 +74,32 @@ function sparkPath(values: number[], width: number, height: number) {
  */
 function BalanceCard() {
   const reduce = useReducedMotion();
-  const path = React.useMemo(() => sparkPath(SPARK, 320, 64), []);
+  const path = React.useMemo(() => sparkPath(SPARK, 320, 52), []);
 
   return (
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...ease, delay: 0.1 }}
-      className="auth-card auth-depth-2 w-full max-w-[380px] p-6"
+      className="auth-card auth-depth-2 w-full max-w-[380px] p-5"
       style={{ "--auth-tilt": "1deg" } as React.CSSProperties}
       aria-hidden="true"
     >
-      <div className="flex items-end justify-between pb-2">
+      <div className="flex items-end justify-between pb-1">
         <div>
-          <p className="font-auth text-[12px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
+          <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
             Total balance
           </p>
           <p
             className={cn(
-              "mt-1 text-[34px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[color:var(--auth-ink)]",
+              "mt-1 text-[28px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[color:var(--auth-ink)]",
               !reduce && "auth-count-up"
             )}
           >
             ₹2,84,930
           </p>
         </div>
-        <span className="mb-1 flex items-center gap-0.5 rounded-full bg-[color:var(--auth-accent-soft)] px-2.5 py-1 text-[12px] font-semibold tabular-nums text-[color:var(--auth-accent-deep)]">
+        <span className="mb-0.5 flex items-center gap-0.5 rounded-full bg-[color:var(--auth-accent-soft)] px-2.5 py-1 text-[11.5px] font-semibold tabular-nums text-[color:var(--auth-accent-deep)]">
           <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
             <path d="M5 8.5v-6M2.5 5 5 2.5 7.5 5" />
           </svg>
@@ -107,7 +107,7 @@ function BalanceCard() {
         </span>
       </div>
 
-      <svg viewBox="0 0 320 96" className="mt-5 h-[92px] w-full" preserveAspectRatio="none" aria-hidden="true">
+      <svg viewBox="0 0 320 80" className="mt-4 h-[72px] w-full" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id="auth-spark-fill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--auth-accent)" stopOpacity="0.26" />
@@ -128,11 +128,11 @@ function BalanceCard() {
         </defs>
 
         {/* projected zone — hatched, from the forecast split to the right edge */}
-        <rect x="224" y="0" width="96" height="96" fill="url(#auth-hatch)" />
-        <line x1="224" y1="0" x2="224" y2="96" stroke="var(--auth-ink-3)" strokeOpacity="0.25" strokeDasharray="2 4" />
+        <rect x="224" y="0" width="96" height="80" fill="url(#auth-hatch)" />
+        <line x1="224" y1="0" x2="224" y2="80" stroke="var(--auth-ink-3)" strokeOpacity="0.25" strokeDasharray="2 4" />
 
         {/* area + actual line */}
-        <path d={`${path} L320 96 L0 96 Z`} fill="url(#auth-spark-fill)" />
+        <path d={`${path} L320 80 L0 80 Z`} fill="url(#auth-spark-fill)" />
         <path
           d={path}
           fill="none"
@@ -154,7 +154,7 @@ function BalanceCard() {
         />
 
         {/* marker: vertical rule, dot, and tooltip chip */}
-        <line x1="180" y1="0" x2="180" y2="96" stroke="var(--auth-accent)" strokeOpacity="0.35" strokeWidth="1" />
+        <line x1="180" y1="0" x2="180" y2="80" stroke="var(--auth-accent)" strokeOpacity="0.35" strokeWidth="1" />
         <circle cx="180" cy="22" r="4" fill="var(--auth-accent)" stroke="var(--auth-page)" strokeWidth="2" />
         <g transform="translate(135,0)" filter="url(#auth-tooltip-shadow)">
           <rect width="68" height="24" rx="12" fill="var(--auth-ink)" />
@@ -382,8 +382,8 @@ function BrandPanel() {
 
   return (
     <section
-      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col"
-      style={{ background: "var(--auth-brand-grad)" }}
+      className="relative order-2 overflow-y-auto lg:order-1 lg:flex lg:flex-col lg:overflow-y-auto"
+      style={{ background: "var(--auth-brand-grad)", "--foreground": "0 0% 100%" } as React.CSSProperties}
       aria-label="About Batua"
     >
       <div className="auth-aurora" aria-hidden="true">
@@ -397,52 +397,50 @@ function BrandPanel() {
         variants={variants}
         initial="hidden"
         animate="show"
-        className="relative z-10 flex h-full flex-col justify-between p-8 lg:p-12"
+        className="relative z-10 flex h-full flex-col justify-between p-6 sm:p-8 lg:p-8 xl:p-10"
       >
         {/* Logo */}
         <motion.div variants={item} className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl auth-gradient">
-            <Logo className="h-6 w-6" />
-          </span>
-          <span className="font-auth text-[20px] font-bold tracking-[-0.01em] text-white">
+          <Logo className="h-11 w-11 shrink-0 text-white" />
+          <span className="shrink-0 translate-y-px font-brand text-[26px] leading-none tracking-wide text-white">
             Batua
           </span>
         </motion.div>
 
         {/* Hero content */}
-        <div className="flex flex-col gap-12">
+        <div className="my-auto flex flex-col gap-6 py-4 lg:gap-7 lg:py-2">
           {/* Headline */}
-          <motion.div variants={item} className="max-w-[540px] space-y-6">
-            <h2 className="font-auth text-[40px] font-bold leading-[1.1] tracking-[-0.03em] text-white lg:text-[56px] lg:leading-[1.08]">
+          <motion.div variants={item} className="max-w-[500px] space-y-3.5">
+            <h2 className="font-auth text-[30px] font-bold leading-[1.12] tracking-[-0.03em] text-white sm:text-[34px] lg:text-[40px] xl:text-[44px]">
               Your finances,
               <br />
-              <span className="auth-gradient-text">your device,</span>
+              <span className="auth-gradient-text">kept on your device,</span>
               <br />
               your control.
             </h2>
-            <p className="max-w-[480px] text-[16px] font-medium leading-[1.7] text-[#b8c1d0]/90 lg:text-[17px]">
+            <p className="max-w-[440px] text-[14px] font-medium leading-[1.65] text-[#b8c1d0]/90 lg:text-[15px]">
               A personal finance app that keeps your data where it belongs—on your device. No cloud uploads, no data sharing, just complete privacy.
             </p>
           </motion.div>
 
           {/* Single hero card */}
-          <motion.div variants={item} className="mx-auto w-full max-w-[500px] lg:mx-0">
+          <motion.div variants={item} className="w-full max-w-[420px]">
             <BalanceCard />
           </motion.div>
 
           {/* Feature pills */}
-          <motion.div variants={item} className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2.5 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
-              <Lock className="h-[18px] w-[18px] text-emerald-400" strokeWidth={2} />
-              <span className="text-[13.5px] font-semibold text-white/95">Encrypted locally</span>
+          <motion.div variants={item} className="flex flex-wrap gap-2.5">
+            <div className="flex items-center gap-2 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-4 py-2 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
+              <Lock className="h-4 w-4 text-emerald-400" strokeWidth={2} />
+              <span className="text-[13px] font-semibold text-white/95">Encrypted locally</span>
             </div>
-            <div className="flex items-center gap-2.5 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
-              <Fingerprint className="h-[18px] w-[18px] text-emerald-400" strokeWidth={2} />
-              <span className="text-[13.5px] font-semibold text-white/95">On-device storage</span>
+            <div className="flex items-center gap-2 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-4 py-2 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
+              <Fingerprint className="h-4 w-4 text-emerald-400" strokeWidth={2} />
+              <span className="text-[13px] font-semibold text-white/95">On-device storage</span>
             </div>
-            <div className="flex items-center gap-2.5 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
-              <Check className="h-[18px] w-[18px] text-emerald-400" strokeWidth={2} />
-              <span className="text-[13.5px] font-semibold text-white/95">Zero cloud sync</span>
+            <div className="flex items-center gap-2 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-4 py-2 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
+              <Check className="h-4 w-4 text-emerald-400" strokeWidth={2} />
+              <span className="text-[13px] font-semibold text-white/95">Zero cloud sync</span>
             </div>
           </motion.div>
         </div>
@@ -450,7 +448,7 @@ function BrandPanel() {
         {/* Footer */}
         <motion.footer
           variants={item}
-          className="flex flex-col items-start gap-1 text-[13px] font-medium text-[#6b7482]"
+          className="flex flex-col items-start gap-1 pt-2 text-[12.5px] font-medium text-[#6b7482]"
         >
           <span className="font-auth">© 2026 Batua</span>
           <span className="text-[12px] text-[#6b7482]">
@@ -769,7 +767,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative grid h-dvh grid-cols-1 overflow-hidden bg-[color:var(--auth-page)] [padding:env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)] lg:grid-cols-[55fr_45fr]"
+      className="relative grid min-h-dvh grid-cols-1 overflow-x-hidden bg-[color:var(--auth-page)] [padding:env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)] lg:h-dvh lg:grid-cols-[55fr_45fr] lg:overflow-hidden"
       style={{ color: "var(--auth-ink)" }}
     >
       <a
@@ -784,30 +782,23 @@ export default function LoginPage() {
 
       <div className="auth-panel-seam hidden lg:block" aria-hidden="true" />
 
-      <main id="main-content" className="relative z-10 order-1 min-h-0 overflow-y-auto px-4 py-8 sm:px-10 lg:order-2 lg:flex lg:px-14 lg:py-0">
+      <main id="main-content" className="relative z-10 order-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-8 lg:order-2 lg:flex lg:px-12 xl:px-16 lg:py-6">
         <motion.div
           variants={reduce ? noMotion : staggerContainer}
           initial="hidden"
           animate="show"
-          className="m-auto w-full max-w-[420px]"
+          className="m-auto w-full max-w-[420px] py-2"
         >
           {/* The sign-in card — premium glass with enhanced depth */}
-          <motion.div variants={item} className="auth-signin-card auth-top-highlight">
+          <motion.div variants={item} className="auth-signin-card auth-top-highlight shadow-elevated">
             <motion.div variants={item} className="flex flex-col items-center text-center">
-              <span className="relative flex items-center gap-2.5 rounded-full border border-[color:var(--auth-line)] bg-gradient-to-br from-[color:var(--auth-surface)] to-[color:var(--auth-surface-2)] px-4 py-1.5 text-[12.5px] font-semibold text-[color:var(--auth-ink)] shadow-sm">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--auth-accent)] opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--auth-accent)]" />
-                </span>
-                {mode === "login" ? "Welcome back" : "New account"}
-              </span>
               <motion.h1
                 variants={item}
-                className="mt-4 text-[28px] font-bold tracking-[-0.025em] text-[color:var(--auth-ink)] lg:text-[30px]"
+                className="text-[26px] font-bold tracking-tight text-[color:var(--auth-ink)] sm:text-[28px]"
               >
                 {mode === "login" ? "Sign in" : "Create account"}
               </motion.h1>
-              <motion.p variants={item} className="mt-2 text-[14.5px] leading-relaxed text-[color:var(--auth-ink-2)]">
+              <motion.p variants={item} className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--auth-ink-2)]">
                 {mode === "login"
                   ? "Enter your credentials to access your vault."
                   : "A local account — nothing leaves this device."}
@@ -829,7 +820,7 @@ export default function LoginPage() {
               variants={item}
               onSubmit={submit}
               noValidate
-              className="mt-6 space-y-5"
+              className="mt-6 space-y-4 sm:space-y-4.5"
             >
               <AuthInput
                 id="login-username"
@@ -941,12 +932,12 @@ export default function LoginPage() {
             </motion.form>
           </motion.div>
 
-          <motion.p variants={item} className="mt-6 text-center text-[14px] text-[color:var(--auth-ink-2)]">
+          <motion.p variants={item} className="mt-5 text-center text-[13.5px] text-[color:var(--auth-ink-2)]">
             {mode === "login" ? "New to Batua? " : "Already have an account? "}
             <button
               type="button"
               onClick={switchMode}
-              className="cursor-pointer font-medium text-[color:var(--auth-accent)] transition-colors hover:text-[color:var(--auth-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
+              className="cursor-pointer font-semibold text-[color:var(--auth-accent)] transition-colors hover:text-[color:var(--auth-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
             >
               {mode === "login" ? "Create an account" : "Sign in"}
             </button>
@@ -954,7 +945,7 @@ export default function LoginPage() {
 
           <motion.p
             variants={item}
-            className="mt-4 flex items-center justify-center gap-1.5 text-[12.5px] text-[color:var(--auth-ink-3)]"
+            className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-[color:var(--auth-ink-3)]"
           >
             <Lock className="h-3 w-3" aria-hidden="true" />
             Your data never leaves this device
