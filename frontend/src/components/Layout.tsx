@@ -220,7 +220,7 @@ function DesktopTopNav() {
             Rostex's metrics leave extra space under "Batua", so leading-none
             alone reads a touch high; the small translate centres it. */}
         <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
-          <Logo className="h-9 w-9 shrink-0 rounded" />
+          <Logo className="h-11 w-11 shrink-0" />
           <span className="shrink-0 translate-y-px font-brand text-xl leading-none tracking-wide">
             Batua
           </span>
@@ -404,7 +404,7 @@ function MobileNav() {
         )}
       >
         <NavLink to="/dashboard" className="flex items-center gap-2.5">
-          <Logo className="h-10 w-10 shrink-0 rounded" />
+          <Logo className="h-11 w-11 shrink-0" />
           <span className="shrink-0 translate-y-px font-brand text-xl leading-none tracking-wide">
             Batua
           </span>

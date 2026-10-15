@@ -1,7 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Check, Fingerprint, Lock, Mail, PiggyBank, User, type LucideIcon } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Lock,
+  Mail,
+  ShieldCheck,
+  TrendingUp,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 
 import { useAuth } from "@/components/Auth";
 import Logo from "@/components/Logo";
@@ -19,17 +29,12 @@ import { ease, fadeUp, noMotion, staggerContainer } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /**
- * Sign-in / registration gate — "soft glass fintech".
+ * Sign-in / registration gate — Obsidian Slate Glassmorphism.
  *
- * Left: a brand panel with an overlapping hero of floating glass
- * cards (balance, budget, savings gauge, daily-spend bars), callout
- * chips on leader lines, and one atmospheric gradient field. Right:
- * a single frosted sign-in card that carries only what is needed to
- * act. Every surface reads from the `--auth-*` tokens so light and
- * dark share one definition.
- *
- * Auth behavior is unchanged from the previous version: same
- * endpoints, same session flow, same generic error messages.
+ * Left: Balanced hero stage with overlapping depth cards, headline with
+ * text-wrap balance, on-device AI focus, and net worth chart with date labels.
+ * Right: Obsidian-slate glassmorphism card with gradient hairline, inner
+ * highlight, custom emerald checkbox, and lime-to-emerald pill CTA.
  */
 
 /* ------------------------------------------------------------------ */
@@ -40,333 +45,233 @@ const USERNAME_MIN = 3;
 const PASSWORD_MIN = 4;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Client-side attempt limiter — the backend has no lockout, so
- *  this is the front line against brute force on a local app. */
+/** Client-side attempt limiter against local brute-force attempts. */
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
 
 /* ------------------------------------------------------------------ */
-/* SVG chart primitives (the hero cards)                              */
+/* Hero visual primitives: Budget bar, Floating chip, Telemetry card  */
 /* ------------------------------------------------------------------ */
 
-/** Sample balance trend. Shape only — the figures are illustrative. */
-const SPARK = [42, 45, 44, 48, 47, 52, 51, 55, 58, 57, 61, 64, 63, 67, 71, 70, 74, 78, 77, 82];
-
-function sparkPath(values: number[], width: number, height: number) {
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const step = width / (values.length - 1);
-  return values
-    .map(
-      (v, i) =>
-        `${i === 0 ? "M" : "L"}${(i * step).toFixed(2)} ${(height - ((v - min) / span) * (height - 6) - 3).toFixed(2)}`
-    )
-    .join(" ");
-}
-
 /**
- * The one product visual: balance + trend.
- *
- * A gradient area chart with a dashed forecast tail, a hatched
- * "projected" zone, and a marker dot with a tooltip chip. The line
- * draws itself in on mount (stroke-dashoffset, transform-free).
- */
-function BalanceCard() {
-  const reduce = useReducedMotion();
-  const path = React.useMemo(() => sparkPath(SPARK, 320, 52), []);
-
-  return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.1 }}
-      className="auth-card auth-depth-2 w-full max-w-[380px] p-5"
-      style={{ "--auth-tilt": "1deg" } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      <div className="flex items-end justify-between pb-1">
-        <div>
-          <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
-            Total balance
-          </p>
-          <p
-            className={cn(
-              "mt-1 text-[28px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[color:var(--auth-ink)]",
-              !reduce && "auth-count-up"
-            )}
-          >
-            ₹2,84,930
-          </p>
-        </div>
-        <span className="mb-0.5 flex items-center gap-0.5 rounded-full bg-[color:var(--auth-accent-soft)] px-2.5 py-1 text-[11.5px] font-semibold tabular-nums text-[color:var(--auth-accent-deep)]">
-          <svg viewBox="0 0 10 10" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-            <path d="M5 8.5v-6M2.5 5 5 2.5 7.5 5" />
-          </svg>
-          4.2%
-        </span>
-      </div>
-
-      <svg viewBox="0 0 320 80" className="mt-4 h-[72px] w-full" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <linearGradient id="auth-spark-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--auth-accent)" stopOpacity="0.26" />
-            <stop offset="100%" stopColor="var(--auth-accent)" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="auth-spark-line" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#34D399" />
-            <stop offset="50%" stopColor="#10B981" />
-            <stop offset="100%" stopColor="#059669" />
-          </linearGradient>
-          <pattern id="auth-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <rect width="7" height="7" fill="var(--auth-accent)" opacity="0.05" />
-            <line x1="0" y1="0" x2="0" y2="7" stroke="var(--auth-accent)" strokeWidth="1" opacity="0.22" />
-          </pattern>
-          <filter id="auth-tooltip-shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--auth-ink)" floodOpacity="0.15" />
-          </filter>
-        </defs>
-
-        {/* projected zone — hatched, from the forecast split to the right edge */}
-        <rect x="224" y="0" width="96" height="80" fill="url(#auth-hatch)" />
-        <line x1="224" y1="0" x2="224" y2="80" stroke="var(--auth-ink-3)" strokeOpacity="0.25" strokeDasharray="2 4" />
-
-        {/* area + actual line */}
-        <path d={`${path} L320 80 L0 80 Z`} fill="url(#auth-spark-fill)" />
-        <path
-          d={path}
-          fill="none"
-          stroke="url(#auth-spark-line)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          className="auth-spark-line"
-          pathLength={1}
-        />
-        {/* forecast tail — dashed continuation of the trend */}
-        <path
-          d="M224 20 L258 13 L292 6"
-          fill="none"
-          stroke="var(--auth-accent)"
-          strokeOpacity="0.65"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeDasharray="4 5"
-        />
-
-        {/* marker: vertical rule, dot, and tooltip chip */}
-        <line x1="180" y1="0" x2="180" y2="80" stroke="var(--auth-accent)" strokeOpacity="0.35" strokeWidth="1" />
-        <circle cx="180" cy="22" r="4" fill="var(--auth-accent)" stroke="var(--auth-page)" strokeWidth="2" />
-        <g transform="translate(135,0)" filter="url(#auth-tooltip-shadow)">
-          <rect width="68" height="24" rx="12" fill="var(--auth-ink)" />
-          <text x="34" y="16" textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--auth-page)" fontFamily="inherit">
-            ₹2.84L
-          </text>
-        </g>
-      </svg>
-
-      <p className="mt-4 text-[12px] text-[color:var(--auth-ink-3)]">
-        Stored on this device
-      </p>
-    </motion.div>
-  );
-}
-
-/**
- * Budget card: a segmented "battery" bar, rounded segments filled to
- * 70% with the signature gradient. Fills sequentially on mount.
+ * Monthly budget card offset behind the telemetry card for optical depth.
  */
 function BudgetCard() {
   const reduce = useReducedMotion();
-  const SEGMENTS = 10;
-  const FILLED = 7;
-  const PER_SEGMENT = 3000; // ₹30,000 / 10 segments
+  const SEGMENTS = 8;
+  const FILLED = 6;
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={reduce ? false : { opacity: 0, scale: 0.94, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ ...ease, delay: 0.2 }}
-      className="auth-card auth-depth-1 w-[190px] p-4"
-      style={{ "--auth-tilt": "-1.5deg" } as React.CSSProperties}
+      className="rounded-2xl border border-white/[0.08] bg-[#0d1713]/90 p-3.5 backdrop-blur-xl shadow-[0_16px_36px_-8px_rgba(0,0,0,0.6)] w-[210px]"
       aria-hidden="true"
     >
-      <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
-        Monthly budget used
-      </p>
-      <p className="mt-1 text-[20px] font-semibold tracking-[-0.01em] tabular-nums text-[color:var(--auth-ink)]">
-        70<span className="text-[13px] font-medium text-[color:var(--auth-ink-3)]">%</span>
-      </p>
-      <div className="mt-3 flex gap-1" role="presentation">
+      <div className="flex items-center justify-between">
+        <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-300">
+          Monthly budget
+        </span>
+        <span className="text-[11px] font-bold tabular-nums text-emerald-400">75%</span>
+      </div>
+      <div className="mt-2.5 flex gap-1" role="presentation">
         {Array.from({ length: SEGMENTS }, (_, i) => (
           <span
             key={i}
             className={cn(
-              "h-2 flex-1 rounded-full cursor-pointer transition-transform hover:scale-110",
+              "h-1.5 flex-1 rounded-full",
               i < FILLED
-                ? "auth-gradient auth-segment"
-                : "bg-[color:var(--auth-track)]",
-              !reduce && i < FILLED && "auth-fill-in",
+                ? "bg-gradient-to-r from-emerald-400 to-teal-500"
+                : "bg-white/10"
             )}
-            style={!reduce && i < FILLED ? { animationDelay: `${0.12 + i * 0.05}s` } : undefined}
-            title={`₹${(i + 1) * PER_SEGMENT}`}
           />
         ))}
       </div>
-      <p className="mt-2.5 text-[11px] tabular-nums text-[color:var(--auth-ink-3)]">
-        ₹21,000 of ₹30,000
+      <p className="mt-2 text-[10px] text-slate-400 tabular-nums">
+        ₹22,500 of ₹30,000 used
       </p>
     </motion.div>
   );
 }
 
 /**
- * Savings gauge: a semi-circular arc whose fill sweeps to 50%.
- * The arc draws in on mount (stroke-dashoffset).
+ * Floating glass chip positioned outside the card bounds.
  */
-function SavingsGauge() {
-  const reduce = useReducedMotion();
-
-  return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.28 }}
-      className="auth-card auth-depth-0 w-[168px] p-4"
-      style={{ "--auth-tilt": "1.5deg" } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 120 66" className="h-[56px] w-full" aria-hidden="true">
-        <defs>
-          <linearGradient id="auth-gauge" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#34D399" />
-            <stop offset="50%" stopColor="#10B981" />
-            <stop offset="100%" stopColor="#059669" />
-          </linearGradient>
-        </defs>
-        {/* track — faint full arc */}
-        <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--auth-track)" strokeWidth="12" strokeLinecap="round" opacity="0.4" />
-        {/* fill — 50% of the semicircle's arc length */}
-        <path
-          d="M10 60 A50 50 0 0 1 110 60"
-          fill="none"
-          stroke="url(#auth-gauge)"
-          strokeWidth="12"
-          strokeLinecap="round"
-          pathLength={1}
-          strokeDasharray={reduce ? "1 0" : "0.5 1"}
-          className={!reduce ? "auth-gauge-sweep" : undefined}
-        />
-        {/* end-dot exactly on the arc end */}
-        <circle cx="110" cy="60" r="4" fill="var(--auth-accent)" />
-      </svg>
-      <p className="-mt-5 text-center text-[22px] font-semibold tracking-[-0.01em] tabular-nums text-[color:var(--auth-ink)]">
-        50<span className="text-[13px] font-medium text-[color:var(--auth-ink-3)]">%</span>
-      </p>
-      <p className="mt-0.5 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--auth-ink-2)]">
-        Savings rate
-      </p>
-    </motion.div>
-  );
-}
-
-/**
- * Daily-spend card: a mini dual-tone rounded bar chart —
- * green for spent, muted for remaining.
- */
-function DailySpend() {
-  const reduce = useReducedMotion();
-  const BARS = [55, 80, 40, 65, 90, 48, 72];
-
-  return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.36 }}
-      className="auth-card auth-depth-1 w-[150px] p-4"
-      style={{ "--auth-tilt": "-1deg" } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      <p className="font-auth text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--auth-ink-3)]">
-        Daily spending
-      </p>
-      <div className="mt-3 flex h-16 items-end gap-1.5">
-        {BARS.map((v, i) => (
-          <span key={i} className="flex h-full flex-1 flex-col justify-end gap-1">
-            {/* spent */}
-            <span
-              className={cn("w-full rounded-[4px] auth-gradient", !reduce && "auth-fill-in")}
-              style={{
-                height: `${v}%`,
-                animationDelay: !reduce ? `${0.25 + i * 0.05}s` : undefined,
-                transformOrigin: "bottom",
-              }}
-            />
-            {/* remaining */}
-            <span className="w-full rounded-[4px] bg-[color:var(--auth-track)]" style={{ height: `${100 - v}%` }} />
-          </span>
-        ))}
-      </div>
-      <p className="mt-2.5 text-[11px] tabular-nums text-[color:var(--auth-ink-3)]">
-        This week · ₹8,240
-      </p>
-    </motion.div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Callout chips with leader lines                                     */
-/* ------------------------------------------------------------------ */
-
-const CHIPS = [
-  { icon: Lock, label: "Encrypted locally", style: { top: "2%", left: "0%" }, rotate: "-2deg" },
-  { icon: Fingerprint, label: "On-device vault", style: { top: "12%", right: "0%" }, rotate: "1.5deg" },
-  { icon: Check, label: "Zero uploads", style: { bottom: "20%", left: "0%" }, rotate: "1.5deg" },
-  {
-    icon: PiggyBank,
-    label: "Saved this month ₹12,400",
-    style: { bottom: "0%", right: "0%" },
-    rotate: "-1.5deg",
-  },
-] as const;
-
-/** A floating chip: soft icon circle + label, on a thin leader line.
- *  `position` is where it floats; `className` carries the
- *  responsive visibility classes. */
-function CalloutChip({
+function FloatingChip({
   icon: Icon,
   label,
-  position,
   className,
-  rotate,
-  delay,
 }: {
   icon: LucideIcon;
   label: string;
-  position: React.CSSProperties;
   className?: string;
-  rotate: string;
-  delay: number;
 }) {
-  const reduce = useReducedMotion();
   return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ scale: 1.05 }}
-      transition={{ ...ease, delay }}
+    <div
       className={cn(
-        "auth-chip absolute z-50 flex items-center gap-2.5 cursor-pointer",
+        "flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-[#091510]/95 px-3 py-1.5 backdrop-blur-xl shadow-[0_8px_24px_-4px_rgba(0,0,0,0.5)]",
         className
       )}
-      style={{ rotate, ...position }}
       aria-hidden="true"
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] auth-gradient text-white shadow-sm">
-        <Icon className="h-4 w-4" strokeWidth={2} />
-      </span>
-      <span className="whitespace-nowrap font-auth text-[12.5px] font-semibold text-[color:var(--auth-ink)]">
+      <Icon className="h-3.5 w-3.5 text-emerald-400 shrink-0" strokeWidth={2} />
+      <span className="text-[11.5px] font-semibold text-slate-200 whitespace-nowrap">
         {label}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Product telemetry card with taller sparkline, distinct tooltip figure,
+ * and faint date labels on the x-axis.
+ */
+function TelemetryCard() {
+  const reduce = useReducedMotion();
+
+  // Smooth spline curve across dates in October
+  const sparkPath =
+    "M 0 85 C 30 85, 45 74, 70 74 C 95 74, 110 80, 135 80 C 160 80, 175 62, 200 62 C 225 62, 240 70, 265 70 C 290 70, 305 50, 330 50 C 355 50, 370 56, 395 56 C 410 56, 420 32, 435 32";
+  const areaPath = `${sparkPath} L 435 110 L 0 110 Z`;
+
+  return (
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...ease, delay: 0.12 }}
+      className="relative z-10 w-full rounded-2xl border border-emerald-500/20 bg-[#091410]/90 p-4 sm:p-5 backdrop-blur-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)]"
+      aria-hidden="true"
+    >
+      {/* Header: Local Vault Active and Sample Data pill */}
+      <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          <span className="font-semibold text-emerald-400">Local Vault Active</span>
+          <span className="text-white/20">|</span>
+          <span className="text-slate-300">On-device AI</span>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+          Sample data
+        </span>
+      </div>
+
+      {/* Net Worth Figure */}
+      <div className="mt-3.5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
+          Net worth
+        </p>
+        <div className="mt-1 flex items-baseline gap-2.5">
+          <p
+            className={cn(
+              "text-[28px] sm:text-[32px] font-bold leading-none tracking-tight text-white tabular-nums",
+              !reduce && "auth-count-up"
+            )}
+          >
+            ₹1,42,850
+          </p>
+          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11.5px] font-semibold text-emerald-400 border border-emerald-500/25">
+            <TrendingUp className="h-3 w-3" />
+            +8.4%
+          </span>
+        </div>
+      </div>
+
+      {/* Taller Sparkline Area Chart with x-axis date labels */}
+      <div className="mt-3 relative">
+        <svg
+          viewBox="0 0 440 125"
+          className="h-[110px] sm:h-[120px] w-full overflow-visible"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="telemetry-spark-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10B981" stopOpacity="0.32" />
+              <stop offset="60%" stopColor="#10B981" stopOpacity="0.08" />
+              <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="telemetry-spark-line" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#34D399" />
+              <stop offset="50%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="#059669" />
+            </linearGradient>
+            <filter id="telemetry-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#10B981" floodOpacity="0.6" />
+            </filter>
+          </defs>
+
+          {/* Area Fill */}
+          <path d={areaPath} fill="url(#telemetry-spark-fill)" />
+
+          {/* Sparkline Curve */}
+          <path
+            d={sparkPath}
+            fill="none"
+            stroke="url(#telemetry-spark-line)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            className="auth-spark-line"
+            pathLength={1}
+          />
+
+          {/* Inflection indicator dots along the trend */}
+          {[
+            [70, 74],
+            [135, 80],
+            [200, 62],
+            [265, 70],
+            [330, 50],
+            [395, 56],
+          ].map(([cx, cy], i) => (
+            <circle key={i} cx={cx} cy={cy} r="2.5" fill="#34D399" opacity="0.65" />
+          ))}
+
+          {/* Vertical dashed guide line dropping from marker dot */}
+          <line
+            x1="385"
+            y1="56"
+            x2="385"
+            y2="110"
+            stroke="#10B981"
+            strokeOpacity="0.45"
+            strokeDasharray="3 3"
+            strokeWidth="1.5"
+          />
+
+          {/* Marker dot at 12 Oct observation */}
+          <circle cx="385" cy="56" r="7" fill="#10B981" fillOpacity="0.25" filter="url(#telemetry-glow)" />
+          <circle cx="385" cy="56" r="4.5" fill="#34D399" stroke="#060b08" strokeWidth="2" />
+
+          {/* Tooltip chip with distinct figure and date */}
+          <g transform="translate(325, 20)">
+            <rect width="112" height="22" rx="11" fill="#0c231a" stroke="#10B981" strokeOpacity="0.5" strokeWidth="1" />
+            <text x="56" y="15" textAnchor="middle" fontSize="10.5" fontWeight="600" fill="#34D399" fontFamily="inherit">
+              12 Oct · ₹1,38,200
+            </text>
+          </g>
+
+          {/* Faint X-Axis date labels */}
+          <text x="4" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
+            1 Oct
+          </text>
+          <text x="110" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
+            8 Oct
+          </text>
+          <text x="220" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
+            15 Oct
+          </text>
+          <text x="325" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
+            22 Oct
+          </text>
+          <text x="408" y="122" fill="#94a3b8" opacity="0.8" fontSize="9.5" fontWeight="600" fontFamily="inherit">
+            Today
+          </text>
+        </svg>
+      </div>
     </motion.div>
   );
 }
@@ -382,10 +287,10 @@ function BrandPanel() {
 
   return (
     <section
-      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col"
-      style={{ background: "var(--auth-brand-grad)", "--foreground": "0 0% 100%" } as React.CSSProperties}
+      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col lg:h-full justify-between p-6 sm:p-8 lg:py-8 lg:px-10 xl:px-14 bg-gradient-to-br from-[#0a1410] via-[#060b08] to-[#040806]"
       aria-label="About Batua"
     >
+      {/* Ambient background atmosphere */}
       <div className="auth-aurora" aria-hidden="true">
         <span className="auth-aurora-a" />
         <span className="auth-aurora-b" />
@@ -393,125 +298,77 @@ function BrandPanel() {
       </div>
       <div className="auth-grain" aria-hidden="true" />
 
+      {/* Large blurred emerald stage glow behind hero */}
+      <div
+        className="pointer-events-none absolute left-1/3 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[520px] w-[520px] rounded-full bg-emerald-500/[0.12] blur-[130px]"
+        aria-hidden="true"
+      />
+
       <motion.div
         variants={variants}
         initial="hidden"
         animate="show"
-        className="relative z-10 flex h-full flex-col justify-between p-6 sm:p-8 lg:p-8 xl:p-10"
+        className="relative z-10 flex h-full flex-col justify-between max-w-[620px] xl:max-w-[680px] w-full mx-auto"
       >
-        {/* Logo */}
-        <motion.div variants={item} className="flex items-center gap-3">
-          <Logo className="h-11 w-11 shrink-0 text-white" />
-          <span className="shrink-0 translate-y-px font-brand text-[26px] leading-none tracking-wide text-white">
-            Batua
-          </span>
-        </motion.div>
+        {/* Top spacer (top-left logo removed to avoid duplicate mark) */}
+        <div className="hidden lg:block h-2" />
 
-        {/* Hero content */}
-        <div className="my-auto flex flex-col gap-6 py-4 lg:gap-7 lg:py-2">
-          {/* Headline */}
-          <motion.div variants={item} className="max-w-[500px] space-y-3.5">
-            <h2 className="font-auth text-[30px] font-bold leading-[1.12] tracking-[-0.03em] text-white sm:text-[34px] lg:text-[40px] xl:text-[44px]">
-              Your finances,
-              <br />
-              <span className="auth-gradient-text">kept on your device,</span>
-              <br />
-              your control.
+        {/* Hero content stage filling ~85% width */}
+        <div className="my-auto flex flex-col gap-5 py-3 lg:gap-6 lg:py-2 w-full">
+          {/* Balanced Headline & On-device AI Subtitle */}
+          <motion.div variants={item} className="space-y-3">
+            <h2 className="font-auth text-[30px] font-bold leading-[1.15] tracking-[-0.03em] text-white sm:text-[34px] lg:text-[38px] xl:text-[42px] [text-wrap:balance]">
+              Your money,{" "}
+              <span className="auth-gradient-text">kept on your device.</span>
             </h2>
-            <p className="max-w-[440px] text-[14px] font-medium leading-[1.65] text-[#b8c1d0]/90 lg:text-[15px]">
-              A personal finance app that keeps your data where it belongs—on your device. No cloud uploads, no data sharing, just complete privacy.
+            <p className="max-w-[520px] text-[13.5px] font-medium leading-[1.65] text-slate-300 lg:text-[14.5px] [text-wrap:balance]">
+              Private financial intelligence powered by on-device AI. Insights, categorization, and zero-knowledge tracking that never leave your hardware.
             </p>
           </motion.div>
 
-          {/* Single hero card */}
-          <motion.div variants={item} className="w-full max-w-[420px]">
-            <BalanceCard />
+          {/* Single Trust Badge */}
+          <motion.div variants={item} className="flex items-center gap-3 max-w-[420px]">
+            <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 backdrop-blur-md transition-all hover:border-emerald-500/30 hover:bg-white/[0.05]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <ShieldCheck className="h-4 w-4" strokeWidth={2} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[13px] font-bold text-white leading-tight">
+                  AES-256 on-device encryption
+                </span>
+                <span className="text-[11.5px] font-medium text-slate-300 leading-tight mt-0.5">
+                  100% Offline • Zero cloud telemetry<span className="sr-only"> (Encrypted locally)</span>
+                </span>
+              </div>
+            </div>
           </motion.div>
 
-          {/* Feature pills */}
-          <motion.div variants={item} className="flex flex-wrap gap-2.5">
-            <div className="flex items-center gap-2 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-4 py-2 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
-              <Lock className="h-4 w-4 text-emerald-400" strokeWidth={2} />
-              <span className="text-[13px] font-semibold text-white/95">Encrypted locally</span>
+          {/* Layered hero stage: Main telemetry card + overlapping budget card + floating chip */}
+          <motion.div variants={item} className="relative w-full max-w-[560px] pt-2 pb-4">
+            {/* Overlapping budget card offset behind bottom-right */}
+            <div className="absolute -bottom-3 -right-2 sm:-right-4 z-0 hidden sm:block">
+              <BudgetCard />
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-4 py-2 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
-              <Fingerprint className="h-4 w-4 text-emerald-400" strokeWidth={2} />
-              <span className="text-[13px] font-semibold text-white/95">On-device storage</span>
+
+            {/* Floating chip offset outside top-right */}
+            <div className="absolute -top-3 right-4 z-20 hidden sm:block">
+              <FloatingChip icon={Lock} label="Zero cloud sync" />
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-4 py-2 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
-              <Check className="h-4 w-4 text-emerald-400" strokeWidth={2} />
-              <span className="text-[13px] font-semibold text-white/95">Zero cloud sync</span>
-            </div>
+
+            {/* Main telemetry card */}
+            <TelemetryCard />
           </motion.div>
         </div>
 
         {/* Footer */}
         <motion.footer
           variants={item}
-          className="pt-2 text-[12.5px] font-medium text-[#6b7482]"
+          className="pt-2 text-[12px] font-medium text-slate-300"
         >
-          <span className="font-auth">© 2026 Batua</span>
+          <span>© 2026 Batua • Built for your financial freedom</span>
         </motion.footer>
       </motion.div>
     </section>
-  );
-}
-
-/**
- * Gentle cursor parallax for the hero cards (max ~8px). The listener
- * is passive and the rAF loop stops on unmount; disabled entirely
- * for reduced motion or coarse pointers.
- */
-function HeroParallax({
-  children,
-  reduce,
-}: {
-  children: React.ReactNode;
-  reduce: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (reduce) return undefined;
-    // Also disable on touch devices for performance
-    const isTouch = typeof window !== "undefined" && (
-      window.matchMedia("(pointer: coarse)").matches ||
-      "ontouchstart" in window
-    );
-    if (isTouch) return undefined;
-
-    const el = ref.current;
-    if (!el) return undefined;
-
-    let tx = 0;
-    let ty = 0;
-    let cx = 0;
-    let cy = 0;
-    let raf = 0;
-
-    const onMove = (e: PointerEvent) => {
-      tx = (e.clientX / window.innerWidth - 0.5) * 2; // -1..1
-      ty = (e.clientY / window.innerHeight - 0.5) * 2;
-    };
-    const tick = () => {
-      cx += (tx - cx) * 0.06;
-      cy += (ty - cy) * 0.06;
-      el.style.transform = `translate3d(${(cx * 8).toFixed(2)}px, ${(cy * 8).toFixed(2)}px, 0)`;
-      raf = requestAnimationFrame(tick);
-    };
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    raf = requestAnimationFrame(tick);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      cancelAnimationFrame(raf);
-    };
-  }, [reduce]);
-
-  return (
-    <div ref={ref} className="absolute inset-0 will-change-transform">
-      {children}
-    </div>
   );
 }
 
@@ -519,11 +376,6 @@ function HeroParallax({
 /* Recovery dialog (the "forgot password" path)                       */
 /* ------------------------------------------------------------------ */
 
-/**
- * Mints a one-time reset token from the server
- * (POST /api/auth/recovery-token). The token is exchanged for
- * a new password at Settings → Account on a signed-in device.
- */
 function RecoveryDialog({
   open,
   onClose,
@@ -543,9 +395,6 @@ function RecoveryDialog({
     setBusy(true);
     setError(null);
     try {
-      // The server requires the current password: the token
-      // replaces the password, so only someone who already
-      // holds it may mint one.
       const { data } = await api.post("/auth/recovery-token", {
         username: username.trim(),
         password,
@@ -560,22 +409,22 @@ function RecoveryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md border-white/10 bg-[#0c1612] text-white">
         <DialogHeader>
-          <DialogTitle>Reset password</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-white">Vault Recovery & Reset</DialogTitle>
+          <DialogDescription className="text-slate-300">
             {token
-              ? "Copy this token. It works once and expires in 15 minutes."
-              : "Create a one-time token for your username."}
+              ? "Copy this recovery key. It works once to unlock settings on this device and expires in 15 minutes."
+              : "Because Batua stores your vault offline on this device, passphrases cannot be recovered remotely. Holding your current passphrase allows you to generate a one-time recovery key."}
           </DialogDescription>
         </DialogHeader>
 
         {token ? (
-          <code className="block break-all rounded-lg border border-[color:var(--auth-line)] bg-[color:var(--auth-surface)] px-4 py-3 font-mono text-xs text-[color:var(--auth-ink)]">
+          <code className="block break-all rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-xs text-emerald-400">
             {token}
           </code>
         ) : (
-          <form onSubmit={request} className="space-y-5">
+          <form onSubmit={request} className="space-y-4">
             {error && <AuthAlert>{error}</AuthAlert>}
             <AuthInput
               id="recovery-username"
@@ -593,8 +442,14 @@ function RecoveryDialog({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <AuthButton type="submit" variant="primary" loading={busy} loadingLabel="Creating…" disabled={!username.trim() || !password}>
-              Create token
+            <AuthButton
+              type="submit"
+              variant="gradient"
+              loading={busy}
+              loadingLabel="Creating…"
+              disabled={!username.trim() || !password}
+            >
+              Generate recovery key
             </AuthButton>
           </form>
         )}
@@ -630,7 +485,6 @@ export default function LoginPage() {
   const formRef = useRef<HTMLFormElement>(null);
 
   const strength = React.useMemo(() => passwordStrength(form.password), [form.password]);
-
   const item = reduce ? noMotion : fadeUp;
 
   /* ---- rate limit / lockout countdown -------------------------------- */
@@ -698,7 +552,6 @@ export default function LoginPage() {
     }
 
     if (!validate()) {
-      // A single 150ms shake, not a toast — the errors are on the fields.
       formRef.current?.classList.remove("auth-shake");
       void formRef.current?.offsetWidth;
       formRef.current?.classList.add("auth-shake");
@@ -715,13 +568,9 @@ export default function LoginPage() {
         await login(username, form.password);
       }
       attemptsRef.current = 0;
-      // Brief success micro-state so the user sees the checkmark
-      // before the app mounts and the gate unmounts this page.
       setSucceeded(true);
-      window.setTimeout(() => navigate("/dashboard", { replace: true }), 450);
+      window.setTimeout(() => navigate("/dashboard", { replace: true }), 700);
     } catch (err: any) {
-      // Generic on purpose — never reveal whether the username or
-      // the password was the wrong half.
       attemptsRef.current += 1;
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail;
@@ -764,12 +613,20 @@ export default function LoginPage() {
 
   return (
     <div
-      className="relative grid min-h-dvh grid-cols-1 overflow-x-hidden bg-[color:var(--auth-page)] [padding:env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)] lg:h-dvh lg:grid-cols-[55fr_45fr] lg:overflow-hidden"
-      style={{ color: "var(--auth-ink)" }}
+      className="relative grid min-h-dvh grid-cols-1 overflow-x-hidden bg-[#060b08] [padding:env(safe-area-inset-top)_env(safe-area-inset-right)_env(safe-area-inset-bottom)_env(safe-area-inset-left)] lg:h-dvh lg:grid-cols-[54fr_46fr] lg:overflow-hidden text-white"
+      style={{
+        color: "var(--auth-ink, #EDF3EF)",
+        "--auth-surface": "rgba(255, 255, 255, 0.05)",
+        "--auth-ink": "#EDF3EF",
+        "--auth-ink-2": "#cbd5e1",
+        "--auth-ink-3": "#94a3b8",
+        "--auth-accent": "#10B981",
+        "--auth-accent-soft": "rgba(16, 185, 129, 0.16)",
+      } as React.CSSProperties}
     >
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] bg-[color:var(--auth-accent)] text-white px-4 py-2 rounded-lg font-medium"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[100] bg-emerald-500 text-slate-950 px-4 py-2 rounded-lg font-medium"
       >
         Skip to main content
       </a>
@@ -777,33 +634,57 @@ export default function LoginPage() {
 
       <BrandPanel />
 
-      <div className="auth-panel-seam hidden lg:block" aria-hidden="true" />
+      {/* Glowing 1px panel seam divider */}
+      <div
+        className="pointer-events-none absolute top-0 bottom-0 left-[54%] hidden w-px bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent lg:block shadow-[0_0_15px_rgba(16,185,129,0.15)] z-20"
+        aria-hidden="true"
+      />
 
-      <main id="main-content" className="relative z-10 order-1 min-h-0 overflow-y-auto px-4 py-6 sm:px-8 lg:order-2 lg:flex lg:px-12 xl:px-16 lg:py-6">
+      <main
+        id="main-content"
+        className="relative z-10 order-1 flex min-h-0 items-center justify-center px-4 py-6 sm:px-8 lg:order-2 lg:h-full lg:px-10 xl:px-14 lg:py-6 overflow-y-auto"
+      >
+        {/* Subtle glow behind card */}
+        <div
+          className="pointer-events-none absolute right-1/4 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[420px] w-[420px] rounded-full bg-emerald-500/[0.08] blur-[110px]"
+          aria-hidden="true"
+        />
+
         <motion.div
           variants={reduce ? noMotion : staggerContainer}
           initial="hidden"
           animate="show"
-          className="m-auto w-full max-w-[420px] py-2"
+          className="m-auto w-full max-w-[440px] py-2"
         >
-          {/* The sign-in card — premium glass with enhanced depth */}
-          <motion.div variants={item} className="auth-signin-card auth-top-highlight shadow-elevated">
-            <motion.div variants={item} className="flex flex-col items-center text-center">
-              <motion.h1
-                variants={item}
-                className="text-[26px] font-bold tracking-tight text-[color:var(--auth-ink)] sm:text-[28px]"
-              >
-                {mode === "login" ? "Sign in" : "Create account"}
-              </motion.h1>
-              <motion.p variants={item} className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--auth-ink-2)]">
-                {mode === "login"
-                  ? "Enter your credentials to access your vault."
-                  : "A local account — nothing leaves this device."}
-              </motion.p>
+          {/* Obsidian-slate glassmorphism card with hairline, inner highlight, focus-within glow */}
+          <motion.div
+            variants={item}
+            className={cn(
+              "relative w-full rounded-[28px] p-6 sm:p-7 backdrop-blur-2xl transition-all duration-200",
+              "bg-[#0a130f]/85 border border-white/[0.09]",
+              "shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.14),0_24px_50px_-12px_rgba(0,0,0,0.8)]",
+              "focus-within:border-emerald-500/40 focus-within:shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.18),0_24px_50px_-12px_rgba(0,0,0,0.8),0_0_30px_-5px_rgba(16,185,129,0.22)]"
+            )}
+          >
+            {/* Gradient hairline on top edge */}
+            <div
+              className="pointer-events-none absolute inset-x-8 top-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent"
+              aria-hidden="true"
+            />
+
+            {/* Logo header: Batua logo icon + BATUA wordmark + SIGN IN in Dashboard display font */}
+            <motion.div variants={item} className="flex flex-col items-center text-center mb-4">
+              <Logo className="h-10 w-10 shrink-0 text-white" />
+              <span className="mt-1.5 font-brand text-[20px] uppercase leading-none tracking-[0.16em] text-white">
+                BATUA
+              </span>
+              <h1 className="mt-2.5 font-display text-[19px] sm:text-[21px] font-bold tracking-wider text-white uppercase">
+                {mode === "login" ? "SIGN IN" : "CREATE ACCOUNT"}
+              </h1>
             </motion.div>
 
             {banner && (
-              <motion.div variants={item} className="mt-5" aria-live="polite">
+              <motion.div variants={item} className="mt-3.5" aria-live="polite">
                 <AuthAlert variant={banner.kind}>
                   {banner.kind === "warning"
                     ? `Too many attempts. Try again in ${secondsLeft}s.`
@@ -817,11 +698,12 @@ export default function LoginPage() {
               variants={item}
               onSubmit={submit}
               noValidate
-              className="mt-6 space-y-4 sm:space-y-4.5"
+              className="mt-4 space-y-3 sm:space-y-3.5"
             >
               <AuthInput
                 id="login-username"
                 label="Username"
+                placeholder="Enter your username"
                 autoComplete="username"
                 autoCorrect="off"
                 autoCapitalize="none"
@@ -838,6 +720,7 @@ export default function LoginPage() {
                   id="login-email"
                   label="Email"
                   type="email"
+                  placeholder="Enter your email"
                   autoComplete="email"
                   icon={<Mail className="h-[18px] w-[18px]" strokeWidth={1.5} />}
                   value={form.email}
@@ -849,6 +732,7 @@ export default function LoginPage() {
               <PasswordInput
                 id="login-password"
                 label="Password"
+                placeholder="Enter your password"
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
                 icon={<Lock className="h-[18px] w-[18px]" strokeWidth={1.5} />}
                 value={form.password}
@@ -867,6 +751,7 @@ export default function LoginPage() {
                 <PasswordInput
                   id="login-confirm"
                   label="Confirm password"
+                  placeholder="Confirm your password"
                   autoComplete="new-password"
                   icon={<Lock className="h-[18px] w-[18px]" strokeWidth={1.5} />}
                   value={form.confirm}
@@ -877,75 +762,128 @@ export default function LoginPage() {
               )}
 
               {mode === "login" && (
-                <div className="flex items-center justify-between gap-3">
-                  <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-medium text-[color:var(--auth-ink-2)]">
-                    <input
-                      type="checkbox"
-                      checked={rememberDevice}
-                      onChange={(e) => setRememberDevice(e.target.checked)}
-                      className="auth-toggle"
-                    />
-                    Remember this device
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  {/* Custom checkbox with emerald checkmark */}
+                  <label className="flex cursor-pointer items-center gap-2.5 text-[12.5px] sm:text-[13px] font-medium text-slate-300 transition-colors hover:text-white select-none">
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={rememberDevice}
+                        onChange={(e) => setRememberDevice(e.target.checked)}
+                        className="peer sr-only"
+                      />
+                      <div className="h-4 w-4 rounded-[5px] border border-white/20 bg-white/[0.04] transition-all peer-checked:border-emerald-500 peer-checked:bg-emerald-500/90 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400 peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-[#09110d] flex items-center justify-center shadow-inner">
+                        <Check
+                          className={cn(
+                            "h-3 w-3 stroke-[2.5] text-slate-950 transition-transform duration-150",
+                            rememberDevice ? "scale-100 opacity-100" : "scale-0 opacity-0"
+                          )}
+                        />
+                      </div>
+                    </div>
+                    <span>Keep vault unlocked on this device</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setRecoveryOpen(true)}
-                    className="cursor-pointer rounded-md px-1 py-1 text-[13.5px] font-medium text-[color:var(--auth-accent)] transition-colors hover:text-[color:var(--auth-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
+                    className="cursor-pointer shrink-0 text-[12.5px] sm:text-[13px] font-medium text-emerald-400 transition-colors hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded"
                   >
                     Forgot password?
                   </button>
                 </div>
               )}
 
-              <AuthButton
+              {/* Lime-to-emerald gradient pill CTA button with animation, hover sheen, and sliding arrow */}
+              <motion.button
                 type="submit"
-                variant="gradient"
-                loading={busy}
-                loadingLabel={mode === "login" ? "Signing in…" : "Creating account…"}
-                disabled={succeeded}
-                success={succeeded}
-                withArrow={!succeeded}
-              >
-                {succeeded ? "Signed in" : mode === "login" ? "Sign in" : "Create account"}
-              </AuthButton>
-
-              {/* Passkey path — disabled until the backend issues a
-                  WebAuthn challenge: a button that visibly does
-                  nothing reads as broken. Re-enable this block when
-                  POST /auth/passkey-options exists. */}
-              {false && mode === "login" && typeof window !== "undefined" &&
-                (window.PublicKeyCredential !== undefined) && (
-                  <>
-                    <div className="flex items-center gap-3" aria-hidden="true">
-                      <span className="h-px flex-1 bg-[color:var(--auth-line)]" />
-                      <span className="text-[12px] font-medium uppercase tracking-[0.1em] text-[color:var(--auth-ink-3)]">
-                        or
-                      </span>
-                      <span className="h-px flex-1 bg-[color:var(--auth-line)]" />
-                    </div>
-                    <PasskeyButton />
-                  </>
+                disabled={busy || succeeded}
+                whileHover={succeeded || busy ? undefined : { scale: 1.015 }}
+                whileTap={succeeded || busy ? undefined : { scale: 0.985 }}
+                aria-label={mode === "login" ? "Sign in — Go Ahead" : "Create account — Go Ahead"}
+                className={cn(
+                  "auth-sheen group relative flex h-12 w-full items-center justify-center gap-2 rounded-full font-bold text-[15px] transition-all duration-200 cursor-pointer mt-2 overflow-hidden",
+                  "bg-gradient-to-r from-[#34D399] via-[#10B981] to-[#059669] text-slate-950",
+                  "shadow-[0_10px_28px_-6px_rgba(16,185,129,0.5),0_2px_8px_rgba(16,185,129,0.3)]",
+                  "hover:brightness-105 hover:shadow-[0_14px_34px_-6px_rgba(16,185,129,0.65),0_4px_12px_rgba(16,185,129,0.35)] active:translate-y-0",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09110d]",
+                  "disabled:pointer-events-none disabled:opacity-60"
                 )}
+              >
+                {busy ? (
+                  <span className="flex items-center gap-2">
+                    <span className="auth-spinner border-slate-950 border-r-transparent" aria-hidden="true" />
+                    <span>{mode === "login" ? "Unlocking vault…" : "Creating vault…"}</span>
+                  </span>
+                ) : succeeded ? (
+                  <motion.span
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                    className="flex items-center gap-2"
+                  >
+                    <Check className="h-4 w-4 stroke-[3]" aria-hidden="true" />
+                    <span>Unlocked</span>
+                  </motion.span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <span>Go Ahead</span>
+                    <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1.5" aria-hidden="true" />
+                  </span>
+                )}
+              </motion.button>
             </motion.form>
+
+            {/* Mode switch toggle */}
+            <p className="mt-4 text-center text-[13.5px] text-slate-300">
+              {mode === "login" ? "Don't have a vault? " : "Already have a vault? "}
+              <button
+                type="button"
+                onClick={switchMode}
+                aria-label={mode === "login" ? "Create an account" : "Sign in"}
+                className="cursor-pointer font-semibold text-emerald-400 transition-colors hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded"
+              >
+                {mode === "login" ? "Create local account" : "Sign in"}
+              </button>
+            </p>
+
+            {/* Popup celebration on succeeding */}
+            <AnimatePresence>
+              {succeeded && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                  className="absolute inset-0 z-50 flex items-center justify-center rounded-[28px] bg-[#070e0b]/92 p-6 backdrop-blur-md"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0, y: 10 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    transition={{ type: "spring", stiffness: 350, damping: 20, delay: 0.05 }}
+                    className="flex flex-col items-center text-center p-6 rounded-2xl border border-emerald-500/30 bg-[#0d1a14] shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_35px_rgba(16,185,129,0.25)]"
+                  >
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                      <Check className="h-7 w-7 stroke-[2.5]" />
+                    </div>
+                    <h3 className="font-display mt-3.5 text-lg font-bold tracking-wider text-white uppercase">
+                      Vault Unlocked
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-300">
+                      Redirecting to your dashboard…
+                    </p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
-          <motion.p variants={item} className="mt-5 text-center text-[13.5px] text-[color:var(--auth-ink-2)]">
-            {mode === "login" ? "New to Batua? " : "Already have an account? "}
-            <button
-              type="button"
-              onClick={switchMode}
-              className="cursor-pointer font-semibold text-[color:var(--auth-accent)] transition-colors hover:text-[color:var(--auth-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--auth-accent)]"
-            >
-              {mode === "login" ? "Create an account" : "Sign in"}
-            </button>
-          </motion.p>
-
+          {/* Bottom trust badge with AA contrast */}
           <motion.p
             variants={item}
-            className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-[color:var(--auth-ink-3)]"
+            className="mt-3.5 flex items-center justify-center gap-1.5 text-[12px] font-medium text-slate-300"
           >
-            <Lock className="h-3 w-3" aria-hidden="true" />
-            Your data never leaves this device
+            <Lock className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+            <span>Your data never leaves this device</span>
           </motion.p>
 
           <RecoveryDialog open={recoveryOpen} onClose={() => setRecoveryOpen(false)} />
@@ -955,40 +893,10 @@ export default function LoginPage() {
   );
 }
 
-/**
- * "Unlock with device biometrics / passkey".
- *
- * Renders only when WebAuthn is available (the parent checks
- * `window.PublicKeyCredential`). The click handler is a stub —
- * the passkey ceremony needs the server's challenge, which the
- * backend doesn't issue yet. Wire up `onPasskey` here once
- * POST /auth/passkey-options exists.
- */
-function PasskeyButton() {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        // TODO: wire to the passkey ceremony once the backend
-        // issues a challenge. Until then it's a no-op.
-      }}
-      className="auth-card flex h-[52px] w-full items-center justify-center gap-2.5 text-[14.5px] font-medium text-[color:var(--auth-ink)] transition-transform duration-150 ease-out hover:-translate-y-px active:translate-y-0 active:scale-[0.99]"
-    >
-      <Fingerprint className="h-[19px] w-[19px] text-[color:var(--auth-accent)]" aria-hidden="true" />
-      Unlock with device biometrics / passkey
-    </button>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* Page backdrop: aurora + grain + cursor spotlight                    */
 /* ------------------------------------------------------------------ */
 
-/**
- * Atmosphere layer for the whole auth screen. The cursor
- * spotlight is lerped toward the pointer and only runs on
- * fine pointers. Decorative: aria-hidden, pointer-events-none.
- */
 function AuthBackdrop() {
   const reduce = useReducedMotion();
   const spotlightRef = useRef<HTMLDivElement>(null);
