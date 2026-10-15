@@ -379,8 +379,6 @@ function BrandPanel() {
   const item = reduce ? noMotion : fadeUp;
 
   return (
-    // The brand panel is always dark — it is the product's
-    // visual identity, not a themed surface.
     <section
       className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col"
       style={{ background: "var(--auth-brand-grad)" }}
@@ -392,14 +390,14 @@ function BrandPanel() {
         <span className="auth-aurora-c" />
       </div>
       <div className="auth-grain" aria-hidden="true" />
-      <div className="auth-hero-glow" aria-hidden="true" />
 
       <motion.div
         variants={variants}
         initial="hidden"
         animate="show"
-        className="relative z-10 flex h-full flex-col p-8 lg:p-12"
+        className="relative z-10 flex h-full flex-col justify-between p-8 lg:p-12"
       >
+        {/* Logo */}
         <motion.div variants={item} className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl auth-gradient">
             <Logo className="h-6 w-6" />
@@ -409,69 +407,52 @@ function BrandPanel() {
           </span>
         </motion.div>
 
-        <div className="my-auto flex flex-col gap-9">
-          <motion.div variants={item} className="max-w-[460px] space-y-4">
-            <h2 className="font-auth text-[32px] font-bold leading-[1.15] tracking-[-0.025em] text-white lg:text-[42px] lg:leading-[1.1]">
-              Your money,
+        {/* Hero content */}
+        <div className="flex flex-col gap-12">
+          {/* Headline */}
+          <motion.div variants={item} className="max-w-[520px] space-y-5">
+            <h2 className="font-auth text-[36px] font-bold leading-[1.12] tracking-[-0.03em] text-white lg:text-[48px]">
+              Your finances,
               <br />
-              <span className="auth-gradient-text">kept on your device.</span>
+              <span className="auth-gradient-text">your device,</span>
+              <br />
+              your control.
             </h2>
-            <p className="max-w-[400px] text-[14px] font-medium leading-relaxed text-[#a3acb9] lg:text-[15px]">
-              Track every rupee without uploading a single transaction.
-              Your finances stay on this device.
+            <p className="max-w-[440px] text-[15px] font-medium leading-[1.65] text-[#b8c1d0] lg:text-[16px]">
+              A personal finance app that keeps your data where it belongs—on your device. No cloud uploads, no data sharing, just complete privacy.
             </p>
           </motion.div>
 
-          {/* Hero composition — fixed-aspect stage (640x560 design units)
-              that scales to fit ~85-90% of the panel width, centered.
-              Cards positioned at explicit coordinates with z-index scale
-              to prevent overlap of content. */}
-          <motion.div variants={item} className="relative mx-auto h-[300px] w-full max-w-[480px] lg:h-[420px] lg:max-w-[520px]">
-            {/* Mobile: horizontal scroll of 2 cards */}
-            <div className="lg:hidden flex gap-4 overflow-x-auto px-1 snap-x snap-mandatory scrollbar-hide h-full items-center">
-              <div className="snap-center shrink-0">
-                <BalanceCard />
-              </div>
-              <div className="snap-center shrink-0">
-                <BudgetCard />
-              </div>
+          {/* Single hero card */}
+          <motion.div variants={item} className="mx-auto w-full max-w-[500px] lg:mx-0">
+            <BalanceCard />
+          </motion.div>
+
+          {/* Feature pills */}
+          <motion.div variants={item} className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
+              <Lock className="h-4 w-4 text-[#B5E864]" />
+              <span className="text-[13px] font-medium text-white/90">Encrypted locally</span>
             </div>
-
-            {/* Desktop: overlapping cards at explicit positions */}
-            <div className="hidden lg:block relative mx-auto h-full w-full max-w-[520px]">
-              {/* Balance card — anchored left, z-index 1 */}
-              <div className="absolute left-0 top-0 z-10">
-                <BalanceCard />
-              </div>
-              {/* Budget card — top-right, z-index 2, no overlap with balance chart */}
-              <div className="absolute right-0 top-8 z-20">
-                <BudgetCard />
-              </div>
-              {/* Savings gauge — bottom-left, z-index 3, clear of all content */}
-              <div className="absolute bottom-0 left-12 z-30">
-                <SavingsGauge />
-              </div>
-              {/* Daily spend — bottom-right, z-index 4, below other cards */}
-              <div className="absolute bottom-8 right-12 z-40">
-                <DailySpend />
-              </div>
-
-              {/* Callout chips — z-index 5, positioned in gutters outside card bounds */}
-              <CalloutChip icon={CHIPS[0].icon} label={CHIPS[0].label} position={CHIPS[0].style} rotate={CHIPS[0].rotate} delay={0.5} />
-              <CalloutChip icon={CHIPS[1].icon} label={CHIPS[1].label} position={CHIPS[1].style} rotate={CHIPS[1].rotate} delay={0.6} />
-              <CalloutChip icon={CHIPS[2].icon} label={CHIPS[2].label} position={CHIPS[2].style} rotate={CHIPS[2].rotate} delay={0.7} />
-              <CalloutChip icon={CHIPS[3].icon} label={CHIPS[3].label} position={CHIPS[3].style} rotate={CHIPS[3].rotate} delay={0.8} />
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
+              <Fingerprint className="h-4 w-4 text-[#B5E864]" />
+              <span className="text-[13px] font-medium text-white/90">On-device storage</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
+              <Check className="h-4 w-4 text-[#B5E864]" />
+              <span className="text-[13px] font-medium text-white/90">Zero cloud sync</span>
             </div>
           </motion.div>
         </div>
 
+        {/* Footer */}
         <motion.footer
           variants={item}
-          className="flex flex-col items-start gap-1.5 text-[13px] font-medium text-[#6b7482]"
+          className="flex flex-col items-start gap-1 text-[13px] font-medium text-[#6b7482]"
         >
           <span className="font-auth">© 2026 Batua</span>
           <span className="text-[12px] text-[#6b7482]">
-            Sample data · stored on this device
+            Personal finance, privately managed
           </span>
         </motion.footer>
       </motion.div>
