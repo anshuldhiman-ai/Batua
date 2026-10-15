@@ -114,8 +114,9 @@ function BalanceCard() {
             <stop offset="100%" stopColor="var(--auth-accent)" stopOpacity="0" />
           </linearGradient>
           <linearGradient id="auth-spark-line" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#B5E864" />
-            <stop offset="100%" stopColor="#3FBF84" />
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="50%" stopColor="#10B981" />
+            <stop offset="100%" stopColor="#059669" />
           </linearGradient>
           <pattern id="auth-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <rect width="7" height="7" fill="var(--auth-accent)" opacity="0.05" />
@@ -237,8 +238,9 @@ function SavingsGauge() {
       <svg viewBox="0 0 120 66" className="h-[56px] w-full" aria-hidden="true">
         <defs>
           <linearGradient id="auth-gauge" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#B5E864" />
-            <stop offset="100%" stopColor="#3FBF84" />
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="50%" stopColor="#10B981" />
+            <stop offset="100%" stopColor="#059669" />
           </linearGradient>
         </defs>
         {/* track — faint full arc */}
@@ -410,15 +412,15 @@ function BrandPanel() {
         {/* Hero content */}
         <div className="flex flex-col gap-12">
           {/* Headline */}
-          <motion.div variants={item} className="max-w-[520px] space-y-5">
-            <h2 className="font-auth text-[36px] font-bold leading-[1.12] tracking-[-0.03em] text-white lg:text-[48px]">
+          <motion.div variants={item} className="max-w-[540px] space-y-6">
+            <h2 className="font-auth text-[40px] font-bold leading-[1.1] tracking-[-0.03em] text-white lg:text-[56px] lg:leading-[1.08]">
               Your finances,
               <br />
               <span className="auth-gradient-text">your device,</span>
               <br />
               your control.
             </h2>
-            <p className="max-w-[440px] text-[15px] font-medium leading-[1.65] text-[#b8c1d0] lg:text-[16px]">
+            <p className="max-w-[480px] text-[16px] font-medium leading-[1.7] text-[#b8c1d0]/90 lg:text-[17px]">
               A personal finance app that keeps your data where it belongs—on your device. No cloud uploads, no data sharing, just complete privacy.
             </p>
           </motion.div>
@@ -430,17 +432,17 @@ function BrandPanel() {
 
           {/* Feature pills */}
           <motion.div variants={item} className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
-              <Lock className="h-4 w-4 text-[#B5E864]" />
-              <span className="text-[13px] font-medium text-white/90">Encrypted locally</span>
+            <div className="flex items-center gap-2.5 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
+              <Lock className="h-[18px] w-[18px] text-emerald-400" strokeWidth={2} />
+              <span className="text-[13.5px] font-semibold text-white/95">Encrypted locally</span>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
-              <Fingerprint className="h-4 w-4 text-[#B5E864]" />
-              <span className="text-[13px] font-medium text-white/90">On-device storage</span>
+            <div className="flex items-center gap-2.5 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
+              <Fingerprint className="h-[18px] w-[18px] text-emerald-400" strokeWidth={2} />
+              <span className="text-[13.5px] font-semibold text-white/95">On-device storage</span>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 backdrop-blur-sm">
-              <Check className="h-4 w-4 text-[#B5E864]" />
-              <span className="text-[13px] font-medium text-white/90">Zero cloud sync</span>
+            <div className="flex items-center gap-2.5 rounded-full border border-white/12 bg-gradient-to-br from-white/8 to-white/4 px-5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-white/20 hover:from-white/10 hover:to-white/6">
+              <Check className="h-[18px] w-[18px] text-emerald-400" strokeWidth={2} />
+              <span className="text-[13.5px] font-semibold text-white/95">Zero cloud sync</span>
             </div>
           </motion.div>
         </div>
@@ -789,11 +791,10 @@ export default function LoginPage() {
           animate="show"
           className="m-auto w-full max-w-[420px]"
         >
-          {/* The sign-in card — frosted glass, soft glow border that
-              lights up while any field inside has focus. */}
+          {/* The sign-in card — premium glass with enhanced depth */}
           <motion.div variants={item} className="auth-signin-card auth-top-highlight">
             <motion.div variants={item} className="flex flex-col items-center text-center">
-              <span className="relative flex items-center gap-2 rounded-full border border-[color:var(--auth-line)] bg-[color:var(--auth-surface)] px-3 py-1 text-[12px] font-semibold text-[color:var(--auth-ink)]">
+              <span className="relative flex items-center gap-2.5 rounded-full border border-[color:var(--auth-line)] bg-gradient-to-br from-[color:var(--auth-surface)] to-[color:var(--auth-surface-2)] px-4 py-1.5 text-[12.5px] font-semibold text-[color:var(--auth-ink)] shadow-sm">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--auth-accent)] opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--auth-accent)]" />
@@ -802,13 +803,13 @@ export default function LoginPage() {
               </span>
               <motion.h1
                 variants={item}
-                className="mt-3 text-[26px] font-semibold tracking-[-0.02em] text-[color:var(--auth-ink)]"
+                className="mt-4 text-[28px] font-bold tracking-[-0.025em] text-[color:var(--auth-ink)] lg:text-[30px]"
               >
                 {mode === "login" ? "Sign in" : "Create account"}
               </motion.h1>
-              <motion.p variants={item} className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--auth-ink-3)]">
+              <motion.p variants={item} className="mt-2 text-[14.5px] leading-relaxed text-[color:var(--auth-ink-2)]">
                 {mode === "login"
-                  ? "Enter your details to open your vault."
+                  ? "Enter your credentials to access your vault."
                   : "A local account — nothing leaves this device."}
               </motion.p>
             </motion.div>
