@@ -264,24 +264,35 @@ export default function NLInputBar({ onSaved }) {
       }
       resetAll();
       onSaved?.();
-    } catch {
-      toast.error("Failed to save");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to save");
     } finally {
       setSaving(false);
     }
   };
 
-  const toTxnPayload = (src) => ({
-    date: src.date,
-    description: src.description,
-    amount: src.amount,
-    category: src.category || "Other",
-    payment_method: src.payment_method || "",
-    quantity: Math.max(1, parseInt(src.quantity, 10) || 1),
-    price: Number(src.price) || 0,
-    price_text: src.price_text || "",
-    notes: src.notes || "",
-  });
+  const toTxnPayload = (src) => {
+    const rawAmt = src.amount;
+    const numAmt = typeof rawAmt === "number" ? rawAmt : Number(rawAmt) || 0;
+    const rawQty = parseInt(src.quantity, 10);
+    const quantity = Math.max(1, !isNaN(rawQty) ? rawQty : 1);
+    const rawPrice = Number(src.price);
+    const price = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : round2(Math.abs(numAmt) / quantity);
+    const today = new Date().toISOString().slice(0, 10);
+    const date = (src.date && typeof src.date === "string" && src.date.trim()) ? src.date.trim() : today;
+
+    return {
+      date,
+      description: (src.description || "Expense").trim(),
+      amount: numAmt,
+      category: src.category || "Other",
+      payment_method: src.payment_method || "",
+      quantity,
+      price,
+      price_text: src.price_text || "",
+      notes: src.notes || "",
+    };
+  };
 
   // "Split into N" — save each detected item as its own transaction.
   const saveFragments = async (src) => {
@@ -340,8 +351,8 @@ export default function NLInputBar({ onSaved }) {
       toast.success(`Saved ${singles} one-off + ${recurring} recurring entries`);
       resetAll();
       onSaved?.();
-    } catch {
-      toast.error("Failed to save some entries");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to save some entries");
     } finally {
       setSaving(false);
     }

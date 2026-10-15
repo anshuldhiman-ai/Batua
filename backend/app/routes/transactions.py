@@ -39,6 +39,7 @@ async def list_descriptions():
     return {"descriptions": sorted(descriptions.values(), key=str.casefold)}
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_transactions(
     search: str | None = None,
@@ -184,6 +185,7 @@ async def list_transaction_titles(limit: int = 100):
     return {"titles": titles}
 
 
+@router.post("", include_in_schema=False)
 @router.post("/")
 async def create_transaction(payload: TransactionCreate):
     _require_valid_date(payload.date)
@@ -307,6 +309,7 @@ async def delete_transaction(txn_id: str):
     return {"deleted": 1}
 
 
+@router.delete("", include_in_schema=False)
 @router.delete("/")
 async def wipe_transactions():
     storage = get_storage()
