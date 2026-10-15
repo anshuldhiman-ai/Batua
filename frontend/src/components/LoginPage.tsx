@@ -382,7 +382,7 @@ function BrandPanel() {
 
   return (
     <section
-      className="relative order-2 overflow-y-auto lg:order-1 lg:flex lg:flex-col lg:overflow-y-auto"
+      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col"
       style={{ background: "var(--auth-brand-grad)", "--foreground": "0 0% 100%" } as React.CSSProperties}
       aria-label="About Batua"
     >
@@ -448,12 +448,9 @@ function BrandPanel() {
         {/* Footer */}
         <motion.footer
           variants={item}
-          className="flex flex-col items-start gap-1 pt-2 text-[12.5px] font-medium text-[#6b7482]"
+          className="pt-2 text-[12.5px] font-medium text-[#6b7482]"
         >
           <span className="font-auth">© 2026 Batua</span>
-          <span className="text-[12px] text-[#6b7482]">
-            Personal finance, privately managed
-          </span>
         </motion.footer>
       </motion.div>
     </section>
