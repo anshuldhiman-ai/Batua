@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  Activity,
   ArrowRight,
+  ArrowUpRight,
   Check,
   ChevronDown,
   Lock,
@@ -50,229 +52,352 @@ const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
 
 /* ------------------------------------------------------------------ */
-/* Hero visual primitives: Budget bar, Floating chip, Telemetry card  */
+/* Hero visual primitives: Layered Trading Terminal & Allocation Card  */
 /* ------------------------------------------------------------------ */
 
-/**
- * Monthly budget card offset behind the telemetry card for optical depth.
- */
-function BudgetCard() {
-  const reduce = useReducedMotion();
-  const SEGMENTS = 8;
-  const FILLED = 6;
-
-  return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, scale: 0.94, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ ...ease, delay: 0.2 }}
-      className="rounded-2xl border border-white/[0.08] bg-[#0d1713]/90 p-3.5 backdrop-blur-xl shadow-[0_16px_36px_-8px_rgba(0,0,0,0.6)] w-[210px]"
-      aria-hidden="true"
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-300">
-          Monthly budget
-        </span>
-        <span className="text-[11px] font-bold tabular-nums text-emerald-400">75%</span>
-      </div>
-      <div className="mt-2.5 flex gap-1" role="presentation">
-        {Array.from({ length: SEGMENTS }, (_, i) => (
-          <span
-            key={i}
-            className={cn(
-              "h-1.5 flex-1 rounded-full",
-              i < FILLED
-                ? "bg-gradient-to-r from-emerald-400 to-teal-500"
-                : "bg-white/10"
-            )}
-          />
-        ))}
-      </div>
-      <p className="mt-2 text-[10px] text-slate-400 tabular-nums">
-        ₹22,500 of ₹30,000 used
-      </p>
-    </motion.div>
-  );
+interface CandleData {
+  x: number;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  vol: number;
+  isBull: boolean;
 }
 
-/**
- * Floating glass chip positioned outside the card bounds.
- */
-function FloatingChip({
-  icon: Icon,
-  label,
-  className,
-}: {
-  icon: LucideIcon;
-  label: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-[#091510]/95 px-3 py-1.5 backdrop-blur-xl shadow-[0_8px_24px_-4px_rgba(0,0,0,0.5)]",
-        className
-      )}
-      aria-hidden="true"
-    >
-      <Icon className="h-3.5 w-3.5 text-emerald-400 shrink-0" strokeWidth={2} />
-      <span className="text-[11.5px] font-semibold text-slate-200 whitespace-nowrap">
-        {label}
-      </span>
-    </div>
-  );
-}
+const TRADING_CANDLES: CandleData[] = [
+  { x: 20, open: 76, close: 68, high: 64, low: 82, vol: 16, isBull: true },
+  { x: 46, open: 68, close: 62, high: 58, low: 72, vol: 24, isBull: true },
+  { x: 72, open: 62, close: 66, high: 60, low: 70, vol: 14, isBull: false },
+  { x: 98, open: 66, close: 56, high: 52, low: 68, vol: 28, isBull: true },
+  { x: 124, open: 56, close: 50, high: 46, low: 60, vol: 32, isBull: true },
+  { x: 150, open: 50, close: 54, high: 48, low: 58, vol: 15, isBull: false },
+  { x: 176, open: 54, close: 52, high: 47, low: 57, vol: 18, isBull: true },
+  { x: 202, open: 52, close: 44, high: 40, low: 54, vol: 26, isBull: true },
+  { x: 228, open: 44, close: 48, high: 42, low: 52, vol: 16, isBull: false },
+  { x: 254, open: 48, close: 40, high: 36, low: 50, vol: 30, isBull: true },
+  { x: 280, open: 40, close: 34, high: 30, low: 43, vol: 34, isBull: true },
+  { x: 306, open: 34, close: 38, high: 32, low: 41, vol: 15, isBull: false },
+  { x: 332, open: 38, close: 30, high: 26, low: 40, vol: 36, isBull: true },
+  { x: 358, open: 30, close: 24, high: 20, low: 33, vol: 40, isBull: true },
+  { x: 384, open: 24, close: 28, high: 22, low: 31, vol: 18, isBull: false },
+  { x: 410, open: 28, close: 20, high: 16, low: 30, vol: 44, isBull: true },
+  { x: 436, open: 20, close: 15, high: 11, low: 23, vol: 50, isBull: true },
+];
 
 /**
- * Product telemetry card with taller sparkline, distinct tooltip figure,
- * and faint date labels on the x-axis.
+ * High-end trading chart card displaying authentic candlestick price action,
+ * moving-average trendline, volume histogram, and time horizon selectors.
  */
-function TelemetryCard() {
+function TradingChartCard() {
   const reduce = useReducedMotion();
 
-  // Smooth spline curve across dates in October
-  const sparkPath =
-    "M 0 85 C 30 85, 45 74, 70 74 C 95 74, 110 80, 135 80 C 160 80, 175 62, 200 62 C 225 62, 240 70, 265 70 C 290 70, 305 50, 330 50 C 355 50, 370 56, 395 56 C 410 56, 420 32, 435 32";
-  const areaPath = `${sparkPath} L 435 110 L 0 110 Z`;
+  // Smooth spline curve for the exponential moving average across candles
+  const emaPath =
+    "M 20 74 C 60 68, 100 60, 176 53 C 240 47, 310 37, 370 27 C 400 21, 420 17, 436 15";
 
   return (
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...ease, delay: 0.12 }}
-      className="relative z-10 w-full rounded-2xl border border-emerald-500/20 bg-[#091410]/90 p-4 sm:p-5 backdrop-blur-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)]"
+      className="relative z-10 w-full rounded-2xl border border-emerald-500/25 bg-[#08130e]/95 p-4 sm:p-5 backdrop-blur-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)]"
       aria-hidden="true"
     >
-      {/* Header: Local Vault Active and Sample Data pill */}
+      {/* Top Bar: Asset Symbol, Live Ticker & Timeframe Tabs */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-          </span>
-          <span className="font-semibold text-emerald-400">Local Vault Active</span>
-          <span className="text-white/20">|</span>
-          <span className="text-slate-300">On-device AI</span>
+        {/* Left: Ticker identity & Live Rate */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400">
+            <Activity className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-bold tracking-tight text-white">
+                VAULT / INR
+              </span>
+              <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 border border-emerald-500/25">
+                <ArrowUpRight className="h-3 w-3" />
+                +12.4%
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[10.5px] text-slate-300 mt-0.5">
+              <span>24h Vol: ₹4.8M</span>
+              <span className="text-white/20">•</span>
+              <span className="text-emerald-400 font-medium flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live
+              </span>
+            </div>
+          </div>
         </div>
-        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
-          Sample data
-        </span>
+
+        {/* Right: Clean Timeframe Tabs */}
+        <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+          {["1D", "1W", "1M", "1Y"].map((tf) => (
+            <span
+              key={tf}
+              className={cn(
+                "px-2.5 py-0.5 text-[10.5px] font-semibold rounded-lg transition-colors",
+                tf === "1W"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                  : "text-slate-300 hover:text-white"
+              )}
+            >
+              {tf}
+            </span>
+          ))}
+        </div>
       </div>
 
-      {/* Net Worth Figure */}
-      <div className="mt-3.5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300">
-          Net worth
-        </p>
-        <div className="mt-1 flex items-baseline gap-2.5">
-          <p
-            className={cn(
-              "text-[28px] sm:text-[32px] font-bold leading-none tracking-tight text-white tabular-nums",
-              !reduce && "auth-count-up"
-            )}
-          >
-            ₹1,42,850
-          </p>
-          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11.5px] font-semibold text-emerald-400 border border-emerald-500/25">
-            <TrendingUp className="h-3 w-3" />
-            +8.4%
-          </span>
-        </div>
-      </div>
-
-      {/* Taller Sparkline Area Chart with x-axis date labels */}
+      {/* Main Trading Chart Canvas (Candlesticks + EMA + Volume) */}
       <div className="mt-3 relative">
         <svg
-          viewBox="0 0 440 125"
-          className="h-[110px] sm:h-[120px] w-full overflow-visible"
+          viewBox="0 0 460 148"
+          className="h-[125px] sm:h-[135px] w-full overflow-visible"
           preserveAspectRatio="none"
           aria-hidden="true"
         >
           <defs>
-            <linearGradient id="telemetry-spark-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10B981" stopOpacity="0.32" />
-              <stop offset="60%" stopColor="#10B981" stopOpacity="0.08" />
-              <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="telemetry-spark-line" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="trading-ema-line" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#34D399" />
-              <stop offset="50%" stopColor="#10B981" />
+              <stop offset="60%" stopColor="#10B981" />
               <stop offset="100%" stopColor="#059669" />
             </linearGradient>
-            <filter id="telemetry-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#10B981" floodOpacity="0.6" />
+            <filter id="trading-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#10B981" floodOpacity="0.65" />
             </filter>
           </defs>
 
-          {/* Area Fill */}
-          <path d={areaPath} fill="url(#telemetry-spark-fill)" />
+          {/* Horizontal Grid & Price Reference Levels */}
+          {[
+            { y: 24, label: "₹1,54k" },
+            { y: 56, label: "₹1,44k" },
+            { y: 88, label: "₹1,34k" },
+          ].map((level) => (
+            <g key={level.y}>
+              <line
+                x1="8"
+                y1={level.y}
+                x2="415"
+                y2={level.y}
+                stroke="#ffffff"
+                strokeOpacity="0.06"
+                strokeDasharray="3 3"
+                strokeWidth="1"
+              />
+              <text
+                x="455"
+                y={level.y + 3}
+                textAnchor="end"
+                fill="#94a3b8"
+                opacity="0.55"
+                fontSize="9"
+                fontWeight="500"
+                fontFamily="inherit"
+              >
+                {level.label}
+              </text>
+            </g>
+          ))}
 
-          {/* Sparkline Curve */}
+          {/* Volume Baseline Grid Line */}
+          <line
+            x1="8"
+            y1="114"
+            x2="455"
+            y2="114"
+            stroke="#ffffff"
+            strokeOpacity="0.08"
+            strokeWidth="1"
+          />
+
+          {/* Volume Histogram Bars (Base at y=144) */}
+          {TRADING_CANDLES.map((c) => {
+            const barH = c.vol * 0.58;
+            return (
+              <rect
+                key={`vol-${c.x}`}
+                x={c.x - 4}
+                y={144 - barH}
+                width="8"
+                height={barH}
+                rx="1.5"
+                fill={c.isBull ? "#10B981" : "#F43F5E"}
+                fillOpacity={c.isBull ? "0.38" : "0.28"}
+              />
+            );
+          })}
+
+          {/* Candlestick Wicks & Bodies */}
+          {TRADING_CANDLES.map((c) => {
+            const bodyY = Math.min(c.open, c.close);
+            const bodyH = Math.max(Math.abs(c.open - c.close), 2.5);
+            return (
+              <g key={`candle-${c.x}`}>
+                {/* Candle Wick Line */}
+                <line
+                  x1={c.x}
+                  y1={c.high}
+                  x2={c.x}
+                  y2={c.low}
+                  stroke={c.isBull ? "#10B981" : "#F43F5E"}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+                {/* Candle Body Rect */}
+                <rect
+                  x={c.x - 4.5}
+                  y={bodyY}
+                  width="9"
+                  height={bodyH}
+                  rx="1.5"
+                  fill={c.isBull ? "#10B981" : "#E11D48"}
+                  stroke={c.isBull ? "#34D399" : "#FB7185"}
+                  strokeWidth="1"
+                />
+              </g>
+            );
+          })}
+
+          {/* Moving Average Line (EMA Overlay) */}
           <path
-            d={sparkPath}
+            d={emaPath}
             fill="none"
-            stroke="url(#telemetry-spark-line)"
+            stroke="url(#trading-ema-line)"
             strokeWidth="2.5"
             strokeLinecap="round"
             className="auth-spark-line"
             pathLength={1}
           />
 
-          {/* Inflection indicator dots along the trend */}
-          {[
-            [70, 74],
-            [135, 80],
-            [200, 62],
-            [265, 70],
-            [330, 50],
-            [395, 56],
-          ].map(([cx, cy], i) => (
-            <circle key={i} cx={cx} cy={cy} r="2.5" fill="#34D399" opacity="0.65" />
-          ))}
-
-          {/* Vertical dashed guide line dropping from marker dot */}
+          {/* Vertical Crosshair Guide at Current Trading Beacon */}
           <line
-            x1="385"
-            y1="56"
-            x2="385"
-            y2="110"
+            x1="436"
+            y1="8"
+            x2="436"
+            y2="144"
             stroke="#10B981"
             strokeOpacity="0.45"
-            strokeDasharray="3 3"
+            strokeDasharray="2.5 2.5"
             strokeWidth="1.5"
           />
 
-          {/* Marker dot at 12 Oct observation */}
-          <circle cx="385" cy="56" r="7" fill="#10B981" fillOpacity="0.25" filter="url(#telemetry-glow)" />
-          <circle cx="385" cy="56" r="4.5" fill="#34D399" stroke="#060b08" strokeWidth="2" />
+          {/* Active Price Beacon on Latest Candle */}
+          <circle cx="436" cy="15" r="7.5" fill="#10B981" fillOpacity="0.28" filter="url(#trading-glow)" />
+          <circle cx="436" cy="15" r="4" fill="#34D399" stroke="#060b08" strokeWidth="2" />
 
-          {/* Tooltip chip with distinct figure and date */}
-          <g transform="translate(325, 20)">
-            <rect width="112" height="22" rx="11" fill="#0c231a" stroke="#10B981" strokeOpacity="0.5" strokeWidth="1" />
-            <text x="56" y="15" textAnchor="middle" fontSize="10.5" fontWeight="600" fill="#34D399" fontFamily="inherit">
-              12 Oct · ₹1,38,200
+          {/* Pinned Real-Time Price Callout */}
+          <g transform="translate(362, 0)">
+            <rect
+              width="70"
+              height="18"
+              rx="9"
+              fill="#061c12"
+              stroke="#10B981"
+              strokeOpacity="0.65"
+              strokeWidth="1"
+            />
+            <text
+              x="35"
+              y="12.5"
+              textAnchor="middle"
+              fontSize="10"
+              fontWeight="700"
+              fill="#34D399"
+              fontFamily="inherit"
+            >
+              ₹1,48,920
             </text>
           </g>
-
-          {/* Faint X-Axis date labels */}
-          <text x="4" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
-            1 Oct
-          </text>
-          <text x="110" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
-            8 Oct
-          </text>
-          <text x="220" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
-            15 Oct
-          </text>
-          <text x="325" y="122" fill="#94a3b8" opacity="0.6" fontSize="9.5" fontWeight="500" fontFamily="inherit">
-            22 Oct
-          </text>
-          <text x="408" y="122" fill="#94a3b8" opacity="0.8" fontSize="9.5" fontWeight="600" fontFamily="inherit">
-            Today
-          </text>
         </svg>
       </div>
     </motion.div>
+  );
+}
+
+/**
+ * Secondary layered card representing asset allocation & vault liquidity,
+ * overlapping the lower section of the trading chart for genuine physical depth.
+ */
+function AssetAllocationCard() {
+  const reduce = useReducedMotion();
+
+  return (
+    <motion.div
+      initial={reduce ? false : { opacity: 0, y: 16, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ ...ease, delay: 0.22 }}
+      className="rounded-2xl border border-emerald-500/25 bg-[#0a1812]/95 p-3.5 backdrop-blur-2xl shadow-[0_22px_48px_-10px_rgba(0,0,0,0.85)]"
+      aria-hidden="true"
+    >
+      {/* Card Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-white/[0.07]">
+        <div className="flex items-center gap-2">
+          <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white">
+            Vault Allocation
+          </span>
+        </div>
+        <span className="text-[11px] font-bold text-emerald-400 tabular-nums">
+          98.2% Liquid
+        </span>
+      </div>
+
+      {/* Segmented Gradient Bar */}
+      <div className="mt-2.5 flex h-2 gap-1 overflow-hidden rounded-full bg-white/5 p-0.5">
+        <div className="w-[62%] rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" />
+        <div className="w-[26%] rounded-full bg-gradient-to-r from-teal-400 to-teal-500" />
+        <div className="w-[12%] rounded-full bg-gradient-to-r from-slate-400 to-slate-500" />
+      </div>
+
+      {/* Legend & Allocation Breakdown */}
+      <div className="mt-2.5 grid grid-cols-3 gap-2 text-[10.5px]">
+        <div>
+          <p className="text-slate-400 text-[9.5px] uppercase tracking-wide">Liquid</p>
+          <p className="font-semibold text-white tabular-nums">62% (₹92.3k)</p>
+        </div>
+        <div>
+          <p className="text-slate-400 text-[9.5px] uppercase tracking-wide">Growth</p>
+          <p className="font-semibold text-emerald-300 tabular-nums">26% (₹38.7k)</p>
+        </div>
+        <div>
+          <p className="text-slate-400 text-[9.5px] uppercase tracking-wide">Buffer</p>
+          <p className="font-semibold text-teal-300 tabular-nums">12% (₹17.9k)</p>
+        </div>
+      </div>
+
+      {/* Bottom Telemetry Verification Row */}
+      <div className="mt-2.5 pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10.5px]">
+        <span className="text-slate-300 flex items-center gap-1.5">
+          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+          Hardware-bound local key
+        </span>
+        <span className="font-semibold text-emerald-400">Validated</span>
+      </div>
+    </motion.div>
+  );
+}
+
+/**
+ * Floating micro-telemetry pill positioned outside the card bounds.
+ */
+function SecurityFloatingPill() {
+  return (
+    <div
+      className="hidden sm:flex items-center gap-2 rounded-full border border-emerald-500/30 bg-[#07130e]/95 px-3.5 py-1.5 shadow-xl shadow-black/60 backdrop-blur-xl"
+      aria-hidden="true"
+    >
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+      </span>
+      <span className="text-[11px] font-semibold tracking-wide text-emerald-300">
+        AES-256 Local Ledger
+      </span>
+      <span className="text-white/20">•</span>
+      <span className="text-[11px] font-medium text-slate-300">Zero Cloud Sync</span>
+    </div>
   );
 }
 
@@ -343,20 +468,26 @@ function BrandPanel() {
             </div>
           </motion.div>
 
-          {/* Layered hero stage: Main telemetry card + overlapping budget card + floating chip */}
-          <motion.div variants={item} className="relative w-full max-w-[560px] pt-2 pb-4">
-            {/* Overlapping budget card offset behind bottom-right */}
-            <div className="absolute -bottom-3 -right-2 sm:-right-4 z-0 hidden sm:block">
-              <BudgetCard />
+          {/* Layered hero stage: Stack underlay + Trading chart + Overlapping allocation card + Floating security pill */}
+          <motion.div variants={item} className="relative w-full max-w-[560px] pt-4 pb-2">
+            {/* Top stack underlay card creating authentic physical depth ("one on top of other") */}
+            <div
+              className="absolute -top-1.5 left-5 right-5 h-6 rounded-2xl bg-[#0a1812]/50 border border-emerald-500/15 -z-10 shadow-lg shadow-black/40"
+              aria-hidden="true"
+            />
+
+            {/* Floating micro-security pill hovering over top-left */}
+            <div className="absolute -top-2 left-4 z-30">
+              <SecurityFloatingPill />
             </div>
 
-            {/* Floating chip offset outside top-right */}
-            <div className="absolute -top-3 right-4 z-20 hidden sm:block">
-              <FloatingChip icon={Lock} label="Zero cloud sync" />
-            </div>
+            {/* Base layer: High-end Trading Candlestick & Volume Chart Card */}
+            <TradingChartCard />
 
-            {/* Main telemetry card */}
-            <TelemetryCard />
+            {/* Overlapping secondary layer: Asset Allocation & Liquidity Card stacked over bottom-right */}
+            <div className="relative -mt-9 sm:-mt-11 ml-auto w-[88%] sm:w-[315px] z-20">
+              <AssetAllocationCard />
+            </div>
           </motion.div>
         </div>
 
