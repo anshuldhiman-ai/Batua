@@ -269,3 +269,29 @@ def test_login_history_is_recorded_and_returned(client):
     # Newest first
     stamps = [r["at"] for r in rows]
     assert stamps[0] >= stamps[1]
+
+
+def test_forgot_password_by_username(client):
+    _register(client)
+    # Wrong username returns 404
+    bad = client.post(
+        "/api/auth/forgot-password",
+        json={"username": "wrong-user", "new_password": "brand-new-password"},
+    )
+    assert bad.status_code == 404
+
+    # Correct username resets password
+    res = client.post(
+        "/api/auth/forgot-password",
+        json={"username": CRED["username"], "new_password": "brand-new-password"},
+    )
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+
+    # Can now login with new password
+    login = client.post(
+        "/api/auth/login",
+        json={"username": CRED["username"], "password": "brand-new-password"},
+    )
+    assert login.status_code == 200
+

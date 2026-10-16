@@ -164,6 +164,27 @@ class ResetRequest(BaseModel):
     new_password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Direct local password reset by username."""
+    username: str
+    new_password: str
+
+    @field_validator("username")
+    @classmethod
+    def _username(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("username must be at least 3 characters")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def _new_password(cls, v: str) -> str:
+        if len(v) < MIN_PASSWORD_LEN:
+            raise ValueError(f"password must be at least {MIN_PASSWORD_LEN} characters")
+        return v
+
+
 class SessionOpenRequest(BaseModel):
     """Client reports a sign-in happened (after the token was issued)."""
 
@@ -619,3 +640,27 @@ async def reset_password(payload: ResetRequest):
     await storage.mutate("users", doc["id"], _apply)
     logger.info("Password reset via recovery token for @%s", doc["username"])
     return {"ok": True, "message": "Password updated"}
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(payload: ForgotPasswordRequest):
+    """Direct local password reset by username (current mode, additional security to be expanded)."""
+    storage = get_storage()
+    doc = await _load_account(storage)
+    if doc is None:
+        raise HTTPException(404, "No account found — register first")
+    if doc["username"] != payload.username:
+        raise HTTPException(404, "No account found with this username")
+
+    new_hash = await asyncio.to_thread(_hash_password, payload.new_password)
+
+    def _apply(account: dict) -> None:
+        account["password_hash"] = new_hash
+        account["reset_token"] = None
+        account["reset_token_expires_at"] = None
+        account["session_token"] = None
+
+    await storage.mutate("users", doc["id"], _apply)
+    logger.info("Password reset via forgot-password for @%s", payload.username)
+    return {"ok": True, "message": "Password updated successfully. You can now sign in."}
+
