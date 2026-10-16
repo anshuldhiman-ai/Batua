@@ -401,6 +401,152 @@ function SecurityFloatingPill() {
   );
 }
 
+/**
+ * Ambient fluid wave background animation.
+ * Features 3 continuous multi-frequency wave layers translating horizontally
+ * and undulating vertically to create an authentic living wave motion.
+ */
+function WaveBackground({ className }: { className?: string }) {
+  const reduce = useReducedMotion();
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-0 overflow-hidden select-none",
+        className
+      )}
+      aria-hidden="true"
+    >
+      {/* Top fade gradient mask to seamlessly blend into deep background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#060b08] via-transparent to-[#040806]/85 z-10 pointer-events-none" />
+
+      {/* Undulating wave viewport */}
+      <div
+        className={cn(
+          "absolute bottom-0 left-0 right-0 h-[380px] sm:h-[450px] w-full",
+          !reduce && "auth-wave-undulate"
+        )}
+      >
+        {/* Layer 1: Deep rolling oceanic swell with gradient fill */}
+        <div
+          className={cn(
+            "absolute inset-0 w-[200%] flex",
+            !reduce && "auth-wave-layer-1"
+          )}
+        >
+          <svg
+            viewBox="0 0 1600 380"
+            className="w-full h-full"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="wave-grad-1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10B981" stopOpacity="0.22" />
+                <stop offset="45%" stopColor="#059669" stopOpacity="0.07" />
+                <stop offset="100%" stopColor="#040806" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M 0 180 C 200 110, 200 250, 400 180 C 600 110, 600 250, 800 180 C 1000 110, 1000 250, 1200 180 C 1400 110, 1400 250, 1600 180 L 1600 380 L 0 380 Z"
+              fill="url(#wave-grad-1)"
+            />
+            <path
+              d="M 0 180 C 200 110, 200 250, 400 180 C 600 110, 600 250, 800 180 C 1000 110, 1000 250, 1200 180 C 1400 110, 1400 250, 1600 180"
+              fill="none"
+              stroke="#10B981"
+              strokeWidth="1.5"
+              strokeOpacity="0.35"
+            />
+          </svg>
+        </div>
+
+        {/* Layer 2: Counter-drifting harmonic wave */}
+        <div
+          className={cn(
+            "absolute inset-0 w-[200%] flex",
+            !reduce && "auth-wave-layer-2"
+          )}
+        >
+          <svg
+            viewBox="0 0 1600 380"
+            className="w-full h-full"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="wave-grad-2" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#14B8A6" stopOpacity="0.16" />
+                <stop offset="50%" stopColor="#0F766E" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#040806" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M 0 210 C 100 150, 100 270, 200 210 C 300 150, 300 270, 400 210 C 500 150, 500 270, 600 210 C 700 150, 700 270, 800 210 C 900 150, 900 270, 1000 210 C 1100 150, 1100 270, 1200 210 C 1300 150, 1300 270, 1400 210 C 1500 150, 1500 270, 1600 210 L 1600 380 L 0 380 Z"
+              fill="url(#wave-grad-2)"
+            />
+            <path
+              d="M 0 210 C 100 150, 100 270, 200 210 C 300 150, 300 270, 400 210 C 500 150, 500 270, 600 210 C 700 150, 700 270, 800 210 C 900 150, 900 270, 1000 210 C 1100 150, 1100 270, 1200 210 C 1300 150, 1300 270, 1400 210 C 1500 150, 1500 270, 1600 210"
+              fill="none"
+              stroke="#2DD4BF"
+              strokeWidth="1.25"
+              strokeOpacity="0.3"
+              strokeDasharray="4 3"
+            />
+          </svg>
+        </div>
+
+        {/* Layer 3: Glowing crest ribbon line with telemetry beacons */}
+        <div
+          className={cn(
+            "absolute inset-0 w-[200%] flex",
+            !reduce && "auth-wave-layer-3"
+          )}
+        >
+          <svg
+            viewBox="0 0 1600 380"
+            className="w-full h-full"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="wave-ribbon-line" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#34D399" stopOpacity="0.8" />
+                <stop offset="25%" stopColor="#10B981" stopOpacity="0.95" />
+                <stop offset="50%" stopColor="#6EE7B7" stopOpacity="0.75" />
+                <stop offset="75%" stopColor="#10B981" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#34D399" stopOpacity="0.8" />
+              </linearGradient>
+              <filter id="wave-ribbon-glow" x="-10%" y="-30%" width="120%" height="160%">
+                <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#10B981" floodOpacity="0.65" />
+              </filter>
+            </defs>
+            <path
+              d="M 0 190 C 120 130, 280 250, 400 190 C 520 130, 680 250, 800 190 C 920 130, 1080 250, 1200 190 C 1320 130, 1480 250, 1600 190"
+              fill="none"
+              stroke="url(#wave-ribbon-line)"
+              strokeWidth="2.25"
+              filter="url(#wave-ribbon-glow)"
+            />
+
+            {/* Glowing nodes riding the wave crests */}
+            {[
+              [120, 130],
+              [400, 190],
+              [680, 250],
+              [920, 130],
+              [1200, 190],
+              [1480, 250],
+            ].map(([cx, cy], i) => (
+              <g key={i}>
+                <circle cx={cx} cy={cy} r="5" fill="#10B981" fillOpacity="0.3" filter="url(#wave-ribbon-glow)" />
+                <circle cx={cx} cy={cy} r="2.5" fill="#34D399" stroke="#060b08" strokeWidth="1" />
+              </g>
+            ))}
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Brand panel (left)                                                 */
 /* ------------------------------------------------------------------ */
@@ -422,6 +568,9 @@ function BrandPanel() {
         <span className="auth-aurora-c" />
       </div>
       <div className="auth-grain" aria-hidden="true" />
+
+      {/* Ambient fluid wave background animation */}
+      <WaveBackground className="opacity-80" />
 
       {/* Large blurred emerald stage glow behind hero */}
       <div
@@ -1065,13 +1214,14 @@ function AuthBackdrop() {
   }, [reduce]);
 
   return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
       <div className="auth-aurora">
         <span className="auth-aurora-a" />
         <span className="auth-aurora-b" />
         <span className="auth-aurora-c" />
       </div>
       <div className="auth-grain" />
+      <WaveBackground className="opacity-35 hidden lg:block" />
       <div ref={spotlightRef} className="auth-spotlight" />
     </div>
   );
