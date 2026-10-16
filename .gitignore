@@ -8,9 +8,10 @@ backend/.pytest_cache/
 backend/data/store.json
 backend/data/store.db
 backend/data/store.db-shm
-backend/data/store.db-wal
 backend/data/*.db*
 backend/data/classifier.joblib
+*.joblib
+*.onnx
 
 # Node
 node_modules/

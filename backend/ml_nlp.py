@@ -26,6 +26,8 @@ logger = logging.getLogger("batua.ml_nlp")
 _DATA_DIR = Path(__file__).resolve().parent / "data"
 _TRAINING_JSON = _DATA_DIR / "training_data.json"
 _MODEL_PATH = _DATA_DIR / "classifier.joblib"
+_MODEL_MOBILE_PATH = _DATA_DIR / "classifier_mobile.joblib"
+_MODEL_ONNX_PATH = _DATA_DIR / "classifier_mobile.onnx"
 _PREDICT_CACHE_SIZE = 50_000
 
 
@@ -1848,29 +1850,36 @@ class TransactionClassifier:
         return digest.hexdigest()[:16]
 
     def _try_load_persisted(self, fingerprint: str) -> bool:
-        if not _MODEL_PATH.exists():
-            return False
-        try:
-            import joblib
-
-            bundle = joblib.load(_MODEL_PATH)
-            if bundle.get("fingerprint") != fingerprint:
-                logger.info("Persisted classifier stale — retraining")
-                return False
-            self._model = bundle["model"]
-            self._vectorizer = bundle["char_vectorizer"]
-            self._word_vectorizer = bundle["word_vectorizer"]
-            self._training_fingerprint = fingerprint
-            self._initialized = True
-            logger.info(
-                "Loaded persisted classifier (%d samples, fingerprint %s)",
-                bundle.get("sample_count", "?"),
-                fingerprint,
-            )
-            return True
-        except Exception as exc:
-            logger.warning("Could not load persisted classifier: %s", exc)
-            return False
+        # Check classifier_mobile.joblib first, then classifier.joblib
+        for path in (_MODEL_MOBILE_PATH, _MODEL_PATH):
+            if not path.exists():
+                continue
+            try:
+                import joblib
+                bundle = joblib.load(path)
+                if hasattr(bundle, "predict_proba"):
+                    self._pipeline = bundle
+                    self._model = getattr(bundle, "named_steps", {}).get("clf", bundle)
+                    self._initialized = True
+                    logger.info("Loaded custom ML pipeline classifier from %s", path)
+                    return True
+                if isinstance(bundle, dict):
+                    if bundle.get("fingerprint") != fingerprint:
+                        continue
+                    self._model = bundle["model"]
+                    self._vectorizer = bundle["char_vectorizer"]
+                    self._word_vectorizer = bundle["word_vectorizer"]
+                    self._training_fingerprint = fingerprint
+                    self._initialized = True
+                    logger.info(
+                        "Loaded persisted classifier (%d samples, fingerprint %s)",
+                        bundle.get("sample_count", "?"),
+                        fingerprint,
+                    )
+                    return True
+            except Exception as exc:
+                logger.warning("Could not load persisted classifier from %s: %s", path, exc)
+        return False
 
     def _persist(self, fingerprint: str, sample_count: int) -> None:
         try:
@@ -1988,13 +1997,19 @@ class TransactionClassifier:
 
         try:
             normalized = normalize_for_classification(description)
-            X = self._featurize([normalized])
-            if X.nnz == 0:
-                return "Other", 0.0, "ml"
-            proba = self._model.predict_proba(X)[0]
+            if hasattr(self, "_pipeline") and self._pipeline is not None:
+                proba = self._pipeline.predict_proba([normalized])[0]
+                classes = self._pipeline.classes_
+            else:
+                X = self._featurize([normalized])
+                if X.nnz == 0:
+                    return "Other", 0.0, "ml"
+                proba = self._model.predict_proba(X)[0]
+                classes = self._model.classes_
+
             best_idx = int(proba.argmax())
             best_proba = float(proba[best_idx])
-            best_label = self._model.classes_[best_idx]
+            best_label = str(classes[best_idx])
             # Margin between top-1 and top-2 — if they're close, abstain.
             sorted_proba = sorted(proba, reverse=True)
             margin = sorted_proba[0] - sorted_proba[1] if len(sorted_proba) > 1 else sorted_proba[0]
@@ -2002,12 +2017,12 @@ class TransactionClassifier:
             # confidence than long merchant names.
             token_count = len(description.split())
             if token_count <= 1:
-                threshold = 0.65
+                threshold = 0.55
             elif token_count <= 3:
-                threshold = 0.45
+                threshold = 0.40
             else:
-                threshold = 0.30
-            if best_proba < threshold or margin < 0.10:
+                threshold = 0.25
+            if best_proba < threshold or margin < 0.08:
                 logger.debug(
                     "Low confidence (%.2f, margin %.2f) for '%s' → '%s'; returning Other",
                     best_proba, margin, description, best_label,
@@ -2053,9 +2068,15 @@ class TransactionClassifier:
 
         if pending and (self._initialized or self._initialize()):
             try:
-                X = self._featurize([normalize_for_classification(d) for d in pending])
-                probas = self._model.predict_proba(X)
-                classes = self._model.classes_
+                normalized_pending = [normalize_for_classification(d) for d in pending]
+                if hasattr(self, "_pipeline") and self._pipeline is not None:
+                    probas = self._pipeline.predict_proba(normalized_pending)
+                    classes = self._pipeline.classes_
+                else:
+                    X = self._featurize(normalized_pending)
+                    probas = self._model.predict_proba(X)
+                    classes = self._model.classes_
+
                 for d, proba in zip(pending, probas):
                     best_idx = int(proba.argmax())
                     best_proba = float(proba[best_idx])
@@ -2064,13 +2085,13 @@ class TransactionClassifier:
                               if len(sorted_proba) > 1 else sorted_proba[0])
                     token_count = len(d.split())
                     if token_count <= 1:
-                        threshold = 0.65
+                        threshold = 0.55
                     elif token_count <= 3:
-                        threshold = 0.45
+                        threshold = 0.40
                     else:
-                        threshold = 0.30
-                    label = ("Other" if (best_proba < threshold or margin < 0.10)
-                             else classes[best_idx])
+                        threshold = 0.25
+                    label = ("Other" if (best_proba < threshold or margin < 0.08)
+                             else str(classes[best_idx]))
                     result[d] = label
                     self._predict_cache.set(d.lower(), label)
             except Exception as exc:
@@ -2099,9 +2120,15 @@ class TransactionClassifier:
 
         if pending and (self._initialized or self._initialize()):
             try:
-                X = self._featurize([normalize_for_classification(d) for d in pending])
-                probas = self._model.predict_proba(X)
-                classes = self._model.classes_
+                normalized_pending = [normalize_for_classification(d) for d in pending]
+                if hasattr(self, "_pipeline") and self._pipeline is not None:
+                    probas = self._pipeline.predict_proba(normalized_pending)
+                    classes = self._pipeline.classes_
+                else:
+                    X = self._featurize(normalized_pending)
+                    probas = self._model.predict_proba(X)
+                    classes = self._model.classes_
+
                 for d, proba in zip(pending, probas):
                     best_idx = int(proba.argmax())
                     best_proba = float(proba[best_idx])
@@ -2113,15 +2140,15 @@ class TransactionClassifier:
                     )
                     token_count = len(d.split())
                     if token_count <= 1:
-                        threshold = 0.65
+                        threshold = 0.55
                     elif token_count <= 3:
-                        threshold = 0.45
+                        threshold = 0.40
                     else:
-                        threshold = 0.30
-                    if best_proba < threshold or margin < 0.10:
+                        threshold = 0.25
+                    if best_proba < threshold or margin < 0.08:
                         label = "Other"
                     else:
-                        label = classes[best_idx]
+                        label = str(classes[best_idx])
                     result[d] = (label, best_proba, "ml")
                     self._predict_cache.set(d.lower(), label)
             except Exception as exc:
