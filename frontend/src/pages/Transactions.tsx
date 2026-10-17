@@ -100,6 +100,16 @@ export default function Transactions() {
   const [receiptModalOpen, setReceiptModalOpen] = React.useState(false);
   const [scanningReceipt, setScanningReceipt] = React.useState(false);
   const receiptInputRef = React.useRef(null);
+  // Tracks whether this page is still mounted so the upload poll loop can
+  // stop after navigation instead of hammering the progress endpoint and
+  // setting state on a dead component.
+  const aliveRef = React.useRef(true);
+  React.useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   const applyParsedReceipt = (parsed: ParsedReceipt) => {
     setEditing(null);
@@ -356,6 +366,8 @@ export default function Transactions() {
       const startTime = Date.now();
       // eslint-disable-next-line no-constant-condition
       while (true) {
+        // Stop polling once the page has unmounted (user navigated away).
+        if (!aliveRef.current) return;
         if (Date.now() - startTime > maxPollTime) {
           throw new Error("Upload timed out after 5 minutes");
         }
@@ -365,6 +377,7 @@ export default function Transactions() {
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 400));
       }
+      if (!aliveRef.current) return;
       const finalState = (await api.get(`/upload-progress/${taskId}`)).data;
       const result = finalState.result || {};
       const totalSecs = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
@@ -375,6 +388,7 @@ export default function Transactions() {
       invalidateAll();
       // Hold "complete" state briefly so users see the success.
       setTimeout(() => {
+        if (!aliveRef.current) return;
         setUploading(false);
         setUploadProgress(0);
         setUploadStage("uploading");
@@ -388,6 +402,7 @@ export default function Transactions() {
       toast.error(msg);
       // Keep error state visible for a bit so users can read it.
       setTimeout(() => {
+        if (!aliveRef.current) return;
         setUploading(false);
         setUploadFile(null);
       }, 2500);

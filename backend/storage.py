@@ -638,10 +638,13 @@ class MongoStorage:
 
     async def all(self, collection: str, query: Optional[dict] = None, order_by: Optional[str] = None, order_desc: bool = False, limit: Optional[int] = None, offset: Optional[int] = None, fields: Optional[list[str]] = None) -> list[dict]:
         await self._ensure_indexes()
-        cursor = self._db[collection].find(query or {}, {"_id": 0})
+        # Build the projection up front: Motor cursors have no .projection()
+        # method, so the old call raised AttributeError on every request that
+        # passed `fields`. The projection belongs on find().
+        projection = {"_id": 0}
         if fields:
-            # Project only the requested fields (Mongo-side).
-            cursor.projection({f: 1 for f in fields})
+            projection.update({f: 1 for f in fields})
+        cursor = self._db[collection].find(query or {}, projection)
         
         # Add ordering
         if order_by:
@@ -705,21 +708,40 @@ class MongoStorage:
         _id: str,
         fn,
     ) -> Optional[dict]:
-        """Atomic read-modify-write: load, apply ``fn(doc)``,
-        save — one ``find_one_and_update`` so no concurrent
-        writer can interleave (MongoDB does the locking for us
-        here; the SQLite sibling guards the same shape with its
-        own lock)."""
-        current = await self.get(collection, _id)
-        if current is None:
-            return None
-        doc = dict(current)
-        result = fn(doc)
-        if isinstance(result, dict):
-            doc = result
-        return await self._db[collection].find_one_and_update(
-            {"id": _id}, {"$set": doc}, return_document=True
-        )
+        """Read-modify-write with optimistic concurrency.
+
+        MongoDB can't run arbitrary Python under a document lock, so rather
+        than the old (racy) get-then-set, compare-and-swap: the update filters
+        on the exact snapshot we read, so a concurrent writer makes it match
+        nothing and we re-read and retry. (The SQLite sibling guards the same
+        shape with its own asyncio lock.) If the snapshot filter can't match
+        for some backend reason we fall back to an unconditional set so the
+        write still lands — the same outcome the old code had.
+        """
+        import copy
+
+        for _attempt in range(5):
+            current = await self.get(collection, _id)
+            if current is None:
+                return None
+            snapshot = copy.deepcopy(current)
+            doc = dict(current)
+            result = fn(doc)
+            if isinstance(result, dict):
+                doc = result
+            updated = await self._db[collection].find_one_and_update(
+                {"id": _id, **snapshot},
+                {"$set": doc},
+                return_document=True,
+                projection={"_id": 0},
+            )
+            if updated is not None:
+                return updated
+            logger.debug("mutate: write conflict on %s/%s, retrying", collection, _id)
+
+        logger.warning("mutate: snapshot never matched for %s/%s; forcing update", collection, _id)
+        await self._db[collection].update_one({"id": _id}, {"$set": doc})
+        return await self.get(collection, _id)
 
     async def delete(self, collection: str, _id: str) -> bool:
         res = await self._db[collection].delete_one({"id": _id})
