@@ -116,6 +116,27 @@ def test_persisted_model_loads(classifier):
     assert path.exists(), "Run backend/scripts/train_classifier.py"
 
 
+def test_fingerprint_covers_the_whole_corpus():
+    """A change anywhere in the training set must change the fingerprint.
+
+    Regression: _fingerprint hashed only the first and last 50 samples, so a
+    sample added or edited in the middle left it unchanged and a stale
+    persisted model kept loading as if it matched the data.
+    """
+    fingerprint = ml_nlp.TransactionClassifier._fingerprint
+
+    base = [(f"merchant {i}", "Other") for i in range(200)]
+    assert fingerprint(base) == fingerprint(list(base))
+
+    middle_changed = list(base)
+    middle_changed[100] = ("brand new merchant", "Other")
+    assert fingerprint(base) != fingerprint(middle_changed)
+
+    category_changed = list(base)
+    category_changed[100] = ("merchant 100", "Groceries")
+    assert fingerprint(base) != fingerprint(category_changed)
+
+
 def test_common_typos_map_to_categories(classifier):
     cases = {
         "swigy order": "Food Delivery",

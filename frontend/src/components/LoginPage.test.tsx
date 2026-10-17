@@ -54,7 +54,7 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Username")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /sign in/i })
+      screen.getByRole("button", { name: /access local ledger/i })
     ).toBeInTheDocument();
     // Email only appears in register mode
     expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
@@ -65,12 +65,12 @@ describe("LoginPage", () => {
     // The secondary "Create an account" link flips the form
     // into register mode (the segmented control's other tab).
     fireEvent.click(
-      screen.getByRole("button", { name: /create an account/i })
+      screen.getByRole("button", { name: /create local account/i })
     );
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Confirm password")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /create account/i })
+      screen.getByRole("button", { name: /create local vault/i })
     ).toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe("LoginPage", () => {
     renderPage();
     fill("Username", "ab");
     fill("Password", "123");
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /access local ledger/i }));
     expect(api.post).not.toHaveBeenCalled();
     // Validation is inline on the fields, not a toast.
     await waitFor(() => {
@@ -108,7 +108,7 @@ describe("LoginPage", () => {
     renderPage();
     fill("Username", "anshuldhiman-ai");
     fill("Password", "1947");
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /access local ledger/i }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/auth/login", {
         username: "anshuldhiman-ai",
@@ -124,13 +124,13 @@ describe("LoginPage", () => {
     });
     renderPage();
     fireEvent.click(
-      screen.getByRole("button", { name: /create an account/i })
+      screen.getByRole("button", { name: /create local account/i })
     );
     fill("Username", "anshuldhiman-ai");
     fill("Email", "anshuldhimanbadmosh2007@gmail.com");
     fill("Password", "1947");
     fill("Confirm password", "1947");
-    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create local vault/i }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/auth/register", {
         username: "anshuldhiman-ai",

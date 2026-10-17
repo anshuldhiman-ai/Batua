@@ -1858,12 +1858,20 @@ class TransactionClassifier:
 
     @staticmethod
     def _fingerprint(samples: List[Tuple[str, str]]) -> str:
+        """Content hash of the *whole* training set.
+
+        Hashes every (description, category) pair, not just the first/last 50.
+        The old version sampled only the ends, so a sample added or edited in
+        the middle of the corpus left the fingerprint unchanged and a stale
+        persisted model kept loading as if it matched the data.
+        """
         digest = hashlib.sha256()
         digest.update(str(len(samples)).encode())
-        for desc, cat in samples[:50]:
-            digest.update(f"{desc}|{cat}\n".encode())
-        for desc, cat in samples[-50:]:
-            digest.update(f"{desc}|{cat}\n".encode())
+        for desc, cat in samples:
+            digest.update(desc.encode("utf-8"))
+            digest.update(b"\x00")
+            digest.update(cat.encode("utf-8"))
+            digest.update(b"\x01")
         return digest.hexdigest()[:16]
 
     def _try_load_persisted(self, fingerprint: str) -> bool:
@@ -1874,11 +1882,20 @@ class TransactionClassifier:
             try:
                 import joblib
                 bundle = joblib.load(path)
-                if hasattr(bundle, "predict_proba"):
+                if hasattr(bundle, "predict_proba") and hasattr(bundle, "classes_"):
+                    # A shipped pipeline is trusted (trained out-of-band on the
+                    # curated dataset), but require both predict_proba and
+                    # classes_ so a malformed artifact can't load only to crash
+                    # at prediction time (inference reads .classes_).
                     self._pipeline = bundle
                     self._model = getattr(bundle, "named_steps", {}).get("clf", bundle)
+                    self._training_fingerprint = fingerprint
                     self._initialized = True
-                    logger.info("Loaded custom ML pipeline classifier from %s", path)
+                    logger.info(
+                        "Loaded custom ML pipeline classifier from %s (%d classes)",
+                        path,
+                        len(getattr(bundle, "classes_", None) or []),
+                    )
                     return True
                 if isinstance(bundle, dict):
                     if bundle.get("fingerprint") != fingerprint:

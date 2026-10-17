@@ -51,7 +51,7 @@ describe("LoginPage renders content", () => {
 
     // The headline, card and trust row are all present.
     expect(
-      screen.getByRole("heading", { name: /sign in/i, level: 1 })
+      screen.getByRole("heading", { name: /unlock local vault/i, level: 1 })
     ).toBeInTheDocument();
     // Both the brand footer and the card trust row carry it —
     // query all of them rather than a single instance.
@@ -59,7 +59,7 @@ describe("LoginPage renders content", () => {
       screen.getAllByText(/your data never leaves this device/i).length
     ).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: /sign in/i })
+      screen.getByRole("button", { name: /access local ledger/i })
     ).toBeInTheDocument();
   });
 
@@ -71,7 +71,9 @@ describe("LoginPage renders content", () => {
         </AuthProvider>
       </MemoryRouter>
     );
-    expect(screen.getByText(/kept on your device/i)).toBeInTheDocument();
-    expect(screen.getByText(/encrypted locally/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /only on your device/i, level: 2 })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/on-device ai/i)).toBeInTheDocument();
   });
 });
