@@ -636,9 +636,36 @@ class FinanceQA:
 
     @staticmethod
     def _numbers_preserved(source: str, candidate: str) -> bool:
-        """True if every ₹-amount in ``source`` also appears in ``candidate``."""
-        amounts = re.findall(r"₹[\d,]+(?:\.\d+)?", source)
-        return all(a in candidate for a in amounts)
+        """True if every ₹ amount in ``source`` also appears in ``candidate``.
+
+        Compares normalised whole amount tokens, so a dropped digit can't slip
+        through: "₹500" must not be satisfied by "₹1500" (the old substring test
+        wrongly accepted that, and also passed trivially when the source had no
+        ₹ amount).
+        """
+        def norm(tok: str) -> str:
+            return tok.replace("₹", "").replace(",", "").replace(" ", "").strip()
+
+        source_amounts = {norm(t) for t in re.findall(r"₹\s?[\d,]+(?:\.\d+)?", source)}
+        if not source_amounts:
+            return True
+        candidate_amounts = {norm(t) for t in re.findall(r"₹\s?[\d,]+(?:\.\d+)?", candidate)}
+        return source_amounts.issubset(candidate_amounts)
+
+    @staticmethod
+    def _has_invented_amounts(reference: str, candidate: str) -> bool:
+        """True if ``candidate`` states a ₹ amount absent from ``reference``.
+
+        Generative replies are told to use only figures from the verified
+        digest, but small local models drift. Reject a reply that invented a
+        money figure so the caller can fall back to a grounded answer.
+        """
+        def norm(tok: str) -> str:
+            return tok.replace("₹", "").replace(",", "").replace(" ", "").strip()
+
+        reference_amounts = {norm(t) for t in re.findall(r"₹\s?[\d,]+(?:\.\d+)?", reference)}
+        candidate_amounts = {norm(t) for t in re.findall(r"₹\s?[\d,]+(?:\.\d+)?", candidate)}
+        return bool(candidate_amounts - reference_amounts)
 
     # Light phrasing variety for the offline (no-LLM) path, so even the
     # fallback doesn't return a byte-identical string every single time.

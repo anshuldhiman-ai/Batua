@@ -281,8 +281,12 @@ async def create_recurring(payload: RecurringCreate):
             notes=payload.notes,
         )
         txn.txn_type = _kind(txn.amount)
-        # Skip if this transaction already exists (idempotency check)
-        if _txn_key(txn.model_dump()) not in seen:
+        # Skip if this transaction already exists (idempotency check). Track the
+        # keys we add too, so the same month listed twice in one request can't
+        # produce two identical rows.
+        key = _txn_key(txn.model_dump())
+        if key not in seen:
+            seen.add(key)
             docs.append(txn.model_dump())
         else:
             duplicates += 1

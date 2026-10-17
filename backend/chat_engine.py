@@ -399,7 +399,13 @@ def _freeform_fallback(question: str, transactions: list[dict], turns: list[dict
         role = "assistant" if turn.get("role") == "assistant" else "user"
         messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": question})
-    return local_llm.chat_messages(messages, temperature=0.6)
+    reply = local_llm.chat_messages(messages, temperature=0.6)
+    if reply and qa._has_invented_amounts(digest, reply):
+        # The model drifted and stated a ₹ figure that isn't in the digest —
+        # discard it so the caller keeps the grounded canned answer.
+        logger.warning("freeform reply invented a ₹ amount not in the digest; discarding")
+        return None
+    return reply
 
 
 # ---------------------------------------------------------------------- #
