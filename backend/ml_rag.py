@@ -843,71 +843,88 @@ class FinanceQA:
             if not period_key:
                 return None
 
+        # A period question may also name a category ("spend on food last
+        # month"). This handler runs before _handle_category, so without this
+        # the period answer silently ignored the category and reported the
+        # whole period instead.
+        cat = self._extract_category(q)
+
         today = datetime.now()
         bounds = self._month_bounds(period_key, today)
         if not bounds:
             return None
 
-        monthly_index = idx["monthly_index"]
+        def _pretty(ym: str) -> str:
+            if re.match(r"^\d{4}-\d{2}$", ym):
+                year, month = ym.split("-")
+                names = ["", "January", "February", "March", "April", "May",
+                         "June", "July", "August", "September", "October",
+                         "November", "December"]
+                return f"{names[int(month)]} {year}"
+            return ym.replace("_", " ")
+
+        df: pd.DataFrame = idx["df"]
+
         if period_key in ("today", "yesterday"):
             # Day-scoped: aggregate by category rather than month.
-            df: pd.DataFrame = idx["df"]
             target_date = bounds[0]
             day_txns = df[df["date"].dt.strftime("%Y-%m-%d") == target_date]
+            if cat:
+                day_txns = day_txns[day_txns["category"] == cat]
             if day_txns.empty:
+                what = f"{cat} on {target_date}" if cat else target_date
                 return {
-                    "answer": f"No transactions recorded on {target_date}.",
+                    "answer": f"No transactions recorded for {what}.",
                     "type": "period_summary",
                     "period": period_key,
+                    "category": cat,
                 }
             expense = float(day_txns.loc[day_txns["amount"] < 0, "amount"].abs().sum())
             income = float(day_txns.loc[day_txns["amount"] > 0, "amount"].sum())
             label = "Today" if period_key == "today" else "Yesterday"
+            scope = f" on {cat}" if cat else ""
             return {
                 "answer": (
-                    f"{label} ({target_date}): spent ₹{expense:,.2f}, "
+                    f"{label} ({target_date}){scope}: spent ₹{expense:,.2f}, "
                     f"earned ₹{income:,.2f} across {len(day_txns)} transactions."
                 ),
                 "type": "period_summary",
                 "period": period_key,
+                "category": cat,
                 "value": expense,
             }
 
-        # Month-bounded aggregation.
+        # Month-bounded aggregation, computed from the raw frame so a category
+        # filter can be applied (the prebuilt monthly_index is not
+        # category-aware).
         start_ym, end_ym = bounds
-        months_in_range = [m for m in monthly_index if start_ym <= m <= end_ym]
+        in_range = df[(df["month"] >= start_ym) & (df["month"] <= end_ym)]
+        if cat:
+            in_range = in_range[in_range["category"] == cat]
+        months_in_range = sorted(set(in_range["month"])) if not in_range.empty else []
         logger.info(f"Month bounds: {start_ym} to {end_ym}, months in range: {months_in_range}")
+        label = _pretty(period_key)
         if not months_in_range:
-            label = period_key.replace("_", " ")
-            if re.match(r"^\d{4}-\d{2}$", period_key):
-                # Format specific month nicely
-                year, month = period_key.split("-")
-                month_names = ["", "January", "February", "March", "April", "May", "June", 
-                              "July", "August", "September", "October", "November", "December"]
-                label = f"{month_names[int(month)]} {year}"
+            scope = f"{cat} in {label}" if cat else label
             return {
-                "answer": f"No data recorded for {label} yet.",
+                "answer": f"No data recorded for {scope} yet.",
                 "type": "period_summary",
                 "period": period_key,
+                "category": cat,
             }
-        income = sum(monthly_index[m]["income"] for m in months_in_range)
-        expense = sum(monthly_index[m]["expense"] for m in months_in_range)
-        label = period_key.replace("_", " ")
-        if re.match(r"^\d{4}-\d{2}$", period_key):
-            # Format specific month nicely
-            year, month = period_key.split("-")
-            month_names = ["", "January", "February", "March", "April", "May", "June", 
-                          "July", "August", "September", "October", "November", "December"]
-            label = f"{month_names[int(month)]} {year}"
+        income = float(in_range.loc[in_range["amount"] > 0, "amount"].sum())
+        expense = float(in_range.loc[in_range["amount"] < 0, "amount"].abs().sum())
         logger.info(f"Period result: {label}, income: {income}, expense: {expense}")
+        scope = f" — {cat}" if cat else ""
         return {
             "answer": (
-                f"For **{label}**: income ₹{income:,.2f}, "
+                f"For **{label}**{scope}: income ₹{income:,.2f}, "
                 f"spending ₹{expense:,.2f} "
                 f"(net ₹{income - expense:,.2f}) across {len(months_in_range)} month(s)."
             ),
             "type": "period_summary",
             "period": period_key,
+            "category": cat,
             "value": expense,
             "data": {"income": income, "expense": expense, "net": income - expense,
                      "months": months_in_range},

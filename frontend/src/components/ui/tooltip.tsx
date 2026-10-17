@@ -1,11 +1,14 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 /**
  * Lightweight homegrown tooltip that mirrors the shadcn/Radix API used in the
  * rest of the UI (`TooltipProvider`, `Tooltip`, `TooltipTrigger asChild`,
- * `TooltipContent`). No external dependency, no portal — positioned with
- * `position: fixed` from `getBoundingClientRect()`.
+ * `TooltipContent`). No external dependency; positioned with `position: fixed`
+ * from `getBoundingClientRect()`. The content is portalled to <body> so an
+ * ancestor with a CSS transform (e.g. the `page-enter` animation on page
+ * roots) can't make `fixed` resolve against that ancestor and misposition it.
  */
 
 const TooltipContext = React.createContext<any>({
@@ -145,7 +148,7 @@ const TooltipContent = React.forwardRef<any, any>(function TooltipContent(
     ctx.setOpen(false);
   };
 
-  return (
+  return createPortal(
     <div
       ref={(node) => {
         ctx.contentRef.current = node;
@@ -166,7 +169,8 @@ const TooltipContent = React.forwardRef<any, any>(function TooltipContent(
       {...props}
     >
       {children}
-    </div>
+    </div>,
+    document.body
   );
 });
 

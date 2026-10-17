@@ -409,7 +409,8 @@ export async function fetchAnalyticsSummary({ startDate, endDate, granularity = 
     granularity
   });
   const res = await api.get(`/analytics/summary?${params}`, { signal });
-  if (!res.ok) throw new Error("Failed to fetch analytics summary");
+  // axios rejects non-2xx responses itself, so `res` has no `ok` field — the
+  // old `if (!res.ok)` was always true and made this throw on every call.
   return res.data;
 }
 

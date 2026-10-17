@@ -69,21 +69,27 @@ class SavingsGoalTracker:
         try:
             df = pd.DataFrame(transactions)
             df['date'] = pd.to_datetime(df['date'])
-            df['amount'] = df['amount'].abs()
-            
-            # Calculate average monthly savings (income - expenses)
+            df['amount'] = pd.to_numeric(df['amount'], errors='coerce').fillna(0.0)
+
+            # Average monthly savings = (income + expenses) summed per month,
+            # then averaged. The amounts must keep their signs so income and
+            # expenses can cancel; abs()-ing them first made the two sides
+            # un-addable, and the old hard-coded "× 0.2" then invented a
+            # savings figure unrelated to the user's actual data.
             df['month'] = df['date'].dt.to_period('M')
             monthly_net = df.groupby('month')['amount'].sum()
-            
-            # Calculate average savings rate (assuming 20% of income is saved)
-            avg_monthly_savings = monthly_net.mean() * 0.2 if len(monthly_net) > 0 else 0
-            
+            avg_monthly_savings = monthly_net.mean() if len(monthly_net) > 0 else 0.0
+
             # Project savings
             months_remaining = goal['months_remaining']
             projected_savings = goal['current_amount'] + (avg_monthly_savings * months_remaining)
-            
-            # Calculate probability of success
-            success_probability = min(100, max(0, (projected_savings / goal['target_amount']) * 100))
+
+            # Calculate probability of success (guard a zero target).
+            target_amount = goal.get('target_amount') or 0
+            success_probability = (
+                min(100, max(0, (projected_savings / target_amount) * 100))
+                if target_amount else 0
+            )
             
             # Generate recommendations
             recommendations = []

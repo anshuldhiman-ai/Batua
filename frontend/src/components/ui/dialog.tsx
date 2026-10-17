@@ -32,30 +32,98 @@ function Dialog({ open, onOpenChange, children }: any) {
   );
 }
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const DialogContent = React.forwardRef<any, any>(
-  ({ className, children, onClose, ...props }, ref) => (
-    <div
-      ref={ref}
-      role="dialog"
-      className={cn(
-        "relative z-10 my-auto max-h-[calc(100dvh-3rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl animate-fade-up sm:p-6",
-        className
-      )}
-      {...props}
-    >
-      {onClose && (
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-          data-testid="dialog-close"
-          aria-label="Close"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      )}
-      {children}
-    </div>
-  )
+  ({ className, children, onClose, ...props }, forwardedRef) => {
+    const localRef = React.useRef<any>(null);
+
+    // Merge our internal ref with any ref the caller forwards.
+    const setRefs = React.useCallback(
+      (node) => {
+        localRef.current = node;
+        if (typeof forwardedRef === "function") forwardedRef(node);
+        else if (forwardedRef) forwardedRef.current = node;
+      },
+      [forwardedRef]
+    );
+
+    // Focus management: move focus into the dialog on open, keep Tab inside it
+    // (it is a modal), and restore focus to the element that opened it on
+    // close. DialogContent only mounts while the dialog is open.
+    React.useEffect(() => {
+      const node = localRef.current;
+      if (!node) return;
+      const previouslyFocused: any = document.activeElement;
+
+      const focusable = () =>
+        Array.from(node.querySelectorAll<any>(FOCUSABLE_SELECTOR)).filter(
+          (el) => el.offsetParent !== null
+        );
+
+      // Prefer the first form field; otherwise focus the panel itself so screen
+      // readers announce the dialog without stealing focus onto the X button.
+      // Respect an explicit autoFocus already inside the dialog.
+      if (!node.contains(document.activeElement)) {
+        const firstField = node.querySelector<any>(
+          "input:not([disabled]), select:not([disabled]), textarea:not([disabled])"
+        );
+        (firstField || node).focus?.();
+      }
+
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key !== "Tab") return;
+        const items = focusable();
+        if (items.length === 0) {
+          e.preventDefault();
+          node.focus?.();
+          return;
+        }
+        const firstEl = items[0];
+        const lastEl = items[items.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === firstEl || active === node)) {
+          e.preventDefault();
+          lastEl.focus();
+        } else if (!e.shiftKey && active === lastEl) {
+          e.preventDefault();
+          firstEl.focus();
+        }
+      };
+      node.addEventListener("keydown", onKeyDown);
+      return () => {
+        node.removeEventListener("keydown", onKeyDown);
+        previouslyFocused?.focus?.();
+      };
+    }, []);
+
+    return (
+      <div
+        ref={setRefs}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className={cn(
+          "relative z-10 my-auto max-h-[calc(100dvh-3rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl animate-fade-up outline-none sm:p-6",
+          className
+        )}
+        {...props}
+      >
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            data-testid="dialog-close"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        {children}
+      </div>
+    );
+  }
 );
 DialogContent.displayName = "DialogContent";
 

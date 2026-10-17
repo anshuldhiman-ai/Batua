@@ -111,6 +111,28 @@ def test_followup_resolution_merges_category_and_period(client):
     assert body["value"] != first_value
 
 
+def test_period_question_honours_category(client):
+    """A period question that also names a category must not drop the category.
+
+    Regression: _handle_period ran before _handle_category and ignored the
+    category, so "spend on food last month" reported the whole month's
+    income/spending (including the 50,000 salary) instead of just food.
+    """
+    _seed_relative_months(client)
+    r = client.post("/api/ml/qa", json={
+        "question": "How much did I spend on Food & Dining last month?", "mode": "rules",
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    answer = body["answer"].lower()
+    # Category-scoped: the answer names the category and stays within it.
+    assert "food & dining" in answer
+    # The same-month salary is income, not food spending — it must not appear.
+    assert "50,000" not in answer
+    # Only the last month's food expense (Swiggy, 700) counts.
+    assert body["value"] == 700.0
+
+
 def test_summarization_after_many_turns(client):
     _seed(client)
     session_id = "test-session-summary"
