@@ -28,6 +28,33 @@ def test_insights_cold_cache_does_not_crash(client):
     assert body["source"] == "rules"
 
 
+def test_insights_not_placeholder_when_data_exists(client):
+    """A user WITH transactions must never see the first-run placeholder.
+
+    Regression: the rules builder keyed its empty-state guard off the `txns`
+    list, which the caller intentionally passes as [] on the common cold path,
+    so every populated ledger reported "Add your first transaction...".
+    """
+    from app.cache import get_cache
+
+    client.post("/api/transactions", json={
+        "date": "2026-06-10", "description": "Salary",
+        "amount": 10000.0, "category": "Income",
+    })
+    client.post("/api/transactions", json={
+        "date": "2026-06-11", "description": "Rent",
+        "amount": -2000.0, "category": "Housing/Rent",
+    })
+
+    get_cache().clear()
+    r = client.get("/api/insights")
+    assert r.status_code == 200, r.text
+    insights = r.json()["insights"]
+    assert insights
+    joined = " ".join(insights).lower()
+    assert "add your first transaction" not in joined
+
+
 def test_dashboard_metrics_are_cached(client):
     from app.cache import get_cache
     client.post("/api/transactions", json={

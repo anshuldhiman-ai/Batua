@@ -76,10 +76,11 @@ async def insights(
     if rules is None:
         metrics = await dashboard_metrics()
         cats = (await category_breakdown(month=metrics.get("current_month")))["data"]
-        # _rule_based_insights only falls back to raw txns when
-        # metrics has no current_month (it can't happen — the
-        # metrics route always stamps it), so the full scan is
-        # skipped on the common cold path.
+        # Skip the expensive full transaction scan on the common cold path:
+        # dashboard_metrics() always stamps current_month when data exists, so
+        # `txns` is only needed for the rare no-current-month fallback. Note
+        # that _rule_based_insights' empty-state check uses metrics["txn_count"],
+        # never this list, so passing [] here is safe.
         txns = [] if metrics.get("current_month") else await get_all_txns()
         rules = {"insights": _rule_based_insights(metrics, cats, txns)}
         cache.set("insights_rules", rules, ttl=_RULES_CACHE_TTL)
@@ -554,7 +555,15 @@ def _mixed_insights(metrics: dict, timeline: list, cats: list, rule_insights: li
 
 def _rule_based_insights(metrics: dict, cats: list, txns: list) -> list[str]:
     out: list[str] = []
-    if not txns:
+    # The empty-state guard must key off the metrics' transaction count, not
+    # the ``txns`` list. The caller deliberately skips the expensive full scan
+    # on the common cold path and passes ``txns=[]``; testing the list itself
+    # made every user WITH data see the first-run placeholder. ``txns`` is only
+    # ever populated for the rare no-current-month fallback below.
+    txn_count = metrics.get("txn_count")
+    if txn_count is None:
+        txn_count = len(txns)
+    if not txn_count:
         return [
             "Add your first transaction to start getting insights.",
             "Try the natural-language bar: type \"zomato 450 yesterday upi\".",

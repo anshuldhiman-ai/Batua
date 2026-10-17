@@ -306,19 +306,23 @@ class SQLiteStorage:
                 for key, value in query.items():
                     # Handle complex MongoDB-style queries for SQLite
                     if isinstance(value, dict):
+                        # Apply EVERY operator present, not just the first.
+                        # A combined range ({"$gte": start, "$lte": end}) is the
+                        # normal date-filter shape; an if/elif chain silently
+                        # dropped the upper bound (and any second operator).
                         if "$gte" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr >= value["$gte"])
-                        elif "$lte" in value:
+                        if "$lte" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr <= value["$lte"])
-                        elif "$gt" in value:
+                        if "$gt" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr > value["$gt"])
-                        elif "$lt" in value:
+                        if "$lt" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr < value["$lt"])
@@ -369,19 +373,23 @@ class SQLiteStorage:
                 for key, value in query.items():
                     # Handle complex MongoDB-style queries for SQLite
                     if isinstance(value, dict):
+                        # Apply EVERY operator present, not just the first.
+                        # A combined range ({"$gte": start, "$lte": end}) is the
+                        # normal date-filter shape; an if/elif chain silently
+                        # dropped the upper bound (and any second operator).
                         if "$gte" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr >= value["$gte"])
-                        elif "$lte" in value:
+                        if "$lte" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr <= value["$lte"])
-                        elif "$gt" in value:
+                        if "$gt" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr > value["$gt"])
-                        elif "$lt" in value:
+                        if "$lt" in value:
                             attr = getattr(model_class, key, None)
                             if attr is not None:
                                 statement = statement.where(attr < value["$lt"])

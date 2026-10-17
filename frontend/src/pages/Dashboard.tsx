@@ -118,6 +118,24 @@ function EmptyState({ icon: Icon, title, description, actionText, onAction }) {
 }
 
 /* ─── Dashboard ───────────────────────────────────────────────────── */
+function MetricsError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center text-sm text-destructive"
+    >
+      Couldn&apos;t load your dashboard.
+      <button
+        type="button"
+        onClick={onRetry}
+        className="ml-2 font-medium underline underline-offset-2 hover:no-underline"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [insightsMode, setInsightsMode] = useLocalStorage("batua-qa-mode", "hybrid");
@@ -321,7 +339,9 @@ export default function Dashboard() {
 
         {/* This-Month KPI rail */}
         <div className="flex flex-col gap-3 lg:col-span-5">
-          {loading || !metrics ? (
+          {metricsQuery.isError && !metrics ? (
+            <MetricsError onRetry={() => metricsQuery.refetch()} />
+          ) : loading || !metrics ? (
             <>
               <Skeleton className="h-[92px] rounded-xl" />
               <div className="grid grid-cols-2 gap-3">
@@ -637,7 +657,9 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading || !metrics ? (
+            {metricsQuery.isError && !metrics ? (
+              <MetricsError onRetry={() => metricsQuery.refetch()} />
+            ) : loading || !metrics ? (
               <div className="space-y-2">
                 {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}
               </div>

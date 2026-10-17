@@ -57,6 +57,27 @@ def test_detect_amount_arithmetic():
     assert r["price"] == 279.0
 
 
+def test_detect_amount_litre_and_hyphenated_dates():
+    # A spaced "l" is a litre unit, NOT the lakh multiplier.
+    assert _detect_amount("2 l milk 100")[0] == 100.0
+    assert _detect_amount("5 l petrol 500")[0] == 500.0
+    # ...but "l" glued to the number, or spelled out, is still lakh.
+    assert _detect_amount("flat 2l")[0] == 200000.0
+    assert _detect_amount("car 2 lakh")[0] == 200000.0
+    assert _detect_amount("car -1.5lakh")[0:3] == (150000.0, False, True)
+    # A hyphen inside a date or numeric range is not a minus sign.
+    assert _detect_amount("10-05 milk")[0] is None
+    assert _detect_amount("1-1-2026 rent")[0] is None
+    # Explicit signs still work.
+    assert _detect_amount("gift -500")[0:3] == (500.0, False, True)
+    assert _detect_amount("salary +85000")[0:3] == (85000.0, True, False)
+
+    # End-to-end: the litre bug used to turn "2 l milk 100" into -200000.
+    r = parse_transaction("2 l milk 100")
+    assert r["amount"] == -100.0
+    assert r["txn_type"] == "debit"
+
+
 def test_typed_item_fragments_shapes():
     # Item list + price list, zipped into per-item strings.
     assert _typed_item_fragments("banana + mango 50+20") == ["banana 50", "mango 20"]

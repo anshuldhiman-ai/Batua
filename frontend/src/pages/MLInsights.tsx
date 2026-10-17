@@ -41,6 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api, formatINR, formatMonth } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Global cache to persist data across component unmounts/remounts
 const globalCache = {
@@ -48,7 +49,13 @@ const globalCache = {
   forecast: null,
   recs: null,
   loaded: false,
+  updatedAt: 0,
 };
+
+// Re-fetch ML results after this long even if nothing explicitly invalidated
+// them. The computations are expensive, so we don't refetch on every visit —
+// but never serve a stale result forever either.
+const ML_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Shared across every recharts component on this page. Animations are off so
 // charts render instantly and never "laggy"-replay on data refresh or tab
@@ -113,6 +120,7 @@ const CLUSTER_TIERS = [
 export default function MLInsights() {
   const [activeTab, setActiveTab] = useState("patterns");
   const mountedRef = useRef(true);
+  const queryClient = useQueryClient();
 
   // Data States - initialize from global cache if available
   const [patterns, setPatterns] = useState(globalCache.patterns);
@@ -126,8 +134,9 @@ export default function MLInsights() {
 
   // Fetch all ML analytics data on mount
   const loadData = useCallback(async (force = false) => {
-    // If data is already loaded and not forcing a refresh, skip loading
-    if (!force && globalCache.loaded) {
+    // If data is already loaded (and still fresh) and not forcing a refresh,
+    // skip loading.
+    if (!force && globalCache.loaded && Date.now() - globalCache.updatedAt < ML_CACHE_TTL_MS) {
       return;
     }
 
@@ -167,7 +176,15 @@ export default function MLInsights() {
         nextErrors.recommendations = "Smart recommendations are unavailable right now.";
       }
       setEndpointErrors(nextErrors);
-      globalCache.loaded = true;
+      // Only mark loaded when at least one dataset arrived. If every call
+      // failed we leave it un-loaded so the next mount retries instead of
+      // showing a permanently empty page.
+      const anyOk =
+        patternsRes.status === "fulfilled" ||
+        forecastRes.status === "fulfilled" ||
+        recsRes.status === "fulfilled";
+      globalCache.loaded = anyOk;
+      globalCache.updatedAt = Date.now();
 
       if (patternsRes.status === "rejected" && forecastRes.status === "rejected" && recsRes.status === "rejected") {
         setError("Failed to connect to ML analytics services. Please ensure the backend server is running.");
@@ -183,6 +200,21 @@ export default function MLInsights() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // The module cache lives outside React Query, so a transaction change made
+  // elsewhere wouldn't invalidate it — the page would keep showing stale
+  // patterns/forecast/recommendations until a manual refresh. Drop the cache
+  // whenever the underlying data changes so the next visit recomputes.
+  useEffect(() => {
+    const onCacheEvent = (event) => {
+      const key = event?.query?.queryKey?.[0];
+      if (key === "transactions" || key === "dashboard_metrics" || key === "category_breakdown") {
+        globalCache.loaded = false;
+        globalCache.updatedAt = 0;
+      }
+    };
+    return queryClient.getQueryCache().subscribe(onCacheEvent);
+  }, [queryClient]);
 
   if (loading) {
     return (

@@ -28,7 +28,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { api, formatINR, formatDate, categoryColor, priceBreakdown } from "@/lib/utils-finance";
-import { sortTransactions } from "@/lib/analytics-utils";
 import { DateInput } from "@/components/ui/date-input";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { cn } from "@/lib/utils";
@@ -195,10 +194,14 @@ export default function Transactions() {
           end_date: dateRange.end || undefined,
           page,
           page_size: PAGE_SIZE,
+          sort_by: sortBy,
+          sort_order: sortOrder,
         },
       });
-      const sorted = sortTransactions(data.items || [], sortBy, sortOrder);
-      return { ...data, items: sorted };
+      // Sorting happens server-side across the WHOLE result set. Sorting the
+      // current page here would only reorder the visible rows, so "Amount ↓"
+      // would show the biggest of these 15, not the biggest overall.
+      return data;
     },
   });
 
@@ -784,6 +787,19 @@ export default function Transactions() {
               <tbody>
                 {loading ? (
                   <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">Loading…</td></tr>
+                ) : transactionsQuery.isError ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-destructive">
+                      Couldn&apos;t load transactions.
+                      <button
+                        type="button"
+                        onClick={() => transactionsQuery.refetch()}
+                        className="ml-2 font-medium underline underline-offset-2 hover:no-underline"
+                      >
+                        Retry
+                      </button>
+                    </td>
+                  </tr>
                 ) : data.items.length === 0 ? (
                   <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No transactions found.</td></tr>
                 ) : (

@@ -16,6 +16,32 @@ router = APIRouter()
 # either backend — this bounds the per-keystroke cost instead.
 SEARCH_SCAN_LIMIT = 5000
 
+# Columns the client may sort by. Whitelisted so a query param can never be
+# interpolated into the DB layer as an arbitrary attribute.
+_SORTABLE_FIELDS = {
+    "date", "description", "category", "payment_method",
+    "quantity", "price", "amount",
+}
+_NUMERIC_SORT_FIELDS = {"quantity", "price", "amount"}
+# Upper bound on page size — without it a negative/oversized value reaches the
+# DB as a negative LIMIT (SQLite treats that as "no limit") or an unbounded scan.
+MAX_PAGE_SIZE = 500
+
+
+def _sort_txns(txns: list[dict], sort_by: str, sort_order: str) -> list[dict]:
+    """Sort a list of transaction dicts the same way the UI expects.
+
+    Used by the search branch, which filters in Python and therefore can't push
+    the sort down to the database.
+    """
+    field = sort_by if sort_by in _SORTABLE_FIELDS else "date"
+    reverse = sort_order != "asc"
+    if field in _NUMERIC_SORT_FIELDS:
+        key = lambda t: float(t.get(field) or 0)
+    else:
+        key = lambda t: str(t.get(field) or "").casefold()
+    return sorted(txns, key=key, reverse=reverse)
+
 
 async def get_all_txns():
     """Helper to get all transactions."""
@@ -50,8 +76,14 @@ async def list_transactions(
     txn_type: str | None = None,  # income | expense
     page: int = 1,
     page_size: int = 25,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
 ):
     storage = get_storage()
+
+    # Whitelisted sort column; anything unknown falls back to date (desc).
+    sort_field = sort_by if sort_by in _SORTABLE_FIELDS else "date"
+    descending = sort_order != "asc"
 
     def _matches_search(t) -> bool:
         """Search across the whole record — description, notes,
@@ -117,8 +149,9 @@ async def list_transactions(
         )
         matched = [t for t in all_txns if _matches_search(t)]
         total = len(matched)
+        matched = _sort_txns(matched, sort_field, sort_order)
         page = max(1, page)
-        page_size = max(1, min(page_size, 500))
+        page_size = max(1, min(page_size, MAX_PAGE_SIZE))
         offset = (page - 1) * page_size
         txns = matched[offset : offset + page_size]
         items = [_with_kind(t) for t in txns]
@@ -139,13 +172,16 @@ async def list_transactions(
 
     # Get paginated results from database
     page = max(1, page)
+    # Clamp page size: a negative value reaches SQLite as a negative LIMIT,
+    # which it interprets as "no limit" (returns the whole collection).
+    page_size = max(1, min(page_size, MAX_PAGE_SIZE))
     offset = (page - 1) * page_size
 
     txns = await storage.all(
         "transactions",
         query=db_query,
-        order_by="date",
-        order_desc=True,
+        order_by=sort_field,
+        order_desc=descending,
         limit=page_size,
         offset=offset
     )

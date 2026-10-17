@@ -73,6 +73,7 @@ export default function People() {
   const [summary, setSummary] = React.useState(null);
   const [entries, setEntries] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState(false);
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
   const [form, setForm] = React.useState(emptyForm);
@@ -93,8 +94,12 @@ export default function People() {
       ]);
       setSummary(sum.data);
       setEntries(list.data.entries || []);
+      setLoadError(false);
     } catch (e) {
       console.error("Failed to load people ledger", e);
+      // Surface a real error state: without this the page rendered the
+      // "No one in your ledger yet" empty state as if the data were gone.
+      setLoadError(true);
       toast.error("Failed to load people");
     } finally {
       setLoading(false);
@@ -252,6 +257,27 @@ export default function People() {
         <PageHeader title="People" subtitle="Track who owes you and whom you owe" />
         <div className="flex items-center justify-center py-12">
           <div className="text-muted-foreground">Loading people...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError && !summary) {
+    return (
+      <div className="page-enter">
+        <PageHeader title="People" subtitle="Track who owes you and whom you owe" />
+        <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+          <p className="text-sm text-destructive">Couldn&apos;t load your ledger.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setLoading(true);
+              reload();
+            }}
+          >
+            Retry
+          </Button>
         </div>
       </div>
     );

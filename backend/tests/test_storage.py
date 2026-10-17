@@ -106,3 +106,33 @@ async def test_storage_price_field(tmp_path):
     
     await storage.close()
 
+
+@pytest.mark.asyncio
+async def test_sqlite_combined_range_query(tmp_path):
+    """A {"$gte": ..., "$lte": ...} range must apply BOTH bounds.
+
+    Regression: the operator handling was an if/elif chain, so a combined date
+    range silently dropped the upper bound and returned everything on/after the
+    start date (inflating results and counts).
+    """
+    storage = SQLiteStorage(str(tmp_path / "range.db"))
+    docs = [
+        {"id": "a", "date": "2026-01-05", "description": "Jan early", "amount": -10.0},
+        {"id": "b", "date": "2026-01-20", "description": "Jan late", "amount": -20.0},
+        {"id": "c", "date": "2026-02-10", "description": "Feb", "amount": -30.0},
+        {"id": "d", "date": "2025-12-31", "description": "Dec prev", "amount": -40.0},
+    ]
+    await storage.insert_many("transactions", docs)
+
+    q = {"date": {"$gte": "2026-01-01", "$lte": "2026-01-31"}}
+    rows = await storage.all("transactions", query=q, order_by="date")
+    assert [r["id"] for r in rows] == ["a", "b"]
+    assert await storage.count("transactions", query=q) == 2
+
+    # A combined amount range likewise applies both bounds.
+    aq = {"amount": {"$gt": -25.0, "$lt": -5.0}}
+    rows = await storage.all("transactions", query=aq, order_by="date")
+    assert sorted(r["id"] for r in rows) == ["a", "b"]
+
+    await storage.close()
+

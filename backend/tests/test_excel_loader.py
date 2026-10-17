@@ -74,6 +74,26 @@ def test_parse_tabular_csv():
     assert txns[2]["amount"] == -799.0
     assert txns[2]["category"] == "Utilities"
 
+def test_noise_summary_rows_are_not_imported():
+    """Balance/Total rows must never become transactions.
+
+    Regression: the skip guard also required `not mp.get("amount")`, so with a
+    normal amount column mapped the noise rows were imported and corrupted the
+    ledger totals.
+    """
+    csv_data = (
+        "Date,Narration,Amount\n"
+        "01/06/2026,Opening Balance,1000.00\n"
+        "12/06/2026,Zomato Lunch,-450.00\n"
+        "30/06/2026,Closing Balance,550.00\n"
+        "30/06/2026,Total,550.00\n"
+    )
+    txns = try_load_excel(csv_data.encode("utf-8"), "statement.csv", use_ai=False)
+    descriptions = [t["description"] for t in txns]
+    assert descriptions == ["Zomato Lunch"]
+    assert txns[0]["amount"] == -450.0
+
+
 def test_parse_stacked_excel():
     data = [
         ["Expense Table : 05/2026", "", "", "", ""],

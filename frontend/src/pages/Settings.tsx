@@ -45,6 +45,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ThemeContext } from "@/App";
 import MicTest from "@/components/MicTest";
@@ -367,6 +368,7 @@ export default function Settings() {
   const { theme, toggle, accent, setAccent, customColor, setCustomColor } =
     React.useContext(ThemeContext);
   const { changePassword, logout } = useAuth();
+  const queryClient = useQueryClient();
   const customActive = accent === CUSTOM_ACCENT;
   const [activeTab, setActiveTab] = React.useState("appearance");
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -661,10 +663,20 @@ export default function Settings() {
   /* ── Data / backup ── */
 
   const clearAll = async () => {
-    await api.delete("/transactions/");
-    setConfirmOpen(false);
-    setConfirmText("");
-    toast.success("All transactions cleared");
+    try {
+      await api.delete("/transactions/");
+      setConfirmOpen(false);
+      setConfirmText("");
+      // Drop every cached dataset derived from transactions — otherwise the
+      // Dashboard/Transactions keep showing the rows we just deleted (there is
+      // no default staleTime and refetchOnWindowFocus is off).
+      queryClient.invalidateQueries();
+      toast.success("All transactions cleared");
+    } catch (e) {
+      // Surface the failure instead of leaving an unhandled promise rejection
+      // with no user feedback.
+      toast.error(e.response?.data?.detail || "Failed to clear transactions");
+    }
   };
 
   const [restoring, setRestoring] = React.useState(false);

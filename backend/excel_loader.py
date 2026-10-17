@@ -710,7 +710,12 @@ def _parse_tabular(df: pd.DataFrame, use_ai: bool, custom_mapping: dict = None) 
         desc = ""
         if mp.get("description"):
             desc = str(rowd.get(mp["description"], "")).strip()
-        if desc.lower() in _NOISE_DESCRIPTIONS and not mp.get("amount"):
+        # Summary/balance rows ("Total", "Opening Balance", "Closing Balance")
+        # are not transactions and must never be imported — they corrupt every
+        # total. The old guard also required `not mp.get("amount")`, which meant
+        # the check only ran when no amount column was mapped (i.e. never, in a
+        # normal statement), so these rows slipped through.
+        if desc.lower() in _NOISE_DESCRIPTIONS:
             continue
 
         amount = _row_amount(rowd, mp)

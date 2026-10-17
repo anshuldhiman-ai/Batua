@@ -594,6 +594,39 @@ _ARITH_AMOUNT_RE = re.compile(
 )
 
 
+def _is_litre_unit(text: str, match, suffix_group: int) -> bool:
+    """True when a matched bare ``l`` is really the litre unit, not lakh.
+
+    ``l`` doubles as the lakh multiplier ("2l" = 2,00,000) and as the litre
+    unit ("2 l milk"). It is only a multiplier when glued to the number; when
+    whitespace separates them it is a unit, so the number must not be scaled
+    (and, in the amount scan, must be skipped so the real price can be found).
+    """
+    suffix = match.group(suffix_group)
+    if not suffix or suffix.lower() != "l":
+        return False
+    idx = match.start(suffix_group)
+    return idx > 0 and text[idx - 1].isspace()
+
+
+# Explicit sign, e.g. +85000, -250, +5k. The lookbehind stops a hyphen that is
+# really part of a date or numeric range ("10-05", "1-1-2026") from being read
+# as a minus sign.
+_EXPLICIT_SIGN_RE = re.compile(
+    r"(?<![\d\w])([+-])\s?(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?"
+    + _SUFFIX_RE
+    + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b",
+    re.IGNORECASE,
+)
+# Plain number, optionally with a currency prefix and k/l/cr/lakh suffix.
+_PLAIN_AMOUNT_RE = re.compile(
+    r"(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?"
+    + _SUFFIX_RE
+    + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b",
+    re.IGNORECASE,
+)
+
+
 def _detect_amount(text: str) -> tuple[float | None, bool, bool, str]:
     """Return (amount_abs, explicit_positive, explicit_negative, remaining_text).
 
@@ -610,24 +643,32 @@ def _detect_amount(text: str) -> tuple[float | None, bool, bool, str]:
             text = _remove(text, am.start(), am.end())
             return val, am.group(1) == "+", am.group(1) == "-", text
     # Explicit sign first, e.g. +85000, -250, +5k
-    m = re.search(
-        r"([+-])\s?(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b", text, re.IGNORECASE
-    )
-    if m:
+    for m in _EXPLICIT_SIGN_RE.finditer(text):
+        # A spaced "l" is a litre unit, not lakh — don't scale ("2 l" ≠ 2 lakh).
+        if _is_litre_unit(text, m, 3):
+            continue
         sign = m.group(1)
         num = _apply_suffix(float(m.group(2).replace(",", "")), m.group(3))
         text = _remove(text, m.start(), m.end())
         return num, sign == "+", sign == "-", text
     # Plain number, optionally with currency prefix and k/l/cr suffix (not part of a date like 10/05 or 5th)
-    for m in re.finditer(
-        r"(?:rs\.?|inr|₹|\$)?\s?(\d[\d,]*(?:\.\d+)?)\s?" + _SUFFIX_RE + r"?(?:\s*(?:rs\.?|inr|rupees?|rupaye|rupiya))?\b", text, re.IGNORECASE
-    ):
+    for m in _PLAIN_AMOUNT_RE.finditer(text):
         s, e = m.start(), m.end()
         # Skip if part of a dd/mm date (before or after /)
         if text[e : e + 1] == "/" or (s > 0 and text[s - 1 : s] == "/"):
             continue
+        # Skip if part of a dd-mm[-yyyy] date or numeric range ("10-05",
+        # "1-1-2026") so the hyphen is never read as a minus sign.
+        if text[e : e + 1] == "-" and text[e + 1 : e + 2].isdigit():
+            continue
+        if s > 0 and text[s - 1 : s] == "-" and text[s - 2 : s - 1].isdigit():
+            continue
         # Skip ordinals like 5th, 1st, 22nd, 3rd
         if re.match(r"(st|nd|rd|th)\b", text[e:].lstrip()[:2], re.IGNORECASE):
+            continue
+        # "2 l milk 100" — the count is a quantity, the spaced "l" a unit; skip
+        # it so the real price (100) is picked up instead of 2 × 1e5.
+        if _is_litre_unit(text, m, 2):
             continue
         num = _apply_suffix(float(m.group(1).replace(",", "")), m.group(2))
         text = _remove(text, s, e)
