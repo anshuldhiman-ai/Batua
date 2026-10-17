@@ -460,6 +460,12 @@ def _extract_amount(text: str) -> Optional[float]:
             continue
         amount = float(match.group(2).replace(",", ""))
         suffix = match.group(3)
+        # A spaced bare "l" is the litre unit ("2 l milk"), not the lakh
+        # multiplier ("2l"). Skip it so the real amount (100) is found.
+        if suffix and suffix.lower() == "l":
+            suffix_idx = match.start(3)
+            if suffix_idx > 0 and text[suffix_idx - 1].isspace():
+                continue
         if suffix:
             amount *= SUFFIX_MULTIPLIERS.get(suffix.lower(), 1)
         if match.group(1) == "-":
@@ -501,11 +507,22 @@ def _clean_description(text: str) -> str:
 def _parse_with_rules(text: str) -> Dict[str, Any]:
     category = keyword_category(text) or "Other"
     amount = _extract_amount(text)
-    explicit_income = amount is not None and amount > 0
-    if amount is not None and not explicit_income and category not in INCOME_CATEGORIES:
-        amount = -abs(amount)
-    elif amount is not None and category in INCOME_CATEGORIES:
-        amount = abs(amount)
+    if amount is not None:
+        # Direction. A negative amount (_extract_amount applied an explicit
+        # minus) is an expense. A positive amount is income only when it was
+        # explicitly signed ("+450") or the category is an income category;
+        # otherwise a bare unsigned number ("zomato 450") is an expense. The
+        # old `not explicit_income` test could never be true for a positive
+        # amount, so every unsigned number was booked as a credit.
+        explicit_positive = bool(
+            re.search(r"\+\s*(?:rs\.?|inr|₹|\$)?\s*\d", text, re.IGNORECASE)
+        )
+        if amount < 0:
+            amount = -abs(amount)
+        elif explicit_positive or category in INCOME_CATEGORIES:
+            amount = abs(amount)
+        else:
+            amount = -abs(amount)
 
     return {
         "description": _clean_description(text),

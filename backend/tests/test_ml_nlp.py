@@ -88,6 +88,28 @@ def test_merge_training_data_scale(classifier):
     assert len(categories) >= 15
 
 
+def test_rule_parser_marks_unsigned_amounts_as_expense():
+    """A bare unsigned amount on a non-income category is a debit.
+
+    Regression: the sign test used `not explicit_income` where
+    `explicit_income = amount > 0`, so it could never fire for a positive
+    amount — every "zomato 450" was booked as a credit.
+    """
+    assert ml_nlp._parse_with_rules("zomato 450")["amount"] == -450.0
+    assert ml_nlp._parse_with_rules("-500 chai")["amount"] == -500.0
+    # Income categories and an explicit "+" stay positive.
+    assert ml_nlp._parse_with_rules("salary 85000")["amount"] == 85000.0
+    assert ml_nlp._parse_with_rules("zomato +450")["amount"] == 450.0
+
+
+def test_rule_parser_treats_spaced_l_as_litre():
+    # "2 l milk 100" is two litres for 100, not 2 lakh.
+    assert ml_nlp._parse_with_rules("2 l milk 100")["amount"] == -100.0
+    # Glued "2l" and spelled "lakh" remain the lakh multiplier.
+    assert ml_nlp._parse_with_rules("flat 2l")["amount"] == -200000.0
+    assert ml_nlp._parse_with_rules("car 2 lakh")["amount"] == -200000.0
+
+
 def test_persisted_model_loads(classifier):
     assert classifier._initialized
     path = Path(__file__).resolve().parents[1] / "data" / "classifier.joblib"

@@ -212,11 +212,22 @@ async def load_session(storage: Any, session_id: str) -> dict:
 
 
 async def save_session(storage: Any, session: dict) -> None:
-    existing = await storage.get(COLLECTION, session["id"])
-    if existing is None:
+    """Persist a chat session, tolerating a concurrent first turn.
+
+    ``update`` merges into the session's stored JSON, so it is the right
+    primitive once the session exists. Only insert when it doesn't — and if a
+    parallel first turn inserted it in the meantime, fall back to ``update``
+    rather than surfacing a duplicate-key error (the old get→insert/update
+    pair raced exactly there).
+    """
+    session_id = session["id"]
+    if await storage.update(COLLECTION, session_id, session) is not None:
+        return
+    try:
         await storage.insert(COLLECTION, session)
-    else:
-        await storage.update(COLLECTION, session["id"], session)
+    except Exception:
+        # Lost the create race to a concurrent turn.
+        await storage.update(COLLECTION, session_id, session)
 
 
 async def delete_session(storage: Any, session_id: str) -> None:

@@ -407,11 +407,16 @@ class FinanceQA:
                 }
 
             return self._suggestion_hint(question, index)
-        except Exception as exc:
+        except Exception:
             logger.exception("Q&A failed")
+            # Don't echo the raw exception to the user — it can leak internal
+            # paths/library details. The full error is in the log above.
             return {
                 "question": question,
-                "answer": f"Sorry, I hit an error: {exc}",
+                "answer": (
+                    "Sorry, I couldn't work that out just now. Try rephrasing, "
+                    "or ask about your spending, income, or savings."
+                ),
                 "type": "error",
             }
 

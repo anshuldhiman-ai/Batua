@@ -3,6 +3,39 @@ the session-aware /api/ml/qa + /api/ml/chat/{id} routes.
 """
 from datetime import date
 
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_save_session_insert_then_update(tmp_path):
+    """save_session persists new sessions and merges into existing ones.
+
+    Regression: the old get→insert/update pair could double-insert on a
+    concurrent first turn (duplicate-key error) — update-first avoids it.
+    """
+    from storage import SQLiteStorage
+    from chat_engine import save_session, load_session
+
+    storage = SQLiteStorage(str(tmp_path / "chat.db"))
+    base = {
+        "id": "s1",
+        "created_at": "2026-01-01T00:00:00",
+        "updated_at": "2026-01-01T00:00:00",
+        "summary": "",
+        "turns": [],
+    }
+
+    await save_session(storage, base)  # insert path
+    with_turn = {**base, "turns": [{"role": "user", "content": "hi"}]}
+    await save_session(storage, with_turn)  # update path
+    # Saving again over an existing doc must not raise a duplicate-key error.
+    await save_session(storage, with_turn)
+
+    loaded = await load_session(storage, "s1")
+    assert loaded["turns"] == [{"role": "user", "content": "hi"}]
+
+    await storage.close()
+
 
 
 def _seed(client):
