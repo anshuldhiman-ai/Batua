@@ -31,6 +31,7 @@ import { api, formatINR, formatDate, categoryColor, priceBreakdown } from "@/lib
 import { DateInput } from "@/components/ui/date-input";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -485,32 +486,44 @@ export default function Transactions() {
     }
   };
 
-  const deleteOne = async (id) => {
-    const txn = data.items.find((t) => t.id === id);
-    try {
-      await api.delete(`/transactions/${id}`);
-      invalidateAll();
-      toast.success("Deleted", txn ? { action: { label: "Undo", onClick: () => restoreTxns([txn]) } } : undefined);
-    } catch (e) {
-      toast.error("Delete failed");
-    }
+  // Staged deletion: a click never deletes directly — it opens the shared
+  // confirmation, and only a confirmed action hits the API. Single-row and
+  // bulk share the same flow.
+  const [deleteRequest, setDeleteRequest] = React.useState<{ ids: string[] } | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const requestDeleteOne = (id: string) => setDeleteRequest({ ids: [id] });
+
+  const requestBulkDelete = () => {
+    if (selected.size > 0) setDeleteRequest({ ids: Array.from(selected) as string[] });
   };
 
-  const bulkDelete = async () => {
+  const confirmDelete = async () => {
+    if (!deleteRequest) return;
+    const { ids } = deleteRequest;
+    const isBulk = ids.length > 1;
     // Only rows visible on this page can be captured for undo; if the
     // selection spans pages we skip the offer rather than half-restore.
-    const captured = data.items.filter((t) => selected.has(t.id));
-    const canUndo = captured.length === selected.size;
+    const captured = data.items.filter((t) => ids.includes(t.id));
+    const canUndo = captured.length === ids.length;
+    setDeleting(true);
     try {
-      await api.post("/transactions/bulk-delete", { ids: Array.from(selected) });
+      if (isBulk) {
+        await api.post("/transactions/bulk-delete", { ids });
+      } else {
+        await api.delete(`/transactions/${ids[0]}`);
+      }
       setSelected(new Set());
+      setDeleteRequest(null);
       invalidateAll();
       toast.success(
-        `Deleted ${captured.length || selected.size} transactions`,
+        isBulk ? `Deleted ${ids.length} transactions` : "Deleted",
         canUndo ? { action: { label: "Undo", onClick: () => restoreTxns(captured) } } : undefined
       );
     } catch (e) {
-      toast.error("Bulk delete failed");
+      toast.error(isBulk ? "Bulk delete failed" : "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -740,7 +753,7 @@ export default function Transactions() {
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
             <div>
               {selected.size > 0 && (
-                <Button variant="destructive" size="sm" onClick={bulkDelete} data-testid="bulk-delete-btn">
+                <Button variant="destructive" size="sm" onClick={requestBulkDelete} data-testid="bulk-delete-btn">
                   <Trash2 className="h-4 w-4" /> Delete ({selected.size})
                 </Button>
               )}
@@ -848,7 +861,7 @@ export default function Transactions() {
                           <button onClick={() => openEdit(t)} data-testid={`edit-${t.id}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground">
                             <Pencil className="h-4 w-4" />
                           </button>
-                          <button onClick={() => deleteOne(t.id)} data-testid={`delete-${t.id}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500">
+                          <button onClick={() => requestDeleteOne(t.id)} data-testid={`delete-${t.id}`} aria-label="Delete transaction" className="rounded-md p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
@@ -1070,6 +1083,22 @@ export default function Transactions() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Destructive actions require explicit confirmation */}
+      <ConfirmDialog
+        open={Boolean(deleteRequest)}
+        onOpenChange={(o) => !o && setDeleteRequest(null)}
+        title={
+          deleteRequest && deleteRequest.ids.length > 1
+            ? `Delete ${deleteRequest.ids.length} transactions?`
+            : "Delete this transaction?"
+        }
+        description="This permanently removes it from your ledger. You can undo right after from the toast."
+        confirmLabel={deleteRequest && deleteRequest.ids.length > 1 ? "Delete all" : "Delete"}
+        busy={deleting}
+        onConfirm={confirmDelete}
+        testId="delete-txn-dialog"
+      />
     </div>
   );
 }

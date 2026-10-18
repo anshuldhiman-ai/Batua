@@ -17,16 +17,43 @@ function Tabs({ value, defaultValue, onValueChange, className, children }: any) 
   );
 }
 
-const TabsList = ({ className, ...props }: any) => (
-  <div
-    role="tablist"
-    className={cn(
-      "inline-flex items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground overflow-x-auto no-scrollbar",
-      className
-    )}
-    {...props}
-  />
-);
+const TabsList = ({ className, onKeyDown, ...props }: any) => {
+  // Inactive tabs are tabIndex={-1}, so without this a keyboard user can land
+  // on the active tab but never move to another one. Standard tablist keys:
+  // Left/Right wrap, Home/End jump to the ends.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented) return;
+    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    const tabs = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]:not([disabled])')
+    );
+    if (!tabs.length) return;
+    const current = tabs.indexOf(document.activeElement as HTMLElement);
+    let next = current;
+    if (event.key === "ArrowRight") next = current < 0 ? 0 : (current + 1) % tabs.length;
+    if (event.key === "ArrowLeft") next = current < 0 ? tabs.length - 1 : (current - 1 + tabs.length) % tabs.length;
+    if (event.key === "Home") next = 0;
+    if (event.key === "End") next = tabs.length - 1;
+    event.preventDefault();
+    tabs[next].focus();
+    tabs[next].click();
+  };
+
+  return (
+    <div
+      role="tablist"
+      aria-orientation="horizontal"
+      onKeyDown={handleKeyDown}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground overflow-x-auto no-scrollbar",
+        className
+      )}
+      {...props}
+    />
+  );
+};
 
 function TabsTrigger({ value, className, children, ...props }: any) {
   const ctx = React.useContext(TabsContext);

@@ -76,8 +76,8 @@ const PILLARS: { icon: LucideIcon; title: string; desc: string }[] = [
  * Ambient dune swell — the layered green ridges that cross the brand panel.
  *
  * Three crest lines (a bright main dune, a mid swell and a faint far ridge)
- * are drawn into an 835 × 941 box that maps 1:1 onto the panel, so the curves
- * sit exactly where the brand artwork puts them. Each dune is built from:
+ * are drawn into an 835 × 941 box traced off the brand artwork, so the curves
+ * sit exactly where the artwork puts them. Each dune is built from:
  *
  *   1. a short stack of blurred wide strokes, clipped to *below* the crest, so
  *      the glow falls away under the ridge and leaves the sky above it clean;
@@ -297,7 +297,7 @@ const SIGMAS = Array.from(
   new Set([...GLOW_STACK.map((l) => l[1]), ...RIDGES.flatMap((r) => (r.halo?.layers ?? []).map((l) => l[1]))])
 ).sort((a, b) => a - b);
 
-function WaveBackground({ className }: { className?: string }) {
+function WaveBackground({ className, style }: { className?: string; style?: React.CSSProperties }) {
   // Unique ids per instance — a duplicate <linearGradient id> would make
   // separate mounts resolve to the same def.
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -309,13 +309,16 @@ function WaveBackground({ className }: { className?: string }) {
 
   return (
     <div
-      className={cn("pointer-events-none absolute inset-0 overflow-hidden select-none", className)}
+      className={cn("pointer-events-none overflow-hidden select-none", className)}
+      style={style}
       aria-hidden="true"
     >
       <svg
         viewBox={`0 0 ${WAVE_W} ${WAVE_H}`}
         className="h-full w-full"
-        preserveAspectRatio="none"
+        // Anchor the artwork to the foot of the band and crop the empty night
+        // above it, so the swell keeps its true proportions at any panel size.
+        preserveAspectRatio="xMidYMax slice"
       >
         <defs>
           <radialGradient id={`wv-bg-${uid}`} cx="0.08" cy="0.68" r="0.28">
@@ -399,7 +402,7 @@ function WaveBackground({ className }: { className?: string }) {
           ))}
         </defs>
 
-        <rect width={WAVE_W} height={WAVE_H} fill="#020B07" />
+        <rect width={WAVE_W} height={WAVE_H} fill="#070B09" />
         <rect width={WAVE_W} height={WAVE_H} fill={`url(#wv-bg-${uid})`} />
 
         {RIDGE_ORDER.map((i) => {
@@ -529,87 +532,92 @@ function BrandPanel() {
 
   return (
     <section
-      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col lg:h-full justify-between p-6 sm:p-8 lg:py-10 lg:px-12 xl:px-16 text-white"
+      className="relative order-2 isolate overflow-hidden text-white lg:order-1 lg:flex lg:h-full lg:flex-col"
       style={{
         // Near-black ground. The swell SVG paints the real background; this is
         // only the fallback behind it and the colour under the panel's edges.
-        background: "#020B07",
+        background: "#070B09",
       }}
       aria-label="About Batua"
     >
-      {/* Ambient aurora ribbons sweeping across the panel */}
-      <WaveBackground />
+      {/*
+        Layer 1 — the swell. Confined to the foot of the panel, dimmed, and
+        dissolved along its top edge, so it stays ambient ground beneath the
+        copy instead of a graphic crossing through it.
+      */}
+      <WaveBackground
+        className="absolute inset-x-0 bottom-0 z-0 hidden h-[20%] opacity-50 blur-[2px] lg:block"
+        style={{
+          maskImage: "linear-gradient(to bottom, transparent 0%, #000 34%)",
+          WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, #000 34%)",
+        }}
+      />
 
+      {/* Layer 2 — everything the visitor actually reads. */}
       <motion.div
         variants={variants}
         initial="hidden"
         animate="show"
-        className="relative z-10 flex h-full w-full max-w-[680px] flex-col justify-between mx-auto"
+        className="relative z-10 mx-auto flex h-full w-full max-w-[760px] flex-col px-6 pb-8 pt-10 sm:px-10 sm:pb-10 sm:pt-12 lg:px-16 lg:pb-9 lg:pt-12"
       >
         {/* Brand lockup: crest + wordmark | descriptor */}
         <motion.div variants={item} className="flex items-center gap-3.5 sm:gap-5">
           <motion.span
             whileHover={reduce ? undefined : { scale: 1.08, rotate: -5 }}
             transition={{ type: "spring", stiffness: 320, damping: 16 }}
-            className="shrink-0"
+            className="flex shrink-0"
           >
             <Logo className="h-10 w-10 lg:h-11 lg:w-11" />
           </motion.span>
           <span className="font-brand text-[20px] uppercase leading-none tracking-[0.2em] text-white sm:text-[22px] lg:text-[24px]">
             BATUA
           </span>
-          <span aria-hidden="true" className="h-7 w-px bg-white/15 lg:h-8" />
+          <span aria-hidden="true" className="h-6 w-px bg-white/[0.16]" />
           <span className="text-[13.5px] font-medium text-[#8FA396] sm:text-[15px] lg:text-[16px]">
             Personal, Private Finance
           </span>
         </motion.div>
 
         {/* Headline, promise and trust pillars */}
-        <div className="relative my-auto flex w-full flex-col gap-8 py-10 lg:gap-12 lg:py-14">
-          <div className="relative space-y-6">
-            <motion.h2
-              variants={item}
-              className="font-display text-[34px] font-bold leading-[1.06] tracking-[-0.025em] text-white sm:text-[46px] lg:text-[54px] xl:text-[58px]"
-            >
-              Take control of your money,{" "}
-              <span className="block text-[#4ADE80] drop-shadow-[0_0_28px_rgba(74,222,128,0.35)]">
-                without giving up your privacy.
-              </span>
-            </motion.h2>
-            <motion.p
-              variants={item}
-              className="max-w-[560px] text-[14.5px] leading-[1.7] text-[#8FA396] sm:text-[16px] lg:text-[17px]"
-            >
-              A personal finance app that keeps your data on your device.
-              <br />
-              Track, plan and grow – all offline, all yours.
-            </motion.p>
-          </div>
+        <div className="flex w-full flex-col pt-14 sm:pt-20 lg:pt-[84px] xl:pt-[100px]">
+          <motion.h2
+            variants={item}
+            className="max-w-[700px] font-display text-[32px] font-bold leading-[1.06] tracking-[-0.025em] text-white sm:text-[40px] lg:text-[38px] xl:text-[42px]"
+          >
+            Take control of your money,{" "}
+            <span className="block text-[#4ADE80]">without giving up your privacy.</span>
+          </motion.h2>
+          <motion.p
+            variants={item}
+            className="mt-7 max-w-[620px] text-[14.5px] leading-[1.7] text-[#8FA396] sm:text-[16px] lg:text-[17px]"
+          >
+            A personal finance app that keeps your data on your device.
+            <br />
+            Track, plan and grow – all offline, all yours.
+          </motion.p>
 
+          {/* Three equal columns, separators between them, on a clean surface. */}
           <motion.ul
             variants={item}
-            className="relative grid grid-cols-1 gap-y-6 sm:grid-cols-3 sm:gap-y-0"
+            className="mt-12 grid w-full grid-cols-1 gap-y-7 sm:mt-16 sm:grid-cols-3 sm:gap-y-0 lg:mt-14 xl:mt-16"
           >
             {PILLARS.map((pillar, i) => (
               <li
                 key={pillar.title}
                 className={cn(
-                  "group flex items-start gap-3.5 transition-transform duration-300 ease-out sm:hover:-translate-y-0.5",
-                  i > 0 &&
-                    "sm:border-l sm:border-white/[0.12] sm:pl-6 sm:transition-colors sm:hover:border-white/[0.22]",
-                  i < PILLARS.length - 1 && "sm:pr-6"
+                  "flex min-w-0 items-start gap-3.5",
+                  i > 0 && "sm:border-l sm:border-white/10 sm:pl-7",
+                  i < PILLARS.length - 1 && "sm:pr-7"
                 )}
               >
                 <pillar.icon
-                  className="mt-0.5 h-6 w-6 shrink-0 text-[#4ADE80] transition-all duration-300 ease-out group-hover:scale-110 group-hover:drop-shadow-[0_0_12px_rgba(74,222,128,0.6)] lg:h-[26px] lg:w-[26px]"
+                  className="mt-0.5 h-6 w-6 shrink-0 text-[#4ADE80]"
                   strokeWidth={1.9}
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
-                  <div className="text-[15px] font-semibold text-white lg:text-[16px]">
-                    {pillar.title}
-                  </div>
-                  <div className="mt-1 text-[13px] leading-snug text-[#8FA396] transition-colors duration-300 group-hover:text-[#C9D6CE] lg:text-[13.5px]">
+                  <div className="text-[16px] font-semibold text-white">{pillar.title}</div>
+                  <div className="mt-1 text-[13.5px] leading-snug text-[#8FA396]">
                     {pillar.desc}
                   </div>
                 </div>
@@ -621,7 +629,7 @@ function BrandPanel() {
         {/* Minimalist copyright footer */}
         <motion.footer
           variants={item}
-          className="text-[12.5px] font-medium text-[#6B7D70] lg:text-[13px]"
+          className="mt-auto pt-16 text-[12.5px] font-medium text-[#6B7D70] lg:text-[13px]"
         >
           © 2026 Batua
         </motion.footer>

@@ -65,6 +65,7 @@ import {
 import { useAuth } from "@/components/Auth";
 import { api } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /* ────────────────────────────────────────────────────────────────
    Settings — premium, enterprise-grade preferences page.
@@ -743,7 +744,11 @@ export default function Settings() {
     }
   };
 
-  const clearChatMemory = async () => {
+  const [chatClearOpen, setChatClearOpen] = React.useState(false);
+  const [chatClearing, setChatClearing] = React.useState(false);
+
+  const performClearChatMemory = async () => {
+    setChatClearing(true);
     try {
       if (chatSessionId) {
         await api.delete(`/ml/chat/${chatSessionId}`);
@@ -755,8 +760,11 @@ export default function Settings() {
         const n = Number(data?.deleted) || 0;
         toast.success(n > 0 ? `Cleared ${n} conversation${n === 1 ? "" : "s"}` : "No conversation memory to clear");
       }
+      setChatClearOpen(false);
     } catch {
       toast.error("Could not clear conversation memory — backend unreachable.");
+    } finally {
+      setChatClearing(false);
     }
   };
 
@@ -1433,7 +1441,7 @@ export default function Settings() {
                     desc="Resets the finance assistant's chat history and follow-up context."
                     buttonLabel="Clear chat"
                     buttonTestid="clear-chat-memory-btn"
-                    onAction={clearChatMemory}
+                    onAction={() => setChatClearOpen(true)}
                   />
                 </PanelContent>
               </Panel>
@@ -1474,6 +1482,17 @@ export default function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={chatClearOpen}
+        onOpenChange={setChatClearOpen}
+        title="Clear conversation memory?"
+        description="This resets the finance assistant's chat history and follow-up context. Your transactions are not affected."
+        confirmLabel="Clear chat"
+        busy={chatClearing}
+        onConfirm={performClearChatMemory}
+        testId="clear-chat-dialog"
+      />
 
       <Dialog open={Boolean(restorePending)} onOpenChange={(o) => { if (!o) setRestorePending(null); setRestoreText(""); }}>
         <DialogContent onClose={() => { setRestorePending(null); setRestoreText(""); }}>

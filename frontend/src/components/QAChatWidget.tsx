@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Progress } from "@/components/ui/progress";
 import { api, formatINR } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
@@ -386,7 +387,9 @@ export default function QAChatWidget() {
     }
   };
 
-  const resetConversation = async () => {
+  const [confirmReset, setConfirmReset] = React.useState(false);
+
+  const performResetConversation = async () => {
     if (sessionId) {
       try {
         await api.delete(`/ml/chat/${sessionId}`);
@@ -396,6 +399,7 @@ export default function QAChatWidget() {
     }
     setHistory([]);
     setAtBottom(true);
+    setConfirmReset(false);
     toast.success("Conversation cleared");
   };
 
@@ -645,7 +649,7 @@ export default function QAChatWidget() {
               {history.length > 0 && (
                 <button
                   type="button"
-                  onClick={resetConversation}
+                  onClick={() => setConfirmReset(true)}
                   aria-label="Reset conversation"
                   title="Clear conversation"
                   className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -870,6 +874,16 @@ export default function QAChatWidget() {
           </>
         )}
       </button>
+
+      <ConfirmDialog
+        open={confirmReset}
+        onOpenChange={setConfirmReset}
+        title="Clear this conversation?"
+        description="This resets the assistant's chat history and follow-up context. Your transactions are not affected."
+        confirmLabel="Clear conversation"
+        onConfirm={performResetConversation}
+        testId="clear-conversation-dialog"
+      />
     </>,
     document.body
   );

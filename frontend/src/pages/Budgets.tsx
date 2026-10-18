@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, formatINR, categoryColor } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const STATUS = {
   ok: { variant: "success", bar: "bg-emerald-500" },
@@ -63,13 +64,22 @@ export default function Budgets() {
     }
   };
 
-  const removeBudget = async (id) => {
+  // Deleting a budget is destructive, so stage it behind a confirmation.
+  const [deleteTarget, setDeleteTarget] = React.useState<any>(null);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const confirmRemoveBudget = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await api.delete(`/budgets/${id}`);
+      await api.delete(`/budgets/${deleteTarget.id}`);
       toast.success("Budget removed");
+      setDeleteTarget(null);
       load();
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || "Could not remove the budget");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -147,7 +157,9 @@ export default function Budgets() {
                       <span className="font-display font-semibold">{b.category}</span>
                     </div>
                     <button
-                      onClick={() => removeBudget(b.id)}
+                      onClick={() => setDeleteTarget(b)}
+                      aria-label={`Delete ${b.category} budget`}
+                      title={`Delete ${b.category} budget`}
                       data-testid={`budget-delete-${b.category}`}
                       className="rounded-md p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"
                     >
@@ -171,6 +183,17 @@ export default function Budgets() {
           })
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title={deleteTarget ? `Delete the ${deleteTarget.category} budget?` : "Delete this budget?"}
+        description="This removes the monthly limit for this category. Your transactions are not affected."
+        confirmLabel="Delete budget"
+        busy={deleting}
+        onConfirm={confirmRemoveBudget}
+        testId="delete-budget-dialog"
+      />
     </div>
   );
 }
