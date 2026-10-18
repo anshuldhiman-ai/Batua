@@ -185,14 +185,43 @@ class SavingsGoalTracker:
 
 
 class RecommendationEngine:
-    """Generate personalized savings recommendations."""
-    
+    """Generate personalized savings recommendations from the user's own data.
+
+    Nothing here keys off a fixed list of category *names* — the previous
+    version only ever fired for categories literally called "Subscriptions",
+    "Food Delivery", "Entertainment" or "Shopping", so any other taxonomy
+    produced zero advice. Instead, categories are ranked by share of real
+    monthly spend, recurring / investment categories are excluded, and each
+    suggested saving is a stated fraction of the category's monthly average.
+    """
+
+    # (share-of-spend threshold, trim rate) — bigger line items get a firmer trim.
+    SAVINGS_RATES = ((0.25, 0.20), (0.10, 0.15))
+    DEFAULT_TRIM = 0.10
+    MAX_RECOMMENDATIONS = 5
+    # Money here is intended accumulation, not waste — never suggest trimming.
+    NON_DISCRETIONARY_KEYWORDS = (
+        "invest", "saving", "sip", "mutual fund", "ppf", "nps",
+        "fixed deposit", "emergency", "insurance", "loan", "emi",
+    )
+
     def __init__(self):
         _ensure_pandas()
         self._initialized = False
 
+    def _trim_rate(self, share: float) -> float:
+        for threshold, rate in self.SAVINGS_RATES:
+            if share >= threshold:
+                return rate
+        return self.DEFAULT_TRIM
+
     def generate_recommendations(self, transactions: List[Dict]) -> Dict:
-        """Generate personalized savings recommendations."""
+        """Generate personalized savings recommendations.
+
+        Ranks categories by their share of the user's own monthly spending and
+        suggests a trim on the biggest discretionary ones. Works on any
+        category taxonomy (the old version required four exact labels).
+        """
         if not transactions:
             return {
                 "empty": True,
@@ -223,72 +252,100 @@ class RecommendationEngine:
             df["category"] = df["category"].fillna("Other").replace("", "Other")
             df['amount'] = df['amount'].abs()
             df['month'] = df['date'].dt.to_period('M')
-            months_observed = max(1, df['month'].nunique())
+            months_observed = max(1, int(df['month'].nunique()))
+
+            # Average monthly spend per category over the observed window.
             monthly_by_category = df.groupby('category')['amount'].sum() / months_observed
-            
+            monthly_by_category = monthly_by_category[monthly_by_category > 0]
+            total_monthly = float(monthly_by_category.sum())
+            if total_monthly <= 0:
+                return {
+                    "empty": True,
+                    "recommendations": [],
+                    "total_potential_monthly_savings": 0,
+                    "total_potential_annual_savings": 0,
+                    "message": "Add expense transactions to generate recommendations.",
+                }
+
+            # Recurring / fixed costs are excluded from "cut this" advice.
+            commitments = {"categories": [], "subscriptions": [], "fixed_monthly_total": 0.0}
+            try:
+                from ml_analytics import detect_recurring_commitments
+                commitments = detect_recurring_commitments(transactions)
+            except Exception as exc:
+                logger.warning(f"Recurring-commitment detection unavailable: {exc}")
+            fixed_categories = {str(c["category"]).lower() for c in commitments.get("categories", [])}
+            subscriptions = commitments.get("subscriptions", [])
+            fixed_monthly_total = float(commitments.get("fixed_monthly_total", 0.0))
+
+            def _is_non_discretionary(category: str) -> bool:
+                name = category.lower()
+                if name in fixed_categories:
+                    return True
+                return any(keyword in name for keyword in self.NON_DISCRETIONARY_KEYWORDS)
+
             recommendations = []
-            
-            # Analyze subscription spending
-            monthly_subscription_cost = float(monthly_by_category.get('Subscriptions', 0))
-            if monthly_subscription_cost > 0:
-                if monthly_subscription_cost > 500:
+            for category, avg in monthly_by_category.sort_values(ascending=False).items():
+                if len(recommendations) >= self.MAX_RECOMMENDATIONS:
+                    break
+                if _is_non_discretionary(str(category)):
+                    continue
+                share = float(avg) / total_monthly
+                trim = self._trim_rate(share)
+                potential = round(float(avg) * trim, 2)
+                if potential < 1:
+                    continue
+                month_word = "month" if months_observed == 1 else "months"
+                recommendations.append({
+                    "type": "category_trim",
+                    "title": f"Trim {category}",
+                    "description": (
+                        f"You average ₹{float(avg):,.0f}/month on {category} — "
+                        f"{share * 100:.0f}% of your spending across the last "
+                        f"{months_observed} {month_word}. Cutting about "
+                        f"{round(trim * 100)}% could free ₹{potential:,.0f}/month."
+                    ),
+                    "potential_savings": potential,
+                    "priority": "high" if share >= 0.25 else "medium" if share >= 0.10 else "low",
+                    "category": str(category),
+                    "monthly_average": round(float(avg), 2),
+                    "share_of_spend": round(share, 3),
+                })
+
+            # Recurring payees get their own (usually highest-value) suggestion.
+            # Investment / EMI "top-ups" recur but are not cancellable waste,
+            # so they are filtered out before this advice is written.
+            subscriptions = [s for s in subscriptions if not _is_non_discretionary(str(s.get("category", "")))]
+            if subscriptions:
+                sub_monthly = round(sum(float(s["monthly_amount"]) for s in subscriptions), 2)
+                if sub_monthly >= 200:
+                    payees = ", ".join(str(s["payee"]) for s in subscriptions[:3])
                     recommendations.append({
                         "type": "subscription_audit",
-                        "title": "Review Subscriptions",
-                        "description": f"You spend ₹{monthly_subscription_cost:.2f}/month on subscriptions. Consider canceling unused ones.",
-                        "potential_savings": round(monthly_subscription_cost * 0.3, 2),
-                        "priority": "medium",
+                        "title": "Review recurring payments",
+                        "description": (
+                            f"Recurring payments such as {payees} total about "
+                            f"₹{sub_monthly:,.0f}/month. Cancelling the ones you "
+                            "no longer use is the quickest saving to find."
+                        ),
+                        "potential_savings": round(sub_monthly * 0.3, 2),
+                        "priority": "high" if sub_monthly >= 1000 else "medium",
                     })
-            
-            # Analyze food delivery spending
-            monthly_food_delivery = float(monthly_by_category.get('Food Delivery', 0))
-            if monthly_food_delivery > 0:
-                if monthly_food_delivery > 1000:
-                    recommendations.append({
-                        "type": "reduce_food_delivery",
-                        "title": "Reduce Food Delivery",
-                        "description": f"You spend ₹{monthly_food_delivery:.2f}/month on food delivery. Cooking at home could save ~30%.",
-                        "potential_savings": round(monthly_food_delivery * 0.3, 2),
-                        "priority": "high",
-                    })
-            
-            # Analyze entertainment spending
-            monthly_entertainment = float(monthly_by_category.get('Entertainment', 0))
-            if monthly_entertainment > 0:
-                if monthly_entertainment > 500:
-                    recommendations.append({
-                        "type": "entertainment_budget",
-                        "title": "Set Entertainment Budget",
-                        "description": f"You spend ₹{monthly_entertainment:.2f}/month on entertainment. Consider setting a monthly limit.",
-                        "potential_savings": round(monthly_entertainment * 0.2, 2),
-                        "priority": "low",
-                    })
-            
-            # Analyze shopping patterns
-            monthly_shopping = float(monthly_by_category.get('Shopping', 0))
-            if monthly_shopping > 0:
-                if monthly_shopping > 2000:
-                    recommendations.append({
-                        "type": "shopping_control",
-                        "title": "Control Impulse Shopping",
-                        "description": f"You spend ₹{monthly_shopping:.2f}/month on shopping. Try the 30-day rule before purchases.",
-                        "potential_savings": round(monthly_shopping * 0.25, 2),
-                        "priority": "medium",
-                    })
-            
-            # Sort by potential savings
+
             recommendations.sort(key=lambda x: x.get('potential_savings', 0), reverse=True)
-            
+            recommendations = recommendations[: self.MAX_RECOMMENDATIONS]
             total_potential_savings = sum(r.get('potential_savings', 0) for r in recommendations)
-            
+
             return {
                 "empty": False,
-                "recommendations": recommendations[:5],  # Top 5 recommendations
+                "recommendations": recommendations,
                 "total_potential_monthly_savings": round(total_potential_savings, 2),
                 "total_potential_annual_savings": round(total_potential_savings * 12, 2),
-                "months_observed": int(months_observed),
+                "months_observed": months_observed,
+                "categories_analyzed": int(len(monthly_by_category)),
+                "recurring_monthly_total": round(fixed_monthly_total, 2),
             }
-            
+
         except Exception as exc:
             logger.error(f"Error generating recommendations: {exc}")
             return {"recommendations": [], "error": str(exc)}

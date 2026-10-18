@@ -63,6 +63,11 @@ class SpendingPatternAnalyzer:
             df['weekday'] = df['date'].dt.day_name()
             df['hour'] = df['date'].dt.hour
             
+            commitments = detect_recurring_commitments(transactions)
+            months_seen = max(1, df['month'].nunique())
+            monthly_expense_total = float(df['amount'].sum()) / months_seen
+            fixed_monthly = float(commitments.get("fixed_monthly_total", 0.0))
+
             results = {
                 "empty": False,
                 "transaction_count": int(len(df)),
@@ -71,6 +76,12 @@ class SpendingPatternAnalyzer:
                 "category_trends": self._analyze_category_trends(df),
                 "spending_clusters": self._cluster_spending(df),
                 "seasonal_patterns": self._detect_seasonal_patterns(df),
+                "recurring_commitments": commitments,
+                "fixed_vs_discretionary": {
+                    "fixed_monthly": round(fixed_monthly, 2),
+                    "discretionary_monthly": round(max(0.0, monthly_expense_total - fixed_monthly), 2),
+                    "fixed_share": round(fixed_monthly / monthly_expense_total, 3) if monthly_expense_total > 0 else 0.0,
+                },
             }
             
             return results
@@ -239,6 +250,7 @@ class SpendingPatternAnalyzer:
 
 TREND_WINDOW = 6
 BAND_Z = 1.28  # ~80% interval
+SEASONAL_PERIOD = 12  # months
 
 
 def _linear_trend_forecast(series, horizon: int):
@@ -248,47 +260,246 @@ def _linear_trend_forecast(series, horizon: int):
     return intercept + slope * future_x
 
 
-def _backtest_cashflow(series) -> Dict | None:
-    """Walk-forward check: predict each recent month from the months before it.
+def _theil_sen_slope(y) -> float:
+    """Median of all pairwise slopes — robust to a single outlier month.
 
-    Compares the linear-trend model against a 3-month moving average (the
-    method this endpoint used before), so the UI can say whether the model
-    actually predicts better than the naive baseline.
+    Least squares lets one large month (a bonus, an annual payment) tilt the
+    whole line; the median pairwise slope barely reacts to it.
     """
-    n = len(series)
+    n = len(y)
+    if n < 2:
+        return 0.0
+    slopes = [
+        (float(y[j]) - float(y[i])) / (j - i)
+        for i in range(n - 1)
+        for j in range(i + 1, n)
+    ]
+    return float(np.median(slopes)) if slopes else 0.0
+
+
+def _robust_trend_forecast(series, horizon: int):
+    """Theil–Sen line: median slope, anchored to pass through the series mean."""
+    y = np.asarray(series, dtype=float)
+    slope = _theil_sen_slope(y)
+    x = np.arange(len(y), dtype=float)
+    intercept = float(np.mean(y - slope * x))
+    future_x = np.arange(len(y), len(y) + horizon, dtype=float)
+    return intercept + slope * future_x
+
+
+def _damped_holt_forecast(series, horizon: int):
+    """Holt's linear trend with damping; (alpha, beta, phi) fit by minimising SSE.
+
+    This is the trained model for short monthly series: a level, a trend and a
+    damping factor learned from the data itself. Damping is the standard
+    antidote to over-extrapolating a noisy series — the slope decays with the
+    forecast horizon instead of shooting off at the last observed slope.
+    """
+    y = np.asarray(series, dtype=float)
+    n = len(y)
+    if n < 3:
+        return np.full(horizon, float(np.mean(y)))
+    best = None
+    for alpha in (0.2, 0.4, 0.6, 0.8):
+        for beta in (0.05, 0.15, 0.3):
+            for phi in (0.75, 0.85, 0.95):
+                level, trend = float(y[0]), float(y[1] - y[0])
+                sse = 0.0
+                for t in range(1, n):
+                    damped = level + phi * trend
+                    err = float(y[t]) - damped
+                    sse += err * err
+                    new_level = alpha * float(y[t]) + (1 - alpha) * damped
+                    new_trend = beta * (new_level - level) + (1 - beta) * phi * trend
+                    level, trend = new_level, new_trend
+                if best is None or sse < best[0]:
+                    best = (sse, level, trend, phi)
+    _, level, trend, phi = best
+    out = []
+    for h in range(1, horizon + 1):
+        damping = sum(phi ** k for k in range(1, h + 1))
+        out.append(level + damping * trend)
+    return np.asarray(out, dtype=float)
+
+
+def _seasonal_naive_forecast(series, horizon: int, period: int = SEASONAL_PERIOD):
+    """Repeat last year's same month — the classic seasonal benchmark."""
+    y = np.asarray(series, dtype=float)
+    if len(y) < period:
+        return None
+    return np.asarray(
+        [y[len(y) - period + ((h - 1) % period)] for h in range(1, horizon + 1)],
+        dtype=float,
+    )
+
+
+def _median_level_forecast(series, horizon: int, window: int = 6):
+    """Repeat the median of the recent window.
+
+    For a salary credited in most months but missing in a few, the median is a
+    far better "typical month" than the mean (which the missing months drag
+    down); on this data it beats every trend model in the walk-forward.
+    """
+    y = np.asarray(series, dtype=float)
+    if len(y) == 0:
+        return np.zeros(horizon)
+    k = min(window, len(y))
+    return np.full(horizon, float(np.median(y[-k:])))
+
+
+def _moving_average_forecast(series, horizon: int, window: int = 3):
+    y = np.asarray(series, dtype=float)
+    if len(y) == 0:
+        return np.zeros(horizon)
+    k = min(window, len(y))
+    return np.full(horizon, float(np.mean(y[-k:])))
+
+
+_FORECAST_CANDIDATES = (
+    ("linear_trend", _linear_trend_forecast),
+    ("robust_trend", _robust_trend_forecast),
+    ("damped_holt", _damped_holt_forecast),
+    ("seasonal_naive", _seasonal_naive_forecast),
+    ("median_level", _median_level_forecast),
+    ("moving_average", _moving_average_forecast),
+)
+
+
+def _walk_forward_errors(series, method_fn, folds: int = 3):
+    """One-step-ahead errors for the last ``folds`` months (walk-forward)."""
+    y = np.asarray(series, dtype=float)
+    n = len(y)
+    errs, signed = [], []
+    for t in range(max(3, n - folds), n):
+        train = y[max(0, t - TREND_WINDOW):t]
+        if len(train) < 2:
+            continue
+        try:
+            pred = float(method_fn(train, 1)[0])
+        except Exception:
+            continue
+        errs.append(abs(float(y[t]) - pred))
+        signed.append(float(y[t]) - pred)
+    return errs, signed
+
+
+def _select_forecast(series, horizon: int, folds: int = 3) -> Dict:
+    """Backtest every candidate on the user's own data and keep the winner.
+
+    Model selection *is* the training here: each candidate is evaluated
+    walk-forward against the most recent months, and the one with the lowest
+    MAE does the forecasting. ``moving_average`` doubles as the baseline, so
+    the caller can report whether the chosen model actually beats "assume the
+    recent average".
+    """
+    _ensure_libs()
+    y = np.asarray(series, dtype=float)
+    n = len(y)
+    if n < 2:
+        base = float(y[0]) if n else 0.0
+        return {"method": "average", "center": np.full(horizon, base), "backtest": None}
+
+    scores: Dict[str, float] = {}
+    errors: Dict[str, list] = {}
+    signatures: Dict[str, list] = {}
+    for name, fn in _FORECAST_CANDIDATES:
+        errs, signed = _walk_forward_errors(y, fn, folds)
+        if errs:
+            scores[name] = float(np.mean(errs))
+            errors[name] = errs
+            signatures[name] = signed
+
+    if not scores:
+        return {"method": "average", "center": np.full(horizon, float(np.mean(y))), "backtest": None}
+
+    # Strict ``<`` keeps the earlier candidate on ties, so an exactly linear
+    # series is reported (and modelled) as ``linear_trend``.
+    best_name = None
+    best_mae = None
+    for name, _ in _FORECAST_CANDIDATES:
+        if name in scores and (best_mae is None or scores[name] < best_mae - 1e-9):
+            best_name, best_mae = name, scores[name]
+
+    method_fn = dict(_FORECAST_CANDIDATES)[best_name]
+    tail = y[-TREND_WINDOW:] if n > TREND_WINDOW else y
+    center = np.asarray(method_fn(tail, horizon), dtype=float)
+
+    signed = signatures.get(best_name, [])
+    residual_sd = float(np.std(signed)) if len(signed) > 1 else float(best_mae)
+    baseline_errs = errors.get("moving_average", [])
+    baseline_mae = float(np.mean(baseline_errs)) if baseline_errs else None
+
+    backtest = {
+        "folds": len(errors.get(best_name, [])),
+        "model_mae": float(best_mae),
+        "baseline_mae": baseline_mae,
+        "baseline": "3-month average",
+        "beats_baseline": baseline_mae is not None and float(best_mae) < baseline_mae,
+        "residual_sd": residual_sd,
+        "candidates": {k: round(v, 2) for k, v in scores.items()},
+    }
+    return {"method": best_name, "center": center, "backtest": backtest}
+
+
+def _net_backtest(income, expense, folds: int = 3) -> Dict | None:
+    """Walk-forward check for the income-minus-expense composite forecast.
+
+    Predicts each component one step ahead and nets them, so the score
+    reflects the model we actually ship — not a single line fit on the
+    volatile net series.
+    """
+    income = np.asarray(income, dtype=float)
+    expense = np.asarray(expense, dtype=float)
+    n = len(income)
     if n < 4:
         return None
-    model_err, base_err, signed = [], [], []
-    for t in range(max(3, n - 3), n):
-        pred = _linear_trend_forecast(series[max(0, t - TREND_WINDOW):t], 1)[0]
-        base = float(series[t - 3:t].mean())
-        model_err.append(abs(series[t] - pred))
-        base_err.append(abs(series[t] - base))
-        signed.append(series[t] - pred)
-    model_mae = float(np.mean(model_err))
-    baseline_mae = float(np.mean(base_err))
+    net = income - expense
+    errs, signed, base_errs = [], [], []
+    for t in range(max(3, n - folds), n):
+        i_train = income[max(0, t - TREND_WINDOW):t]
+        e_train = expense[max(0, t - TREND_WINDOW):t]
+        if len(i_train) < 2:
+            continue
+        i_pred = float(_select_forecast(i_train, 1)["center"][0])
+        e_pred = float(_select_forecast(e_train, 1)["center"][0])
+        actual = float(net[t])
+        pred = i_pred - e_pred
+        errs.append(abs(actual - pred))
+        signed.append(actual - pred)
+        base_errs.append(abs(actual - float(_moving_average_forecast(net[max(0, t - 3):t], 1)[0])))
+    if not errs:
+        return None
+    model_mae = float(np.mean(errs))
+    baseline_mae = float(np.mean(base_errs)) if base_errs else None
     return {
-        "folds": len(model_err),
+        "folds": len(errs),
         "model_mae": model_mae,
         "baseline_mae": baseline_mae,
         "baseline": "3-month average",
-        "beats_baseline": model_mae < baseline_mae,
+        "beats_baseline": baseline_mae is not None and model_mae < baseline_mae,
         "residual_sd": float(np.std(signed)) if len(signed) > 1 else model_mae,
     }
 
 
 class CashFlowForecaster:
-    """Forecast cash flow using time series models."""
+    """Forecast cash flow with a backtest-selected time-series model."""
     
     def __init__(self):
         _ensure_libs()
         self._initialized = False
 
     def forecast_cash_flow(self, transactions: List[Dict], months_ahead: int = 3) -> Dict:
-        """Forecast cash flow for the next N months."""
+        """Forecast cash flow for the next N months.
+
+        Income and expenses are modelled separately (a lumpy salary behaves
+        nothing like steady spending) and netted for the headline projection.
+        The month axis is made *continuous* first — a gap month is a real zero,
+        not a month we silently skip, which previously compressed time and
+        corrupted the trend and seasonality.
+        """
         if not transactions:
             return {"empty": True, "message": "Add transactions to generate a cash-flow forecast."}
-        
+
         try:
             df = pd.DataFrame(transactions)
             if df.empty or "date" not in df or "amount" not in df:
@@ -299,45 +510,66 @@ class CashFlowForecaster:
             if df.empty:
                 return {"empty": True, "message": "Add dated transactions to generate a forecast."}
             df = df.sort_values('date')
-            
-            # Aggregate by month
-            df['month'] = df['date'].dt.to_period('M')
-            monthly_cashflow = df.groupby('month').agg({
-                'amount': 'sum'
-            }).reset_index()
-            monthly_cashflow['month'] = monthly_cashflow['month'].astype(str)
-            
-            months_observed = len(monthly_cashflow)
-            series = monthly_cashflow['amount'].to_numpy(dtype=float)
-            backtest = _backtest_cashflow(series)
-            if months_observed < 3:
-                method = "average"
-                center = np.full(months_ahead, float(series.mean()))
-                sigma = float(np.std(series))
+
+            # Continuous month grid (gaps become explicit zeros).
+            df['period'] = df['date'].dt.to_period('M')
+            months = pd.period_range(df['period'].min(), df['period'].max(), freq='M')
+            income = (
+                df.loc[df['amount'] > 0].groupby('period')['amount'].sum()
+                .reindex(months, fill_value=0.0).to_numpy(dtype=float)
+            )
+            expense = (
+                (-df.loc[df['amount'] < 0].groupby('period')['amount'].sum())
+                .reindex(months, fill_value=0.0).to_numpy(dtype=float)
+            )
+            net = income - expense
+            months_observed = len(months)
+
+            # Forecast the two components separately, then net them: a lumpy
+            # salary and steady spending average out far better than a single
+            # line drawn through their volatile difference.
+            income_sel = _select_forecast(income, months_ahead) if float(income.sum()) else None
+            expense_sel = _select_forecast(expense, months_ahead) if float(expense.sum()) else None
+            if income_sel and expense_sel:
+                center = income_sel["center"] - expense_sel["center"]
+                backtest = _net_backtest(income, expense)
+                sigma = float(np.sqrt(
+                    ((income_sel.get("backtest") or {}).get("residual_sd") or 0.0) ** 2
+                    + ((expense_sel.get("backtest") or {}).get("residual_sd") or 0.0) ** 2
+                ))
+                method = income_sel["method"] if income_sel["method"] == expense_sel["method"] else "combined"
             else:
-                method = "linear_trend"
-                center = _linear_trend_forecast(series[-TREND_WINDOW:], months_ahead)
-                sigma = backtest["residual_sd"] if backtest else float(np.std(series))
+                net_sel = _select_forecast(net, months_ahead)
+                center = net_sel["center"]
+                backtest = net_sel["backtest"]
+                method = net_sel["method"]
+                sigma = backtest["residual_sd"] if backtest else float(np.std(net))
             half_width = BAND_Z * sigma * np.sqrt(np.arange(1, months_ahead + 1))
-            
-            # Generate future month labels
-            last_month = pd.to_datetime(monthly_cashflow['month'].iloc[-1])
-            future_months = []
-            for i in range(1, months_ahead + 1):
-                future_date = last_month + pd.DateOffset(months=i)
-                future_months.append(future_date.strftime('%Y-%m'))
-            
+
+            last_month = months[-1].to_timestamp()
+            future_months = [
+                (last_month + pd.DateOffset(months=i)).strftime('%Y-%m')
+                for i in range(1, months_ahead + 1)
+            ]
             forecast_rows = [
                 {"month": month, "predicted_cashflow": float(c), "lower": float(c - h), "upper": float(c + h)}
                 for month, c, h in zip(future_months, center, half_width)
             ]
-            scale = max(float(np.mean(np.abs(series))), 1.0)
+
+            # Relative error is measured against the size of the money flowing
+            # through a month (spend + income), not net — net hovers near zero
+            # and would make every forecast look catastrophically wrong.
+            scale = max(float(np.mean(expense)), float(np.mean(income)), 1.0)
             rel_error = backtest["model_mae"] / scale if backtest else None
             if rel_error is None or not backtest["beats_baseline"]:
                 confidence = "low"
             else:
-                confidence = "high" if rel_error < 0.15 else "medium" if rel_error < 0.35 else "low"
-            history = [{"month": m, "net": float(v)} for m, v in zip(monthly_cashflow['month'], series)][-12:]
+                confidence = "high" if rel_error < 0.15 else "medium" if rel_error < 0.30 else "low"
+
+            history = [
+                {"month": str(p), "net": float(v), "income": float(i), "expense": float(e)}
+                for p, v, i, e in zip(months[-12:], net[-12:], income[-12:], expense[-12:])
+            ]
 
             return {
                 "empty": False,
@@ -350,8 +582,21 @@ class CashFlowForecaster:
                 "confidence": confidence,
                 "months_observed": int(months_observed),
                 "backtest": backtest,
+                "average_monthly_income": float(np.mean(income)),
+                "average_monthly_expense": float(np.mean(expense)),
+                "average_monthly_net": float(np.mean(net)),
+                "components": {
+                    "income": (
+                        {"method": income_sel["method"], "forecast": [float(v) for v in income_sel["center"]]}
+                        if income_sel else None
+                    ),
+                    "expense": (
+                        {"method": expense_sel["method"], "forecast": [float(v) for v in expense_sel["center"]]}
+                        if expense_sel else None
+                    ),
+                },
             }
-            
+
         except Exception as exc:
             logger.error(f"Error forecasting cash flow: {exc}")
             return {}
@@ -517,6 +762,124 @@ class AnomalyDetector:
         except Exception as exc:
             logger.error(f"Error detecting anomalies: {exc}")
             return {"empty": True, "anomalies": []}
+
+
+def detect_recurring_commitments(transactions: List[Dict], min_months: int = 3,
+                                 cv_threshold: float = 0.30) -> Dict:
+    """Find stable, repeating monthly outflows ("fixed" costs).
+
+    Name-agnostic by design — nothing here keys off category *labels*:
+
+      * **categories** — billed in most months with a steady monthly total
+        (rent, utilities, EMIs, a monthly SIP) → a fixed commitment.
+      * **subscriptions** — one payee (description) charged in several distinct
+        months for a similar amount (OTT, gym, SaaS) → recurring payment.
+
+    Amounts are the median of the active months, so one double-billed month
+    doesn't inflate the estimate.
+    """
+    empty = {"categories": [], "subscriptions": [], "fixed_monthly_total": 0.0, "months_observed": 0}
+    if not transactions:
+        return empty
+    try:
+        _ensure_libs()
+        df = pd.DataFrame(transactions)
+        if df.empty or "date" not in df or "amount" not in df:
+            return empty
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
+        df = df.dropna(subset=["date", "amount"])
+        df = df[df["amount"] < 0].copy()
+        if df.empty:
+            return empty
+        df["amount"] = df["amount"].abs()
+        if "category" not in df:
+            df["category"] = "Other"
+        df["category"] = df["category"].fillna("Other").replace("", "Other")
+        if "description" not in df:
+            df["description"] = "Transaction"
+        df["description"] = df["description"].fillna("Transaction").replace("", "Transaction")
+        df["month"] = df["date"].dt.strftime("%Y-%m")
+
+        all_months = sorted(df["month"].unique())
+        total_months = len(all_months)
+        if total_months == 0:
+            return empty
+        floor_months = min(min_months, total_months)
+
+        monthly_cat = df.groupby(["month", "category"])["amount"].sum().unstack(fill_value=0.0)
+        txn_per_month = df.groupby(["category", "month"]).size()
+        categories = []
+        for category in monthly_cat.columns:
+            series = monthly_cat[category]
+            present = int((series > 0).sum())
+            if present < floor_months or present < 0.6 * total_months:
+                continue
+            active = series[series > 0]
+            median_amount = float(active.median())
+            if median_amount < 100:
+                continue
+            # A bill is charged about once a month; a category with several
+            # hits a month is a habit bucket, however regular its total looks.
+            per_month_counts = txn_per_month.loc[category]
+            avg_per_active_month = float(per_month_counts[per_month_counts > 0].mean())
+            if avg_per_active_month > 1.5:
+                continue
+            mean = float(active.mean())
+            cv = float(active.std(ddof=0)) / mean if mean > 0 else 9.0
+            if cv > cv_threshold:
+                continue
+            categories.append({
+                "kind": "fixed",
+                "category": str(category),
+                "monthly_amount": round(median_amount, 2),
+                "months_present": present,
+                "months_total": total_months,
+                "variability": round(cv, 3),
+            })
+        categories.sort(key=lambda c: c["monthly_amount"], reverse=True)
+
+        subscriptions = []
+        if total_months >= min_months:
+            df["payee"] = df["description"].astype(str).str.strip().str.lower()
+            for (category, payee), sub in df.groupby(["category", "payee"]):
+                months_seen = int(sub["month"].nunique())
+                if months_seen < min_months:
+                    continue
+                # A subscription is one fixed charge a month: at most two hits
+                # per month, at a near-constant price, and big enough to matter.
+                # A habitual snack bought once a month is recurring too, but it
+                # isn't a subscription — the price-steadiness and floor filter
+                # those out.
+                if int(sub.groupby("month")["amount"].count().max()) > 2:
+                    continue
+                per_month = sub.groupby("month")["amount"].sum()
+                mean = float(per_month.mean())
+                if mean < 100:
+                    continue
+                amount_mean = float(sub["amount"].mean())
+                amount_cv = float(sub["amount"].std(ddof=0)) / amount_mean if amount_mean > 0 else 1.0
+                if amount_cv > 0.2:
+                    continue
+                subscriptions.append({
+                    "kind": "subscription",
+                    "category": str(category),
+                    "payee": str(payee),
+                    "monthly_amount": round(float(per_month.median()), 2),
+                    "months_present": months_seen,
+                    "variability": round(amount_cv, 3),
+                })
+            subscriptions.sort(key=lambda s: s["monthly_amount"], reverse=True)
+
+        return {
+            "categories": categories,
+            "subscriptions": subscriptions[:10],
+            "fixed_monthly_total": round(sum(c["monthly_amount"] for c in categories), 2),
+            "months_observed": total_months,
+        }
+    except Exception as exc:
+        logger.error(f"Error detecting recurring commitments: {exc}")
+        return empty
 
 
 # Global instances
