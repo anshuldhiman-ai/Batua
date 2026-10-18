@@ -73,92 +73,379 @@ const PILLARS: { icon: LucideIcon; title: string; desc: string }[] = [
 /* ------------------------------------------------------------------ */
 
 /**
- * Ambient fluid wave background animation.
- * Smooth, continuous multi-frequency undulating oceanic waves.
- * Zero stroke borders or harsh overlay lines.
+ * Ambient dune swell — the layered green ridges that cross the brand panel.
  *
- * The swell is faded in with a top-only mask, so the crest stays crisp and
- * fully saturated all the way down to the panel edge — no opaque colour band
- * screening it off, and no dependency on the surface colour behind it.
+ * Three crest lines (a bright main dune, a mid swell and a faint far ridge)
+ * are drawn into an 835 × 941 box that maps 1:1 onto the panel, so the curves
+ * sit exactly where the brand artwork puts them. Each dune is built from:
+ *
+ *   1. a short stack of blurred wide strokes, clipped to *below* the crest, so
+ *      the glow falls away under the ridge and leaves the sky above it clean;
+ *   2. an optional symmetric halo that is clipped to *above* the crest and
+ *      fades in past the middle of the panel (the far-right mass);
+ *   3. a crisp mint hairline sitting on the crest itself.
+ *
+ * Along-curve intensity is carried by linear gradients on the strokes, so each
+ * ridge can brighten and fade the way the artwork's does — no masks, no hard
+ * fills, and the colour stays inside the emerald family.
+ *
+ * Both the crest curves and those intensity curves are measured off the brand
+ * artwork rather than eyeballed: each ridge is traced column by column, drawn
+ * as short cubics so it stays smooth, and its bloom and hairline get their own
+ * opacity profile. The hairline in particular does not follow the bloom — it
+ * runs near level along the crest and thins to nothing where a dune in front
+ * of it swallows the line.
+ *
+ * Panel-local by design: the sign-in side deliberately stays clean.
  */
+const RIDGE_A =
+  "M -200 862 C -192.7 857.8, -185.3 853.7, -178.0 849.4 C -170.7 845.1, -163.3 840.7, -156.0 836.0 C -148.7 831.2, -141.3 826.2, -134.0 820.8 C -126.7 815.4, -119.3 809.5, -112.0 803.1 " +
+  "C -104.7 796.6, -97.3 789.6, -90.0 782.0 C -82.7 774.4, -75.3 766.4, -68.0 758.4 C -60.7 750.5, -53.3 742.6, -46.0 735.4 C -38.7 728.1, -31.3 721.3, -24.0 715.7 C -16.7 710.0, -9.3 705.4, -2.0 702.4 " +
+  "C 5.3 699.3, 12.7 696.5, 20.0 693.3 C 27.3 690.0, 34.7 686.9, 42.0 684.0 C 49.3 681.0, 56.7 678.3, 64.0 675.9 C 71.3 673.4, 78.7 671.2, 86.0 669.1 C 93.3 667.0, 100.7 665.1, 108.0 663.4 " +
+  "C 115.3 661.7, 122.7 660.2, 130.0 658.9 C 137.3 657.5, 144.7 656.4, 152.0 655.4 C 159.3 654.4, 166.7 653.5, 174.0 652.9 C 181.3 652.2, 188.7 651.6, 196.0 651.3 C 203.3 651.1, 210.7 651.0, 218.0 651.0 " +
+  "C 225.3 651.1, 232.7 651.2, 240.0 651.6 C 247.3 652.0, 254.7 652.5, 262.0 653.3 C 269.3 654.0, 276.7 655.0, 284.0 656.1 C 291.3 657.1, 298.7 658.4, 306.0 659.9 C 313.3 661.3, 320.7 662.9, 328.0 664.8 " +
+  "C 335.3 666.6, 342.7 668.5, 350.0 670.7 C 357.3 673.0, 364.7 675.4, 372.0 678.0 C 379.3 680.6, 386.7 683.3, 394.0 686.3 C 401.3 689.3, 408.7 692.5, 416.0 695.9 C 423.3 699.2, 430.7 702.8, 438.0 706.6 " +
+  "C 445.3 710.4, 452.7 714.5, 460.0 718.8 C 467.3 723.2, 474.7 726.1, 482.0 733.7 C 489.3 741.2, 496.7 742.4, 504.0 747.8 C 511.3 753.1, 518.7 758.6, 526.0 764.2 C 533.3 769.8, 540.7 775.6, 548.0 781.6 " +
+  "C 555.3 787.6, 562.7 793.7, 570.0 799.9 C 577.3 806.0, 584.7 812.3, 592.0 818.4 C 599.3 824.5, 606.7 830.5, 614.0 836.4 C 621.3 842.3, 628.7 847.9, 636.0 853.4 C 643.3 858.9, 650.7 864.3, 658.0 869.2 " +
+  "C 665.3 874.1, 672.7 878.7, 680.0 883.2 C 687.3 887.7, 694.7 892.0, 702.0 896.2 C 709.3 900.5, 716.7 904.6, 724.0 908.6 C 731.3 912.6, 738.7 916.5, 746.0 920.1 C 753.3 923.8, 760.7 927.3, 768.0 930.9 " +
+  "C 775.3 934.4, 782.7 937.9, 790.0 941.3 C 797.3 944.8, 804.7 948.2, 812.0 951.5 C 819.3 954.8, 826.7 956.6, 834.0 961.3 C 834.3 961.6, 834.7 961.8, 835.0 962.0";
+
+const RIDGE_B =
+  "M -60 1010 C -52.7 1003.2, -45.3 996.4, -38.0 989.6 C -30.7 982.9, -23.3 976.1, -16.0 969.3 C -8.7 962.6, -1.3 955.8, 6.0 949.1 C 13.3 942.4, 20.7 935.7, 28.0 929.0 " +
+  "C 35.3 922.3, 42.7 915.6, 50.0 909.0 C 57.3 902.4, 64.7 895.8, 72.0 889.3 C 79.3 882.8, 86.7 876.4, 94.0 870.3 C 101.3 864.1, 108.7 858.3, 116.0 852.9 C 123.3 847.5, 130.7 842.5, 138.0 838.2 " +
+  "C 145.3 834.0, 152.7 831.4, 160.0 827.0 C 167.3 822.6, 174.7 817.4, 182.0 812.9 C 189.3 808.4, 196.7 804.2, 204.0 800.2 C 211.3 796.2, 218.7 792.4, 226.0 788.9 C 233.3 785.3, 240.7 782.0, 248.0 778.9 " +
+  "C 255.3 775.8, 262.7 772.9, 270.0 770.2 C 277.3 767.5, 284.7 765.0, 292.0 762.8 C 299.3 760.5, 306.7 758.5, 314.0 756.7 C 321.3 754.9, 328.7 753.3, 336.0 751.9 C 343.3 750.4, 350.7 749.2, 358.0 748.2 " +
+  "C 365.3 747.2, 372.7 746.3, 380.0 745.7 C 387.3 745.1, 394.7 744.7, 402.0 744.5 C 409.3 744.3, 416.7 744.3, 424.0 744.5 C 431.3 744.6, 438.7 745.0, 446.0 745.5 C 453.3 746.0, 460.7 746.8, 468.0 747.6 " +
+  "C 475.3 748.5, 482.7 749.4, 490.0 749.6 C 497.3 749.8, 504.7 749.7, 512.0 749.8 C 519.3 749.9, 526.7 750.1, 534.0 750.6 C 541.3 751.2, 548.7 752.0, 556.0 753.2 C 563.3 754.4, 570.7 755.9, 578.0 757.8 " +
+  "C 585.3 759.6, 592.7 761.7, 600.0 764.1 C 607.3 766.5, 614.7 769.3, 622.0 772.8 C 629.3 776.3, 636.7 779.0, 644.0 780.9 C 651.3 782.9, 658.7 784.7, 666.0 786.5 C 673.3 788.3, 680.7 790.1, 688.0 791.9 " +
+  "C 695.3 793.7, 702.7 795.5, 710.0 797.4 C 717.3 799.3, 724.7 801.3, 732.0 803.3 C 739.3 805.3, 746.7 807.3, 754.0 809.4 C 761.3 811.5, 768.7 813.6, 776.0 815.7 C 783.3 817.8, 790.7 819.9, 798.0 822.0 " +
+  "C 805.3 824.1, 812.7 826.3, 820.0 828.3 C 825.0 829.6, 830.0 830.6, 835.0 832.0";
+
+const RIDGE_C =
+  "M -100 726 C -92.7 724.9, -85.3 723.9, -78.0 722.8 C -70.7 721.8, -63.3 720.8, -56.0 719.8 C -48.7 718.8, -41.3 717.9, -34.0 717.0 C -26.7 716.1, -19.3 715.3, -12.0 714.6 " +
+  "C -4.7 713.8, 2.7 713.4, 10.0 712.5 C 17.3 711.6, 24.7 710.5, 32.0 709.4 C 39.3 708.4, 46.7 707.3, 54.0 706.2 C 61.3 705.2, 68.7 704.1, 76.0 703.1 C 83.3 702.1, 90.7 701.2, 98.0 700.3 " +
+  "C 105.3 699.4, 112.7 698.6, 120.0 697.8 C 127.3 697.0, 134.7 696.3, 142.0 695.6 C 149.3 694.9, 156.7 694.3, 164.0 693.7 C 171.3 693.1, 178.7 692.6, 186.0 692.0 C 193.3 691.5, 200.7 691.0, 208.0 690.5 " +
+  "C 215.3 690.0, 222.7 689.5, 230.0 689.0 C 237.3 688.6, 244.7 688.2, 252.0 687.8 C 259.3 687.4, 266.7 687.1, 274.0 686.8 C 281.3 686.5, 288.7 686.3, 296.0 686.1 C 303.3 686.0, 310.7 685.9, 318.0 685.8 " +
+  "C 325.3 685.8, 332.7 685.8, 340.0 685.8 C 347.3 685.9, 354.7 686.0, 362.0 686.1 C 369.3 686.3, 376.7 686.4, 384.0 686.6 C 391.3 686.8, 398.7 687.0, 406.0 687.2 C 413.3 687.4, 420.7 687.5, 428.0 687.8 " +
+  "C 435.3 688.0, 442.7 688.4, 450.0 690.0 C 457.3 691.6, 464.7 693.4, 472.0 692.9 C 479.3 692.4, 486.7 691.0, 494.0 690.1 C 501.3 689.2, 508.7 688.5, 516.0 687.9 C 523.3 687.4, 530.7 687.1, 538.0 687.0 " +
+  "C 545.3 686.9, 552.7 687.0, 560.0 687.3 C 567.3 687.6, 574.7 688.2, 582.0 688.9 C 589.3 689.7, 596.7 690.6, 604.0 691.8 C 611.3 692.9, 618.7 694.3, 626.0 695.8 C 633.3 697.4, 640.7 699.1, 648.0 701.0 " +
+  "C 655.3 702.9, 662.7 705.1, 670.0 707.3 C 677.3 709.6, 684.7 712.1, 692.0 714.7 C 699.3 717.4, 706.7 720.3, 714.0 723.3 C 721.3 726.3, 728.7 729.5, 736.0 732.8 C 743.3 736.1, 750.7 739.6, 758.0 743.3 " +
+  "C 765.3 746.9, 772.7 750.7, 780.0 754.5 C 787.3 758.3, 794.7 762.2, 802.0 766.2 C 809.3 770.1, 816.7 774.4, 824.0 777.5 C 831.3 780.6, 838.7 783.5, 846.0 788.9 C 850.7 792.3, 855.3 796.1, 860.0 800.0";
+
+
+/** Blurred wide strokes, shared by every ridge: [width, blur, opacity]. */
+const GLOW_STACK: [number, number, number][] = [
+  [12, 5, 0.78],
+  [44, 10, 0.5],
+  [96, 17, 0.24],
+  [190, 30, 0.15],
+];
+
+type Ridge = {
+  d: string;
+  /** Relative strength of this dune's bloom. */
+  glowScale: number;
+  /** Along-curve opacity of the bloom layer. */
+  fade: [number, number][];
+  /** Colour, stroke width and along-curve opacity of the crest hairline. */
+  line: { colour: string; width: number; fade: [number, number][] };
+  /** Optional bloom that sits *above* the crest, weighted to the far right. */
+  halo?: { fade: [number, number][]; layers: [number, number, number][] };
+};
+
+/** Back dune first, so each crest is hazed by the dune behind it. */
+const RIDGES: Ridge[] = [
+  {
+    d: RIDGE_A,
+    glowScale: 1,
+    fade: [
+      [0, 0.48],
+      [0.1, 0.72],
+      [0.22, 1],
+      [0.4, 0.62],
+      [0.5, 0.5],
+      [0.62, 1],
+      [0.75, 1],
+      [1, 0.97],
+    ],
+    line: {
+      colour: "#8CEFC6",
+      width: 1.6,
+      fade: [
+        [0, 0.451],
+        [0.0625, 0.597],
+        [0.125, 0.778],
+        [0.1875, 0.852],
+        [0.25, 0.855],
+        [0.3125, 0.807],
+        [0.375, 0.799],
+        [0.4375, 0.775],
+        [0.5, 0.729],
+        [0.5625, 0.741],
+        [0.625, 0.792],
+        [0.6875, 0.803],
+        [0.75, 0.845],
+        [0.8125, 0.674],
+        [0.875, 0.508],
+        [0.9375, 0.354],
+        [1, 0],
+      ],
+    },
+    halo: {
+      fade: [
+        [0.62, 0],
+        [0.72, 0.43],
+        [0.82, 0.71],
+        [1, 0.35],
+      ],
+      layers: [
+        [70, 16, 0.7],
+        [130, 26, 0.6],
+      ],
+    },
+  },
+  {
+    d: RIDGE_B,
+    glowScale: 0.41,
+    fade: [
+      [0, 0],
+      [0.14, 0.05],
+      [0.2, 0.12],
+      [0.24, 0.25],
+      [0.3, 0.42],
+      [0.4, 0.62],
+      [0.48, 0.8],
+      [0.58, 1],
+      [0.7, 0.32],
+      [0.78, 0.26],
+      [0.88, 0.24],
+      [1, 0.28],
+    ],
+    line: {
+      colour: "#8CEFC6",
+      width: 1.5,
+      fade: [
+        [0, 0.046],
+        [0.0625, 0.046],
+        [0.125, 0.046],
+        [0.1875, 0.054],
+        [0.25, 0.148],
+        [0.3125, 0.178],
+        [0.375, 0.222],
+        [0.4375, 0.355],
+        [0.5, 0.477],
+        [0.5625, 0.496],
+        [0.625, 0],
+        [0.6875, 0],
+        [0.75, 0.003],
+        [0.8125, 0.076],
+        [0.875, 0.111],
+        [0.9375, 0.115],
+        [1, 0.107],
+      ],
+    },
+  },
+  {
+    d: RIDGE_C,
+    glowScale: 0.11,
+    fade: [
+      [0, 0.05],
+      [0.15, 0.1],
+      [0.35, 0.25],
+      [0.5, 0.5],
+      [0.55, 0.64],
+      [0.67, 0.88],
+      [0.8, 1],
+      [1, 0.88],
+    ],
+    line: {
+      colour: "#6EE7B7",
+      width: 1.3,
+      fade: [
+        [0, 0],
+        [0.0625, 0],
+        [0.125, 0],
+        [0.1875, 0],
+        [0.25, 0],
+        [0.3125, 0],
+        [0.375, 0],
+        [0.4375, 0],
+        [0.5, 0],
+        [0.5625, 0.154],
+        [0.625, 0.175],
+        [0.6875, 0.194],
+        [0.75, 0.205],
+        [0.8125, 0.226],
+        [0.875, 0.216],
+        [0.9375, 0.188],
+        [1, 0.183],
+      ],
+    },
+  },
+];
+
+/** Draw order: faintest dune at the back, main dune on top. */
+const RIDGE_ORDER = [2, 1, 0];
+
+const WAVE_W = 835;
+const WAVE_H = 941;
+/** Every bloom is clipped against its own crest: closed down, then up. */
+const CLOSE_DOWN = " L 1400 1400 L -400 1400 Z";
+const CLOSE_UP = " L 1400 -400 L -400 -400 Z";
+
+const SIGMAS = Array.from(
+  new Set([...GLOW_STACK.map((l) => l[1]), ...RIDGES.flatMap((r) => (r.halo?.layers ?? []).map((l) => l[1]))])
+).sort((a, b) => a - b);
+
 function WaveBackground({ className }: { className?: string }) {
-  const reduce = useReducedMotion();
-  // Unique gradient ids per instance — two of these sit side by side, and a
-  // duplicate <linearGradient id> would make both panels resolve to one def.
+  // Unique ids per instance — a duplicate <linearGradient id> would make
+  // separate mounts resolve to the same def.
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  // The swell rises out of the panel edge. A top-only mask dissolves the crest
-  // into the surface without painting an opaque band over the wave itself.
-  const waveFade =
-    "linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.55) 30%, rgba(0,0,0,1) 55%)";
+
+  const stopsOf = (fade: [number, number][], colour: string) =>
+    fade.map(([at, opacity]) => (
+      <stop key={at} offset={`${at * 100}%`} stopColor={colour} stopOpacity={opacity} />
+    ));
 
   return (
     <div
-      className={cn(
-        "pointer-events-none absolute inset-0 overflow-hidden select-none",
-        className
-      )}
+      className={cn("pointer-events-none absolute inset-0 overflow-hidden select-none", className)}
       aria-hidden="true"
     >
-      {/* Undulating wave viewport */}
-      <div
-        className={cn(
-          "absolute bottom-0 left-0 right-0 h-[360px] sm:h-[440px] w-full",
-          !reduce && "auth-wave-undulate"
-        )}
-        style={{ maskImage: waveFade, WebkitMaskImage: waveFade }}
+      <svg
+        viewBox={`0 0 ${WAVE_W} ${WAVE_H}`}
+        className="h-full w-full"
+        preserveAspectRatio="none"
       >
-        {/* Layer 1: Deep rolling oceanic swell with gradient fill (no stroke line) */}
-        <div
-          className={cn(
-            "absolute inset-0 w-[200%] flex",
-            !reduce && "auth-wave-layer-1"
-          )}
-        >
-          <svg
-            viewBox="0 -70 1600 450"
-            className="w-full h-full"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id={`wave-grad-1-${uid}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10B77A" stopOpacity="0.40" />
-                <stop offset="42%" stopColor="#047754" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#022C22" stopOpacity="0.05" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M 0 180 C 200 110, 200 250, 400 180 C 600 110, 600 250, 800 180 C 1000 110, 1000 250, 1200 180 C 1400 110, 1400 250, 1600 180 L 1600 380 L 0 380 Z"
-              fill={`url(#wave-grad-1-${uid})`}
-            />
-          </svg>
-        </div>
+        <defs>
+          <radialGradient id={`wv-bg-${uid}`} cx="0.08" cy="0.68" r="0.28">
+            <stop offset="0%" stopColor="#10B981" stopOpacity="0.09" />
+            <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+          </radialGradient>
 
-        {/* Layer 2: Counter-drifting harmonic wave (no stroke line) */}
-        <div
-          className={cn(
-            "absolute inset-0 w-[200%] flex",
-            !reduce && "auth-wave-layer-2"
-          )}
-        >
-          <svg
-            viewBox="0 -70 1600 450"
-            className="w-full h-full"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id={`wave-grad-2-${uid}`} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#059669" stopOpacity="0.28" />
-                <stop offset="50%" stopColor="#03543C" stopOpacity="0.13" />
-                <stop offset="100%" stopColor="#022C22" stopOpacity="0" />
+          {SIGMAS.map((sigma) => (
+            <filter
+              key={sigma}
+              id={`wv-b${sigma}-${uid}`}
+              filterUnits="userSpaceOnUse"
+              x={-400}
+              y={250}
+              width={1700}
+              height={1100}
+              colorInterpolationFilters="sRGB"
+            >
+              <feGaussianBlur stdDeviation={sigma} />
+            </filter>
+          ))}
+
+          {RIDGES.map((ridge, i) => (
+            <linearGradient
+              key={`glow${i}`}
+              id={`wv-glow-${i}-${uid}`}
+              gradientUnits="userSpaceOnUse"
+              x1={0}
+              y1={0}
+              x2={WAVE_W}
+              y2={0}
+            >
+              {stopsOf(ridge.fade, "#10B981")}
+            </linearGradient>
+          ))}
+          {RIDGES.map((ridge, i) =>
+            ridge.halo ? (
+              <linearGradient
+                key={`halo${i}`}
+                id={`wv-halo-${i}-${uid}`}
+                gradientUnits="userSpaceOnUse"
+                x1={0}
+                y1={0}
+                x2={WAVE_W}
+                y2={0}
+              >
+                {stopsOf(ridge.halo.fade, "#10B981")}
               </linearGradient>
-            </defs>
-            <path
-              d="M 0 210 C 100 150, 100 270, 200 210 C 300 150, 300 270, 400 210 C 500 150, 500 270, 600 210 C 700 150, 700 270, 800 210 C 900 150, 900 270, 1000 210 C 1100 150, 1100 270, 1200 210 C 1300 150, 1300 270, 1400 210 C 1500 150, 1500 270, 1600 210 L 1600 380 L 0 380 Z"
-              fill={`url(#wave-grad-2-${uid})`}
-            />
-          </svg>
-        </div>
-      </div>
+            ) : null
+          )}
+
+          {/*
+            The crest hairline keeps its own opacity curve: it reads almost
+            level along the whole crest instead of following the bloom, and it
+            thins to nothing where the artwork's line is swallowed by a dune in
+            front of it.
+          */}
+          {RIDGES.map((ridge, i) => (
+            <linearGradient
+              key={`line${i}`}
+              id={`wv-line-${i}-${uid}`}
+              gradientUnits="userSpaceOnUse"
+              x1={0}
+              y1={0}
+              x2={WAVE_W}
+              y2={0}
+            >
+              {stopsOf(ridge.line.fade, ridge.line.colour)}
+            </linearGradient>
+          ))}
+
+          {RIDGES.map((ridge, i) => (
+            <clipPath key={`cd${i}`} id={`wv-cd-${i}-${uid}`}>
+              <path d={ridge.d + CLOSE_DOWN} />
+            </clipPath>
+          ))}
+          {RIDGES.map((ridge, i) => (
+            <clipPath key={`cu${i}`} id={`wv-cu-${i}-${uid}`}>
+              <path d={ridge.d + CLOSE_UP} />
+            </clipPath>
+          ))}
+        </defs>
+
+        <rect width={WAVE_W} height={WAVE_H} fill="#020B07" />
+        <rect width={WAVE_W} height={WAVE_H} fill={`url(#wv-bg-${uid})`} />
+
+        {RIDGE_ORDER.map((i) => {
+          const ridge = RIDGES[i];
+          const line = ridge.line;
+          return (
+            <g key={i}>
+              {ridge.halo && (
+                <g clipPath={`url(#wv-cu-${i}-${uid})`}>
+                  {ridge.halo.layers.map(([width, sigma, opacity]) => (
+                    <path
+                      key={`${width}-${sigma}`}
+                      d={ridge.d}
+                      fill="none"
+                      stroke={`url(#wv-halo-${i}-${uid})`}
+                      strokeWidth={width}
+                      strokeOpacity={opacity}
+                      filter={`url(#wv-b${sigma}-${uid})`}
+                    />
+                  ))}
+                </g>
+              )}
+              <g clipPath={`url(#wv-cd-${i}-${uid})`}>
+                {GLOW_STACK.map(([width, sigma, opacity]) => (
+                  <path
+                    key={`${width}-${sigma}`}
+                    d={ridge.d}
+                    fill="none"
+                    stroke={`url(#wv-glow-${i}-${uid})`}
+                    strokeWidth={width}
+                    strokeOpacity={+(opacity * ridge.glowScale).toFixed(3)}
+                    filter={`url(#wv-b${sigma}-${uid})`}
+                  />
+                ))}
+              </g>
+              <path
+                d={ridge.d}
+                fill="none"
+                stroke={`url(#wv-line-${i}-${uid})`}
+                strokeWidth={line.width}
+                strokeLinecap="round"
+              />
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -242,17 +529,16 @@ function BrandPanel() {
 
   return (
     <section
-      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col lg:h-full justify-between p-6 sm:p-8 lg:py-10 lg:px-12 xl:px-16 bg-[#0A0A0A] text-white"
+      className="relative order-2 overflow-hidden lg:order-1 lg:flex lg:flex-col lg:h-full justify-between p-6 sm:p-8 lg:py-10 lg:px-12 xl:px-16 text-white"
+      style={{
+        // Near-black ground. The swell SVG paints the real background; this is
+        // only the fallback behind it and the colour under the panel's edges.
+        background: "#020B07",
+      }}
       aria-label="About Batua"
     >
-      {/* Ambient ocean swell along the bottom edge */}
-      <WaveBackground className="opacity-90" />
-
-      {/* Soft emerald bloom in the upper-left corner */}
-      <div
-        className="pointer-events-none absolute -left-24 -top-28 h-[420px] w-[420px] rounded-full bg-emerald-500/[0.10] blur-[120px]"
-        aria-hidden="true"
-      />
+      {/* Ambient aurora ribbons sweeping across the panel */}
+      <WaveBackground />
 
       <motion.div
         variants={variants}
@@ -280,14 +566,6 @@ function BrandPanel() {
 
         {/* Headline, promise and trust pillars */}
         <div className="relative my-auto flex w-full flex-col gap-8 py-10 lg:gap-12 lg:py-14">
-          {/* Slow breathing bloom behind the headline */}
-          <motion.div
-            aria-hidden="true"
-            className="pointer-events-none absolute -left-16 top-0 h-[340px] w-[340px] rounded-full bg-emerald-500/[0.07] blur-[110px]"
-            animate={reduce ? undefined : { opacity: [0.55, 1, 0.55], scale: [1, 1.08, 1] }}
-            transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-          />
-
           <div className="relative space-y-6">
             <motion.h2
               variants={item}

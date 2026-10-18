@@ -993,63 +993,6 @@ input:checked + .auth-check-glyph .auth-check-path {
   box-shadow: 0 0 20px var(--auth-emerald-glow);
 }
 
-/* Ambient fluid wave animations */
-@keyframes auth-wave-slide-left {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(-50%, 0, 0);
-  }
-}
-
-@keyframes auth-wave-slide-right {
-  0% {
-    transform: translate3d(-50%, 0, 0);
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes auth-wave-undulate {
-  0%, 100% {
-    transform: translate3d(0, 0, 0) scaleY(1);
-  }
-  50% {
-    transform: translate3d(0, -14px, 0) scaleY(1.06);
-  }
-}
-
-.auth-wave-layer-1 {
-  animation: auth-wave-slide-left 16s linear infinite;
-  will-change: transform;
-}
-
-.auth-wave-layer-2 {
-  animation: auth-wave-slide-right 22s linear infinite;
-  will-change: transform;
-}
-
-.auth-wave-layer-3 {
-  animation: auth-wave-slide-left 12s linear infinite;
-  will-change: transform;
-}
-
-.auth-wave-undulate {
-  animation: auth-wave-undulate 7s ease-in-out infinite;
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auth-wave-layer-1,
-  .auth-wave-layer-2,
-  .auth-wave-layer-3,
-  .auth-wave-undulate {
-    animation: none !important;
-  }
-}
-
 /* Twinkling star animation - faster, crisper sparkle */
 @keyframes auth-star-twinkle {
   0%, 100% {
