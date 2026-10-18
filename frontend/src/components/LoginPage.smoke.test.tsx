@@ -49,17 +49,15 @@ describe("LoginPage renders content", () => {
     expect(container.firstChild).not.toBeNull();
     expect(container.textContent).not.toBe("");
 
-    // The headline, card and trust row are all present.
+    // The headline, card and vault-switch row are all present.
     expect(
-      screen.getByRole("heading", { name: /unlock local vault/i, level: 1 })
+      screen.getByRole("heading", { name: /^sign in$/i, level: 1 })
     ).toBeInTheDocument();
-    // Both the brand footer and the card trust row carry it —
-    // query all of them rather than a single instance.
     expect(
-      screen.getAllByText(/your data never leaves this device/i).length
-    ).toBeGreaterThan(0);
+      screen.getByRole("button", { name: /unlock batua/i })
+    ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /access local ledger/i })
+      screen.getByRole("button", { name: /create local account/i })
     ).toBeInTheDocument();
   });
 
@@ -72,8 +70,11 @@ describe("LoginPage renders content", () => {
       </MemoryRouter>
     );
     expect(
-      screen.getByRole("heading", { name: /only on your device/i, level: 2 })
+      screen.getByRole("heading", { name: /take control of your money/i, level: 2 })
     ).toBeInTheDocument();
-    expect(screen.getByText(/on-device ai/i)).toBeInTheDocument();
+    expect(screen.getByText(/keeps your data on your device/i)).toBeInTheDocument();
+    // The three trust pillars under the headline.
+    expect(screen.getByText(/100% offline/i)).toBeInTheDocument();
+    expect(screen.getByText(/bank-grade security/i)).toBeInTheDocument();
   });
 });

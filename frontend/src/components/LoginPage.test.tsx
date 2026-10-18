@@ -54,7 +54,7 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Username")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /access local ledger/i })
+      screen.getByRole("button", { name: /unlock batua/i })
     ).toBeInTheDocument();
     // Email only appears in register mode
     expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
@@ -70,7 +70,7 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Confirm password")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /create local vault/i })
+      screen.getByRole("button", { name: /create batua/i })
     ).toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe("LoginPage", () => {
     renderPage();
     fill("Username", "ab");
     fill("Password", "123");
-    fireEvent.click(screen.getByRole("button", { name: /access local ledger/i }));
+    fireEvent.click(screen.getByRole("button", { name: /unlock batua/i }));
     expect(api.post).not.toHaveBeenCalled();
     // Validation is inline on the fields, not a toast.
     await waitFor(() => {
@@ -108,7 +108,7 @@ describe("LoginPage", () => {
     renderPage();
     fill("Username", "anshuldhiman-ai");
     fill("Password", "1947");
-    fireEvent.click(screen.getByRole("button", { name: /access local ledger/i }));
+    fireEvent.click(screen.getByRole("button", { name: /unlock batua/i }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/auth/login", {
         username: "anshuldhiman-ai",
@@ -130,7 +130,7 @@ describe("LoginPage", () => {
     fill("Email", "anshuldhimanbadmosh2007@gmail.com");
     fill("Password", "1947");
     fill("Confirm password", "1947");
-    fireEvent.click(screen.getByRole("button", { name: /create local vault/i }));
+    fireEvent.click(screen.getByRole("button", { name: /create batua/i }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith("/auth/register", {
         username: "anshuldhiman-ai",
