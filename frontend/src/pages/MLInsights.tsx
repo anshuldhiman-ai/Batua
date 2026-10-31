@@ -125,21 +125,21 @@ const SECTIONS = [
 
 // ── Small building blocks ───────────────────────────────────────────────────
 
-/** Mono, uppercase section title + one-line hint, with a stable anchor id. */
+/** Premium section header with icon, title, hint, and optional right action */
 function SectionHeading({ icon: Icon, title, hint, id, right }: any) {
   return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-      <div className="flex items-center gap-2.5">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="flex items-center gap-3">
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-4 w-4 text-primary" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 shadow-sm">
+            <Icon className="h-4.5 w-4.5 text-primary" />
           </div>
         )}
         <div className="min-w-0">
-          <h2 id={id} className="scroll-mt-24 font-display text-sm font-semibold tracking-tight">
+          <h2 id={id} className="scroll-mt-28 font-display text-base font-semibold tracking-tight text-foreground">
             {title}
           </h2>
-          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+          {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         </div>
       </div>
       {right}
@@ -147,7 +147,7 @@ function SectionHeading({ icon: Icon, title, hint, id, right }: any) {
   );
 }
 
-/** The single most important finding, framed as the page's opening statement. */
+/** Premium hero insight with gradient background and sophisticated layout */
 function HeroInsight({ eyebrow, headline, detail, icon: Icon, ctaLabel, onCta }: any) {
   return (
     <motion.div
@@ -155,27 +155,28 @@ function HeroInsight({ eyebrow, headline, detail, icon: Icon, ctaLabel, onCta }:
       animate={{ opacity: 1, y: 0 }}
       transition={spring}
     >
-      <Card className="border-primary/20">
-        <CardContent className="p-4 sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card shadow-lg">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-50" />
+        <CardContent className="relative p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1">
-                {Icon && <Icon className="h-3 w-3 text-primary" />}
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">{eyebrow}</span>
+              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 ring-1 ring-primary/20">
+                {Icon && <Icon className="h-3.5 w-3.5 text-primary" />}
+                <span className="text-[10.5px] font-semibold uppercase tracking-widest text-primary">{eyebrow}</span>
               </div>
-              <h2 className="mt-2 font-display text-lg font-bold leading-snug tracking-tight text-foreground sm:text-xl">
+              <h2 className="mt-3 font-display text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">
                 {headline}
               </h2>
-              {detail && <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">{detail}</p>}
+              {detail && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{detail}</p>}
             </div>
             {ctaLabel && (
               <Button
                 onClick={onCta}
-                size="sm"
-                className="gap-1.5"
+                size="default"
+                className="gap-2 shadow-md"
               >
                 {ctaLabel}
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             )}
           </div>
@@ -189,14 +190,14 @@ function HeroInsight({ eyebrow, headline, detail, icon: Icon, ctaLabel, onCta }:
 
 function EmptyState({ icon: Icon = Info, title, description, action }: any) {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center px-5 py-8 text-center">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-          <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+    <Card className="border-dashed">
+      <CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 shadow-sm">
+          <Icon className="h-6 w-6 text-primary" aria-hidden="true" />
         </div>
-        <h3 className="mt-2.5 text-sm font-semibold text-foreground">{title}</h3>
-        <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">{description}</p>
-        {action && <div className="mt-3">{action}</div>}
+        <h3 className="mt-4 text-base font-semibold text-foreground">{title}</h3>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{description}</p>
+        {action && <div className="mt-4">{action}</div>}
       </CardContent>
     </Card>
   );
@@ -204,15 +205,15 @@ function EmptyState({ icon: Icon = Info, title, description, action }: any) {
 
 function ErrorState({ message, onRetry }: any) {
   return (
-    <Card className="border-destructive/30">
-      <CardContent className="flex flex-col items-center justify-center px-5 py-8 text-center">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10">
-          <AlertCircle className="h-4 w-4 text-destructive" aria-hidden="true" />
+    <Card className="border-destructive/30 bg-destructive/5">
+      <CardContent className="flex flex-col items-center justify-center px-6 py-12 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/10">
+          <AlertCircle className="h-6 w-6 text-destructive" aria-hidden="true" />
         </div>
-        <h3 className="mt-2.5 text-sm font-semibold text-foreground">Could not load this insight</h3>
-        <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">{message}</p>
-        <Button onClick={onRetry} variant="outline" size="sm" className="mt-3 h-8 gap-1.5 px-2.5 text-xs">
-          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+        <h3 className="mt-4 text-base font-semibold text-foreground">Could not load this insight</h3>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{message}</p>
+        <Button onClick={onRetry} variant="outline" size="default" className="mt-4 gap-2">
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Retry
         </Button>
       </CardContent>
@@ -223,14 +224,14 @@ function ErrorState({ message, onRetry }: any) {
 /** label → value row used in every summary list so they all align. */
 function StatRow({ label, value, className }: any) {
   return (
-    <div className={cn("flex items-center justify-between gap-3 py-1.5 text-xs", className)}>
+    <div className={cn("flex items-center justify-between gap-3 border-b border-border/40 py-2.5 last:border-0 text-xs", className)}>
       <span className="text-muted-foreground">{label}</span>
       <span className="font-semibold tabular-nums text-foreground">{value}</span>
     </div>
   );
 }
 
-/** A single figure inside a grid of small stat boxes. */
+/** Premium small stat box with refined styling */
 function MiniStat({ label, value, tone = "primary", className }: any) {
   const toneColors = {
     emerald: "text-emerald-600 dark:text-emerald-400",
@@ -239,9 +240,9 @@ function MiniStat({ label, value, tone = "primary", className }: any) {
     sky: "text-sky-500",
   };
   return (
-    <div className={cn("rounded-lg border border-border/50 bg-card p-2", className)}>
-      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-xs font-semibold tabular-nums", toneColors[tone] || toneColors.primary)}>{value}</div>
+    <div className={cn("rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/20 p-3 shadow-sm", className)}>
+      <div className="text-[10.5px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={cn("mt-1.5 text-sm font-semibold tabular-nums", toneColors[tone] || toneColors.primary)}>{value}</div>
     </div>
   );
 }
@@ -467,33 +468,33 @@ export default function MLInsights() {
   // ── Loading / error ───────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div>
-          <Skeleton className="h-7 w-48" />
-          <Skeleton className="mt-1.5 h-3.5 w-72" />
+          <Skeleton className="h-8 w-52" />
+          <Skeleton className="mt-2 h-4 w-80" />
         </div>
-        <Skeleton className="h-24 w-full rounded-xl" />
-        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-[70px] rounded-xl" />
+            <Skeleton key={i} className="h-[80px] rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-40 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-[320px] flex-col items-center justify-center space-y-3 rounded-2xl border border-destructive/25 bg-destructive/5 p-6 text-center">
-        <div className="rounded-full border border-destructive/30 bg-destructive/10 p-3.5">
-          <AlertCircle className="h-7 w-7 text-destructive" aria-hidden="true" />
+      <div className="flex min-h-[360px] flex-col items-center justify-center space-y-4 rounded-2xl border border-destructive/25 bg-destructive/5 p-8 text-center">
+        <div className="rounded-full border border-destructive/30 bg-destructive/10 p-4">
+          <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
         </div>
         <h2 className="text-lg font-bold">Analysis offline</h2>
-        <p className="max-w-md text-xs leading-relaxed text-muted-foreground">{error}</p>
-        <Button onClick={() => loadData(true)} className="mt-1 h-8 gap-1.5 px-4 text-xs shadow-sm">
-          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+        <p className="max-w-md text-sm leading-relaxed text-muted-foreground">{error}</p>
+        <Button onClick={() => loadData(true)} className="mt-2 gap-2">
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Retry connection
         </Button>
       </div>
@@ -504,24 +505,24 @@ export default function MLInsights() {
 
   return (
     <div className="page-enter relative">
-      <div className="relative z-10 space-y-5 pb-10">
+      <div className="relative z-10 space-y-6 pb-12">
         <PageHeader
           title="AI Insights"
           subtitle="Your money, explained — what changed, what it means, and what to do next."
           actions={
             <>
-              <Badge variant="secondary" className="hidden items-center gap-1 px-2 py-0.5 text-[11px] sm:inline-flex">
-                <Sparkles className="h-2.5 w-2.5" aria-hidden="true" /> AI-powered
+              <Badge variant="secondary" className="hidden items-center gap-1.5 px-2.5 py-1 text-[11px] sm:inline-flex">
+                <Sparkles className="h-3 w-3" aria-hidden="true" /> AI-powered
               </Badge>
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={() => loadData(true)}
                 disabled={loading}
                 data-testid="ml-refresh-btn"
-                className="h-8 gap-1.5 px-2.5 text-xs"
+                className="gap-2"
               >
-                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} aria-hidden="true" />
+                <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden="true" />
                 Refresh
               </Button>
             </>
@@ -534,8 +535,8 @@ export default function MLInsights() {
             title="Nothing to analyse yet"
             description="Add a few transactions or import a statement and Batua will start reading your patterns, forecasting cash flow, and surfacing what to do next."
             action={
-              <Link to="/transactions" className={cn(buttonVariants({ size: "sm" }), "h-8 gap-1.5 px-2.5 text-xs")}>
-                Add transactions <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              <Link to="/transactions" className={cn(buttonVariants({ size: "default" }), "gap-2")}>
+                Add transactions <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             }
           />
@@ -545,7 +546,7 @@ export default function MLInsights() {
             {hero && <HeroInsight {...hero} onCta={() => jumpTo(hero.ctaTarget)} />}
 
             {/* 2 — Headline numbers, always the same four */}
-            <section aria-label="Key figures" className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <KPICard
                 label="Avg monthly spend"
                 value={monthly?.avg_monthly_spending != null ? formatINR(monthly.avg_monthly_spending, { compact: true }) : "—"}
@@ -577,18 +578,18 @@ export default function MLInsights() {
             </section>
 
             {/* 3 — Jump nav: everything is on one page, so give the eye a map */}
-            <nav aria-label="Jump to section" className="flex flex-wrap items-center gap-1.5">
+            <nav aria-label="Jump to section" className="flex flex-wrap items-center gap-2">
               {SECTIONS.map((s) => (
                 <Button
                   key={s.id}
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => jumpTo(s.id)}
-                  className="h-7 gap-1.5 px-2.5 text-[10px]"
+                  className="h-8 gap-2 px-3 text-xs font-medium"
                 >
                   {s.label}
                   {s.id === "sec-alerts" && anomalyItems.length > 0 && (
-                    <Badge variant="destructive" className="h-4 px-1.5 text-[9px]">
+                    <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
                       {anomalyItems.length}
                     </Badge>
                   )}
@@ -597,7 +598,7 @@ export default function MLInsights() {
             </nav>
 
             {/* ── 4. Recommendations — the "so what" ─────────────────────── */}
-            <section aria-labelledby="sec-recommendations" className="scroll-mt-24">
+            <section aria-labelledby="sec-recommendations" className="scroll-mt-28">
               <SectionHeading
                 icon={Lightbulb}
                 id="sec-recommendations"
@@ -618,10 +619,9 @@ export default function MLInsights() {
                   description={recs?.message || "Add expense transactions so Batua can estimate savings opportunities and suggest next actions."}
                 />
               ) : recommendationCount ? (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {recs.recommendations.map((r, i) => {
-                    const badgeVariant = r.priority === "high" ? "destructive" : r.priority === "medium" ? "warning" : "default";
-                    const bar = r.priority === "high" ? "bg-rose-500" : r.priority === "medium" ? "bg-amber-500" : "bg-emerald-500";
+                    const priorityColor = r.priority === "high" ? "text-rose-500" : r.priority === "medium" ? "text-amber-500" : "text-emerald-500";
                     return (
                       <motion.div
                         key={i}
@@ -629,52 +629,41 @@ export default function MLInsights() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.05 }}
                       >
-                        <Card className="group flex flex-col justify-between transition-shadow hover:shadow-md">
-                          <div className="flex">
-                            <span aria-hidden="true" className={cn("w-1 shrink-0 rounded-l-xl", bar)} />
-                            <CardContent className="min-w-0 flex-1 p-3.5">
-                              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                                <Badge variant={badgeVariant} className="px-1.5 py-0 text-[10px] capitalize">
-                                  {r.priority} priority
-                                </Badge>
-                                <Badge variant="secondary" className="px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-                                  Save ~{formatINR(r.potential_savings)}/mo
-                                </Badge>
-                              </div>
-                              <h3 className="text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
-                                {r.title}
-                              </h3>
-                              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{r.description}</p>
-                            </CardContent>
-                          </div>
-                          <div className="flex justify-end border-t border-border/60 px-3.5 py-1.5">
-                            <Link
-                              to="/budgets"
-                              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-7 gap-1 px-2 text-[11px] font-medium transition-all hover:gap-1.5 hover:text-primary")}
-                            >
-                              Optimize budget <ChevronRight className="h-3 w-3" aria-hidden="true" />
-                            </Link>
-                          </div>
+                        <Card className="group transition-all hover:shadow-md">
+                          <CardContent className="p-3">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <span className={cn("text-[10.5px] font-semibold capitalize", priorityColor)}>
+                                {r.priority} priority
+                              </span>
+                              <Badge variant="secondary" className="px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+                                Save ~{formatINR(r.potential_savings)}/mo
+                              </Badge>
+                            </div>
+                            <h3 className="text-xs font-semibold text-foreground transition-colors group-hover:text-primary">
+                              {r.title}
+                            </h3>
+                            <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground line-clamp-2">{r.description}</p>
+                          </CardContent>
                         </Card>
                       </motion.div>
                     );
                   })}
                 </div>
               ) : (
-                <Card className="border-emerald-500/30">
-                  <CardContent className="py-8 text-center">
-                    <div className="mx-auto mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
-                      <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+                <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-5/5 to-card">
+                  <CardContent className="py-10 text-center">
+                    <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10">
+                      <ShieldCheck className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                     </div>
-                    <div className="text-xs font-medium text-primary">Nothing needs trimming right now</div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">Your spending looks balanced across categories.</p>
+                    <div className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Nothing needs trimming right now</div>
+                    <p className="mt-1 text-xs text-muted-foreground">Your spending looks balanced across categories.</p>
                   </CardContent>
                 </Card>
               )}
             </section>
 
             {/* ── 5. Forecast — the "what's ahead" ───────────────────────── */}
-            <section aria-labelledby="sec-forecast" className="scroll-mt-24">
+            <section aria-labelledby="sec-forecast" className="scroll-mt-28">
               <SectionHeading icon={TrendingUp} id="sec-forecast" title="What's ahead" hint="Next three months, income and spending modelled separately" />
 
               {endpointErrors.forecast ? (
@@ -686,14 +675,14 @@ export default function MLInsights() {
                   description={forecast?.message || "Add at least a few dated transactions to generate next-month and three-month cash-flow projections."}
                 />
               ) : (
-                <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-3">
-                  <Card className="order-2 lg:order-1 lg:col-span-2">
-                    <CardContent className="p-3.5">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                  <Card className="order-2 lg:order-1 lg:col-span-2 shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <span className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                           Three-month projection
                         </span>
-                        <span className="text-[10px] text-muted-foreground">~80% range</span>
+                        <span className="text-[10.5px] text-muted-foreground">~80% range</span>
                       </div>
                       {forecastChartData.length ? (
                         <div role="img" aria-label="Area chart of projected net cash flow with a range band">
@@ -731,28 +720,28 @@ export default function MLInsights() {
                     </CardContent>
                   </Card>
 
-                  <Card className="order-1 lg:order-2">
-                    <CardContent className="p-3.5">
-                      <div className="rounded-lg bg-primary/10 p-2.5">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-primary opacity-80">
+                  <Card className="order-1 lg:order-2 shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 p-3 ring-1 ring-primary/10">
+                        <div className="text-[10.5px] font-semibold uppercase tracking-wider text-primary opacity-80">
                           Next month · {nextForecastLabel}
                         </div>
-                        <div className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatINR(nextForecast?.predicted_cashflow || 0, { compact: true })}</div>
+                        <div className="mt-2 text-2xl font-bold tabular-nums text-foreground">{formatINR(nextForecast?.predicted_cashflow || 0, { compact: true })}</div>
                         <Badge
                           variant={forecast?.confidence === "high" ? "success" : forecast?.confidence === "medium" ? "warning" : "default"}
-                          className="mt-1.5 px-1.5 py-0 text-[10px] capitalize"
+                          className="mt-2 px-2 py-0.5 text-[10.5px] capitalize"
                         >
                           {confidenceLabel} confidence
                         </Badge>
                       </div>
 
-                      <div className="mt-2 divide-y divide-border/60">
+                      <div className="mt-3 divide-y divide-border/50">
                         <StatRow label="3-month total" value={formatINR(forecast?.three_month_total || 0)} />
                         <StatRow label="Method" value={FORECAST_METHOD_LABEL[forecast?.method ?? ""] || "—"} />
                       </div>
 
                       {forecast?.backtest && (
-                        <p className="mt-2 rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                        <p className="mt-3 rounded-xl border border-border/60 bg-muted/30 p-3 text-[11px] leading-relaxed text-muted-foreground">
                           {forecast.backtest.beats_baseline
                             ? `On the last ${forecast.backtest.folds} months this model was closer (avg error ${formatINR(forecast.backtest.model_mae)}) than the ${forecast.backtest.baseline.toLowerCase()} (${formatINR(forecast.backtest.baseline_mae)}).`
                             : `This model didn't beat the ${forecast.backtest.baseline.toLowerCase()} on the last ${forecast.backtest.folds} months — treat the projection as a rough guide.`}
@@ -761,12 +750,12 @@ export default function MLInsights() {
                     </CardContent>
                   </Card>
 
-                  <Card className="lg:col-span-3">
-                    <CardContent className="p-3.5">
-                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Card className="lg:col-span-3 shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Income vs. spending
                       </div>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <MiniStat label="Avg. monthly income" value={formatINR(forecast?.average_monthly_income || 0, { compact: true })} tone="emerald" />
                         <MiniStat label="Avg. monthly spending" value={formatINR(forecast?.average_monthly_expense || 0, { compact: true })} tone="rose" />
                         <MiniStat
@@ -782,7 +771,7 @@ export default function MLInsights() {
             </section>
 
             {/* ── 6. Patterns — the "what's been happening" ──────────────── */}
-            <section aria-labelledby="sec-patterns" className="scroll-mt-24">
+            <section aria-labelledby="sec-patterns" className="scroll-mt-28">
               <SectionHeading icon={Brain} id="sec-patterns" title="Your patterns" hint="How and when your money moves" />
 
               {endpointErrors.patterns ? (
@@ -794,12 +783,12 @@ export default function MLInsights() {
                   description={patterns?.message || "Add expense transactions or import a statement to unlock trends, clusters and seasonal patterns."}
                 />
               ) : (
-                <div className="space-y-3.5">
+                <div className="space-y-4">
                   {/* Monthly-spend bar chart — disabled for now (see flag above). */}
                   {SHOW_MONTHLY_SPEND_CHART && (
-                    <Card>
-                      <CardContent className="p-3.5">
-                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Card className="shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                           Monthly spending
                         </div>
                         {monthly?.monthly_spending?.length ? (
@@ -830,24 +819,24 @@ export default function MLInsights() {
                     </Card>
                   )}
 
-                  <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-3">
-                    <Card>
-                      <CardContent className="p-3.5">
-                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    <Card className="shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                           When you spend
                         </div>
                         {weekendDays ? (
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             <div className="flex items-baseline justify-between">
-                              <span className="text-2xl font-bold tabular-nums text-foreground">{weekendPercent}%</span>
-                              <span className="text-[11px] text-muted-foreground">on weekends</span>
+                              <span className="text-3xl font-bold tabular-nums text-foreground">{weekendPercent}%</span>
+                              <span className="text-xs text-muted-foreground">on weekends</span>
                             </div>
-                            <Progress value={weekendPercent} className="h-1.5" />
-                            <div className="grid grid-cols-2 gap-1.5">
+                            <Progress value={weekendPercent} className="h-2" />
+                            <div className="grid grid-cols-2 gap-3">
                               <MiniStat label="Weekday" value={formatINR(weekendDays.weekday, { compact: true })} />
                               <MiniStat label="Weekend" value={formatINR(weekendDays.weekend, { compact: true })} />
                             </div>
-                            <div className="divide-y divide-border/60 border-t border-border/60 pt-0.5">
+                            <div className="divide-y divide-border/50 border-t border-border/50 pt-2">
                               <StatRow label="Highest day" value={weekday?.highest_spending_day || "—"} />
                               <StatRow label="Lowest day" value={weekday?.lowest_spending_day || "—"} />
                               {seasonal?.peak_spending_month && (
@@ -863,30 +852,30 @@ export default function MLInsights() {
                             </div>
                           </div>
                         ) : (
-                          <p className="py-4 text-xs text-muted-foreground">
+                          <p className="py-6 text-xs text-muted-foreground">
                             Not enough dated activity to compare weekdays and weekends.
                           </p>
                         )}
                       </CardContent>
                     </Card>
 
-                    <Card>
-                      <CardContent className="p-3.5">
-                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Card className="shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                           Fixed vs. discretionary
                         </div>
                         {fixedSplit ? (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-3 gap-1.5">
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-3">
                               <MiniStat label="Fixed" value={formatINR(fixedSplit.fixed_monthly || 0, { compact: true })} />
                               <MiniStat label="Flexible" value={formatINR(fixedSplit.discretionary_monthly || 0, { compact: true })} />
                               <MiniStat label="Fixed share" value={`${Math.round((fixedSplit.fixed_share || 0) * 100)}%`} tone="sky" />
                             </div>
 
                             {hasCommitments ? (
-                              <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/60">
+                              <div className="divide-y divide-border/50 overflow-hidden rounded-xl border border-border/50">
                                 {commitments?.categories?.map((c) => (
-                                  <div key={c.category} className="flex items-center justify-between px-2.5 py-1.5 text-xs">
+                                  <div key={c.category} className="flex items-center justify-between px-3 py-2.5 text-xs">
                                     <span className="font-medium">{c.category}</span>
                                     <span className="tabular-nums text-muted-foreground">
                                       {formatINR(c.monthly_amount)}/mo · {c.months_present}/{c.months_total}
@@ -894,7 +883,7 @@ export default function MLInsights() {
                                   </div>
                                 ))}
                                 {commitments?.subscriptions?.map((s, i) => (
-                                  <div key={`${s.payee}-${i}`} className="flex items-center justify-between px-2.5 py-1.5 text-xs">
+                                  <div key={`${s.payee}-${i}`} className="flex items-center justify-between px-3 py-2.5 text-xs">
                                     <span className="font-medium capitalize">{s.payee}</span>
                                     <span className="tabular-nums text-muted-foreground">
                                       {formatINR(s.monthly_amount)}/mo · {s.months_present} months
@@ -903,41 +892,41 @@ export default function MLInsights() {
                                 ))}
                               </div>
                             ) : (
-                              <p className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-2.5 text-[11px] text-muted-foreground">
+                              <p className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-3 text-xs text-muted-foreground">
                                 No regular bills or subscriptions spotted yet — they'll appear here once a few months of activity build up.
                               </p>
                             )}
                           </div>
                         ) : (
-                          <p className="py-4 text-xs text-muted-foreground">Fixed-commitment analysis isn't available yet.</p>
+                          <p className="py-6 text-xs text-muted-foreground">Fixed-commitment analysis isn't available yet.</p>
                         )}
                       </CardContent>
                     </Card>
 
-                    <Card>
-                      <CardContent className="p-3.5">
-                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Card className="shadow-sm">
+                      <CardContent className="p-4">
+                        <div className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                           Category volume
                         </div>
                         {clusters?.clusters?.length ? (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {clusters.clusters.map((c, i) => {
                               const tier = CLUSTER_TIERS[i] || CLUSTER_TIERS[CLUSTER_TIERS.length - 1];
                               const TierIcon = tier.icon;
                               return (
-                                <div key={i} className={cn("rounded-lg border p-2", tier.classes)}>
+                                <div key={i} className={cn("rounded-xl border p-3", tier.classes)}>
                                   <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className={cn("flex h-5 w-5 items-center justify-center rounded-md", tier.chip)}>
-                                        <TierIcon className="h-3 w-3" aria-hidden="true" />
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn("flex h-6 w-6 items-center justify-center rounded-lg", tier.chip)}>
+                                        <TierIcon className="h-3.5 w-3.5" aria-hidden="true" />
                                       </span>
-                                      <span className="text-[11px] font-semibold">{tier.label}</span>
+                                      <span className="text-xs font-semibold">{tier.label}</span>
                                     </div>
-                                    <span className="text-[11px] font-bold tabular-nums">{formatINR(c.total_spending, { compact: true })}</span>
+                                    <span className="text-xs font-bold tabular-nums">{formatINR(c.total_spending, { compact: true })}</span>
                                   </div>
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
                                     {c.categories.map((cat) => (
-                                      <span key={cat} className="rounded-md border border-border/60 bg-background/60 px-1.5 py-0 text-[10px] text-muted-foreground">
+                                      <span key={cat} className="rounded-lg border border-border/60 bg-background/60 px-2 py-0.5 text-[10.5px] text-muted-foreground">
                                         {cat}
                                       </span>
                                     ))}
@@ -947,14 +936,14 @@ export default function MLInsights() {
                             })}
                           </div>
                         ) : (
-                          <p className="py-4 text-xs text-muted-foreground">Not enough category diversity to build clusters yet.</p>
+                          <p className="py-6 text-xs text-muted-foreground">Not enough category diversity to build clusters yet.</p>
                         )}
                       </CardContent>
                     </Card>
                   </div>
 
                   {patterns?.category_trends?.top_growing_category && (
-                    <p className="px-1 text-[11px] text-muted-foreground">
+                    <p className="px-1 text-xs text-muted-foreground">
                       Fastest growing category is{" "}
                       <span className="font-medium text-rose-500">
                         {patterns.category_trends.top_growing_category}
@@ -967,7 +956,7 @@ export default function MLInsights() {
             </section>
 
             {/* ── 7. Alerts — the "worth a look" ─────────────────────────── */}
-            <section aria-labelledby="sec-alerts" className="scroll-mt-24">
+            <section aria-labelledby="sec-alerts" className="scroll-mt-28">
               <SectionHeading
                 icon={ShieldAlert}
                 id="sec-alerts"
@@ -988,7 +977,7 @@ export default function MLInsights() {
                   description="No outlier transactions, category spikes or new categories in your recent activity. Check back after a few more transactions."
                 />
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {anomalyItems.map((a, i) => (
                     <motion.div
                       key={i}
@@ -998,30 +987,30 @@ export default function MLInsights() {
                     >
                       <Card
                         className={cn(
-                          "flex items-start gap-2.5 p-2.5",
-                          a.severity === "high" ? "border-rose-500/30" : "border-amber-500/30"
+                          "flex items-start gap-3 p-4 transition-all hover:shadow-md",
+                          a.severity === "high" ? "border-rose-500/30 bg-rose-500/5" : "border-amber-500/30 bg-amber-500/5"
                         )}
                       >
                         <span
                           className={cn(
-                            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                            "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
                             a.severity === "high"
                               ? "border border-rose-500/30 bg-rose-500/15 text-rose-500"
                               : "border border-amber-500/30 bg-amber-500/15 text-amber-500"
                           )}
                         >
-                          <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-semibold">{ANOMALY_TYPE_LABEL[a.type] || "Anomaly"}</span>
-                            <Badge variant={a.severity === "high" ? "destructive" : "warning"} className="px-1.5 py-0 text-[10px] capitalize">
+                            <Badge variant={a.severity === "high" ? "destructive" : "warning"} className="px-2 py-0.5 text-[10.5px] capitalize">
                               {a.severity}
                             </Badge>
-                            <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{a.category}</Badge>
-                            {a.date && <span className="text-[10px] text-muted-foreground">{formatDate(a.date)}</span>}
+                            <Badge variant="secondary" className="px-2 py-0.5 text-[10.5px]">{a.category}</Badge>
+                            {a.date && <span className="text-[10.5px] text-muted-foreground">{formatDate(a.date)}</span>}
                           </div>
-                          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{a.description}</p>
+                          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{a.description}</p>
                         </div>
                         <div className="shrink-0 text-right text-xs font-bold tabular-nums">{formatINR(a.amount)}</div>
                       </Card>
