@@ -261,7 +261,9 @@ export default function Budgets() {
                       <span className="kpi-number text-2xl font-bold">{formatINR(b.spent)}</span>
                       <span className="text-sm text-muted-foreground">of {formatINR(b.limit)}</span>
                     </div>
-                    <Progress value={b.pct} indicatorClassName={s.bar} className="mb-3 h-2" />
+                    <div className="group relative">
+                      <Progress value={b.pct} indicatorClassName={s.bar} className="mb-3 h-1.5 transition-all duration-300 group-hover:h-2" />
+                    </div>
                     <div className="flex items-center justify-between">
                       <Badge variant={s.variant} className="text-xs">{b.pct}% used</Badge>
                       <span className={cn("text-xs font-medium", b.remaining < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400")}>
