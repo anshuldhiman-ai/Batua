@@ -1,7 +1,8 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Plus, Trash2, Wallet, Loader2, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 import PageHeader from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,6 +106,18 @@ export default function Budgets() {
     setSearchQuery("");
   };
 
+  // Close dropdown when clicking outside
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className="page-enter space-y-6">
       <PageHeader
@@ -121,7 +134,7 @@ export default function Budgets() {
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
             {/* Modern Category Selector */}
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={dropdownRef}>
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                   <Search className="h-4 w-4" />
@@ -148,13 +161,17 @@ export default function Budgets() {
                 )}
               </div>
 
-              {/* Dropdown */}
-              {showDropdown && filteredCategories.length > 0 && (
+              {/* Dropdown with Portal to render outside stacking context */}
+              {showDropdown && filteredCategories.length > 0 && typeof document !== 'undefined' && createPortal(
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={spring}
-                  className="absolute z-50 mt-2 w-full rounded-xl border border-border/60 bg-background shadow-lg max-h-60 overflow-auto"
+                  className="fixed z-[9999] mt-2 w-[calc(100%-32px)] rounded-xl border border-border/60 bg-background shadow-2xl max-h-60 overflow-auto"
+                  style={{
+                    top: dropdownRef.current?.getBoundingClientRect().bottom + 8 || 0,
+                    left: dropdownRef.current?.getBoundingClientRect().left || 0,
+                  }}
                 >
                   {filteredCategories.map((cat) => (
                     <button
@@ -166,7 +183,8 @@ export default function Budgets() {
                       <span className="text-sm font-medium">{cat}</span>
                     </button>
                   ))}
-                </motion.div>
+                </motion.div>,
+                document.body
               )}
             </div>
 
