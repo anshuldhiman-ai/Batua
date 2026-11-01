@@ -167,14 +167,10 @@ def _with_kind(txn: dict) -> dict:
 
 
 def _default_month(months: list[str]) -> str:
-    """Pick the 'current' month for dashboards: the latest month with data that is
-    not in the future. Future-dated recurring entries (e.g. a SIP set up for the
-    months ahead) must not drag the dashboard into an empty future month."""
-    if not months:
-        return datetime.now().strftime("%Y-%m")
-    today_ym = datetime.now().strftime("%Y-%m")
-    past = [m for m in months if m <= today_ym]
-    return past[-1] if past else months[0]
+    """Pick the 'current' month for dashboards: always returns the current month
+    regardless of whether there's transaction data. This ensures budgets and
+    insights always show the current month's context."""
+    return datetime.now().strftime("%Y-%m")
 
 
 def _txn_key(t: dict) -> tuple:
