@@ -36,10 +36,14 @@ def _sort_txns(txns: list[dict], sort_by: str, sort_order: str) -> list[dict]:
     """
     field = sort_by if sort_by in _SORTABLE_FIELDS else "date"
     reverse = sort_order != "asc"
-    if field in _NUMERIC_SORT_FIELDS:
-        key = lambda t: float(t.get(field) or 0)
-    else:
-        key = lambda t: str(t.get(field) or "").casefold()
+
+    def numeric_key(t):
+        return float(t.get(field) or 0)
+
+    def string_key(t):
+        return str(t.get(field) or "").casefold()
+
+    key = numeric_key if field in _NUMERIC_SORT_FIELDS else string_key
     return sorted(txns, key=key, reverse=reverse)
 
 

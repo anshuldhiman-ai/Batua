@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -27,12 +26,12 @@ BACKEND = ROOT / "backend"
 DATA_DIR = BACKEND / "data"
 sys.path.insert(0, str(BACKEND))
 
-import joblib
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
+import joblib  # noqa: E402
+from sklearn.feature_extraction.text import TfidfVectorizer  # noqa: E402
+from sklearn.linear_model import LogisticRegression  # noqa: E402
+from sklearn.metrics import classification_report, accuracy_score  # noqa: E402
+from sklearn.model_selection import train_test_split  # noqa: E402
+from sklearn.pipeline import Pipeline  # noqa: E402
 
 
 def load_dataset() -> tuple[list[str], list[str]]:
@@ -105,9 +104,9 @@ def train_pipeline(texts: list[str], labels: list[str]):
     print("\nEvaluating on unseen test set (20% holdout)...")
     y_pred = pipeline.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
-    print(f"\n==========================================")
+    print("\n==========================================")
     print(f"  Overall Test Accuracy: {acc * 100:.2f}%")
-    print(f"==========================================\n")
+    print("==========================================\n")
 
     report = classification_report(y_test, y_pred, digits=3, zero_division=0)
     print(report)

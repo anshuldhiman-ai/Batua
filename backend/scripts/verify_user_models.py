@@ -15,10 +15,10 @@ if not joblib_path.exists():
     print("ERROR: classifier_mobile.joblib not found at root.")
     sys.exit(1)
 
-import joblib
+import joblib  # noqa: E402
 try:
     model = joblib.load(joblib_path)
-    print(f"[OK] Joblib Model loaded successfully!")
+    print("[OK] Joblib Model loaded successfully!")
     print(f"  Type: {type(model)}")
     if hasattr(model, "classes_"):
         classes = list(model.classes_)
@@ -82,7 +82,7 @@ else:
         import numpy as np
         sess = ort.InferenceSession(str(onnx_path))
         input_name = sess.get_inputs()[0].name
-        print(f"[OK] ONNX Runtime session initialized successfully!")
+        print("[OK] ONNX Runtime session initialized successfully!")
         print(f"  Input name: '{input_name}', Shape: {sess.get_inputs()[0].shape}")
         
         # Test onnx inference
