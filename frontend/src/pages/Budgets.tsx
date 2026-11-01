@@ -108,11 +108,18 @@ export default function Budgets() {
 
   // Close dropdown when clicking outside
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const dropdownContainerRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
+      const target = event.target as Node;
+      // Don't close if clicking inside the input container or the dropdown
+      if (dropdownRef.current && dropdownRef.current.contains(target)) {
+        return;
       }
+      if (dropdownContainerRef.current && dropdownContainerRef.current.contains(target)) {
+        return;
+      }
+      setShowDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -164,10 +171,11 @@ export default function Budgets() {
               {/* Dropdown with Portal to render outside stacking context */}
               {showDropdown && filteredCategories.length > 0 && typeof document !== 'undefined' && createPortal(
                 <motion.div
+                  ref={dropdownContainerRef}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={spring}
-                  className="fixed z-[9999] mt-2 w-[calc(100%-32px)] rounded-xl border border-border/60 bg-background shadow-2xl max-h-60 overflow-auto"
+                  className="fixed z-[9999] mt-2 w-72 rounded-xl border border-border/60 bg-background shadow-2xl max-h-60 overflow-auto"
                   style={{
                     top: dropdownRef.current?.getBoundingClientRect().bottom + 8 || 0,
                     left: dropdownRef.current?.getBoundingClientRect().left || 0,
@@ -176,7 +184,12 @@ export default function Budgets() {
                   {filteredCategories.map((cat) => (
                     <button
                       key={cat}
-                      onClick={() => selectCategory(cat)}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        selectCategory(cat);
+                      }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
                     >
                       <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: categoryColor(cat) }} />
