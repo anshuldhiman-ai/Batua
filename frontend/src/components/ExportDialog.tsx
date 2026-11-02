@@ -84,10 +84,17 @@ export default function ExportDialog({ trigger }: { trigger: React.ReactElement 
     const url = apiUrl(`/export/${format}${qs ? `?${qs}` : ""}`);
     setBusy(true);
     try {
+      // Get the session token to include in the request
+      const token = sessionStorage.getItem("batua-session-token");
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       // Stream the file out of the fetch response directly —
       // window.open() after an await can be popup-blocked and
       // would download the body twice.
-      const res = await fetch(url);
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
       const blob = await res.blob();
       const a = document.createElement("a");
