@@ -523,17 +523,9 @@ export default function Layout({ splashVisible }: LayoutProps) {
     if (!routeHasSearch(location.pathname)) setNavSearch("");
   }, [location.pathname]);
 
-  // Pre-load AI Insights data on app mount for smoother experience
-  useEffect(() => {
-    const controller = new AbortController();
-    const { signal } = controller;
-    Promise.allSettled([
-      api.get("/ml/spending-patterns", { signal }),
-      api.get("/ml/cash-flow-forecast", { signal }),
-      api.get("/ml/recommendations", { signal }),
-    ]);
-    return () => controller.abort();
-  }, []);
+  // Removed aggressive ML preload - let React Query cache handle it on-demand
+  // Preloading 3 heavy ML endpoints on every mount was adding ~2-5s of startup time
+  // Users will now only load ML data when they actually visit the ML Insights page
 
   // First-time visitors get the onboarding tour automatically — after the page
   // has painted, so the tour never feels like it snatches the screen. (Body

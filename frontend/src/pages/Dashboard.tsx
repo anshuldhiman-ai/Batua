@@ -193,15 +193,20 @@ export default function Dashboard() {
                   insightsQuery.isLoading || 
                   (!!currentMonth && breakdownQuery.isLoading);
 
-  // Discover once whether Gemini is enabled
+  // Discover once whether Gemini is enabled - defer until after paint for faster startup
   React.useEffect(() => {
     const controller = new AbortController();
-    api.get("/", { signal: controller.signal })
-      .then((r) => setGeminiAvailable(Boolean(r.data?.ai)))
-      .catch(() => {
-        if (!controller.signal.aborted) setGeminiAvailable(false);
-      });
-    return () => controller.abort();
+    const t = setTimeout(() => {
+      api.get("/", { signal: controller.signal })
+        .then((r) => setGeminiAvailable(Boolean(r.data?.ai)))
+        .catch(() => {
+          if (!controller.signal.aborted) setGeminiAvailable(false);
+        });
+    }, 100); // Small delay to prioritize initial render
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, []);
 
   const mountedRef = React.useRef(true);
