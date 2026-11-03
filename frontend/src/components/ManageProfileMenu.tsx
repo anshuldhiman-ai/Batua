@@ -50,7 +50,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
         {label}
       </span>
       <input
@@ -60,7 +60,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
       />
     </label>
   );
@@ -182,19 +182,19 @@ function ProfileWindow(p: ProfileWindowProps) {
           className="pointer-events-auto flex max-h-[88vh] w-[min(620px,100%)] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-2xl shadow-black/20 backdrop-blur-xl"
         >
         {/* Header — spans the full window width */}
-        <div className="flex items-center gap-3 border-b border-border/50 px-5 py-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+        <div className="flex items-center gap-4 border-b border-border/50 px-6 py-5 bg-gradient-to-r from-background to-muted/20">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10 text-sm font-semibold text-primary ring-1 ring-inset ring-primary/20 shadow-sm">
             {initials}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold tracking-tight">
               {user?.username ?? "Account"}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground mt-0.5">
               {user?.email || "Local account"}
             </p>
           </div>
-          <span className="ml-2 hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 sm:flex">
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 sm:flex shadow-sm">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
             Local account
           </span>
@@ -202,7 +202,7 @@ function ProfileWindow(p: ProfileWindowProps) {
             type="button"
             onClick={close}
             aria-label="Close profile manager"
-            className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -213,7 +213,7 @@ function ProfileWindow(p: ProfileWindowProps) {
         <div className="flex min-h-0 flex-1">
           <nav
             aria-label="Profile sections"
-            className="flex w-14 shrink-0 flex-col gap-1 border-r border-border/50 p-2.5 sm:w-48 sm:p-3"
+            className="flex w-14 shrink-0 flex-col gap-1.5 border-r border-border/50 bg-muted/10 p-2.5 sm:w-52 sm:p-3"
           >
             {(
               [
@@ -231,9 +231,9 @@ function ProfileWindow(p: ProfileWindowProps) {
                 aria-selected={tab === key}
                 title={label}
                 className={cn(
-                  "flex items-center justify-center gap-2.5 rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors sm:justify-start",
+                  "flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all sm:justify-start",
                   tab === key
-                    ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/15"
+                    ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/15 shadow-sm"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                 )}
               >
@@ -243,44 +243,45 @@ function ProfileWindow(p: ProfileWindowProps) {
             ))}
           </nav>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
         {/* Tab panels */}
         {tab === "overview" && (
-          <div className="space-y-3 text-sm">
+          <div className="space-y-4 text-sm">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
+              <div className="rounded-xl border border-border/60 bg-gradient-to-br from-muted/20 to-muted/10 px-4 py-3.5 ring-1 ring-inset ring-border/40">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Account type
                 </p>
-                <p className="mt-1 text-sm font-medium">Local single-user</p>
+                <p className="mt-1.5 text-sm font-semibold">Local single-user</p>
               </div>
-              <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
+              <div className="rounded-xl border border-border/60 bg-gradient-to-br from-muted/20 to-muted/10 px-4 py-3.5 ring-1 ring-inset ring-border/40">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Storage
                 </p>
-                <p className="mt-1 text-sm font-medium">On this device</p>
+                <p className="mt-1.5 text-sm font-semibold">On this device</p>
               </div>
             </div>
-            <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
+            <div className="rounded-xl border border-border/60 bg-gradient-to-br from-muted/20 to-muted/10 px-4 py-3.5 ring-1 ring-inset ring-border/40">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Username
               </p>
-              <p className="mt-1 truncate text-sm font-medium">{user?.username ?? "—"}</p>
+              <p className="mt-1.5 truncate text-sm font-semibold">{user?.username ?? "—"}</p>
             </div>
-            <div className="rounded-xl border border-border/50 bg-accent/30 px-3.5 py-3">
+            <div className="rounded-xl border border-border/60 bg-gradient-to-br from-muted/20 to-muted/10 px-4 py-3.5 ring-1 ring-inset ring-border/40">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Email
               </p>
-              <p className="mt-1 truncate text-sm font-medium">{user?.email || "—"}</p>
+              <p className="mt-1.5 truncate text-sm font-semibold">{user?.email || "—"}</p>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Change your password, rename your username, or review the
-              sign-in log from the sections on the left.
-            </p>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 ring-1 ring-inset ring-primary/15">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Manage your password, username, and sign-in history from the sidebar.
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => void logout()}
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+              className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 ring-1 ring-inset ring-destructive/20"
             >
               <LogOut className="h-4 w-4" />
               Sign out
@@ -337,7 +338,7 @@ function ProfileWindow(p: ProfileWindowProps) {
         )}
 
         {tab === "password" && (
-          <form onSubmit={submitPassword} className="space-y-3">
+          <form onSubmit={submitPassword} className="space-y-4">
             <Field
               id="profile-current-password"
               label="Current password"
@@ -356,30 +357,30 @@ function ProfileWindow(p: ProfileWindowProps) {
               autoComplete="new-password"
             />
             {samePassword && !pwSaving && (
-              <p className="text-xs text-destructive">
+              <div className="flex items-center gap-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400 ring-1 ring-inset ring-rose-500/20">
                 New password must be different from the current one.
-              </p>
+              </div>
             )}
             {pwError && (
-              <p role="alert" className="text-xs text-destructive">
+              <div role="alert" className="flex items-center gap-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400 ring-1 ring-inset ring-rose-500/20">
                 {pwError}
-              </p>
+              </div>
             )}
             <button
               type="submit"
               disabled={pwSaving || !pwCurrent || !pwNew || samePassword}
-              className="h-9 w-full rounded-xl bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-10 w-full rounded-xl bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
             >
               {pwSaving ? "Updating…" : "Update password"}
             </button>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
               You will be signed out after the change.
-            </p>
+            </div>
           </form>
         )}
 
         {tab === "username" && (
-          <form onSubmit={submitUsername} className="space-y-3">
+          <form onSubmit={submitUsername} className="space-y-4">
             <Field
               id="profile-new-username"
               label="New username"
@@ -397,19 +398,19 @@ function ProfileWindow(p: ProfileWindowProps) {
               autoComplete="current-password"
             />
             {unError && (
-              <p role="alert" className="text-xs text-destructive">
+              <div role="alert" className="flex items-center gap-2 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400 ring-1 ring-inset ring-rose-500/20">
                 {unError}
-              </p>
+              </div>
             )}
             {unDone && !unError && (
-              <p role="status" className="text-xs text-emerald-600 dark:text-emerald-400">
+              <div role="status" className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 ring-1 ring-inset ring-emerald-500/20">
                 Username updated.
-              </p>
+              </div>
             )}
             <button
               type="submit"
               disabled={unSaving || !newUsername || !unPassword}
-              className="h-9 w-full rounded-xl bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-10 w-full rounded-xl bg-primary text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
             >
               {unSaving ? "Saving…" : "Save username"}
             </button>

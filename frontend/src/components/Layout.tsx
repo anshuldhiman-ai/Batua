@@ -194,7 +194,7 @@ function ThemeToggle({ className }) {
           initial={reduce ? false : { rotate: -90, scale: 0.4, opacity: 0 }}
           animate={{ rotate: 0, scale: 1, opacity: 1 }}
           exit={reduce ? undefined : { rotate: 90, scale: 0.4, opacity: 0 }}
-          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
           className="flex items-center justify-center"
         >
           {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
@@ -221,7 +221,7 @@ function DesktopTopNav() {
             alone reads a touch high; the small translate centres it. */}
         <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
           <Logo className="h-11 w-11 shrink-0" />
-          <span className="shrink-0 translate-y-px font-brand text-xl leading-none tracking-wide">
+          <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
             Batua
           </span>
         </NavLink>
@@ -290,7 +290,7 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
       >
         <Logo className="h-11 w-11 shrink-0" />
         {!collapsed && (
-          <span className="hidden translate-y-px font-brand text-[22px] leading-none tracking-wide lg:inline">
+          <span className="hidden font-brand text-[22px] leading-none tracking-wide lg:inline">
             Batua
           </span>
         )}
