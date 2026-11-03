@@ -649,10 +649,10 @@ export default function Settings() {
     if (!categoryToDelete || !reassignTo) return;
     try {
       await api.post("/categories/delete", {
-        name: categoryToDelete.name,
+        name: categoryToDelete,
         reassign_to: reassignTo,
       });
-      toast.success(`Category "${categoryToDelete.name}" deleted and reassigned`);
+      toast.success(`Category "${categoryToDelete}" deleted and reassigned`);
       setDeleteCategoryOpen(false);
       setCategoryToDelete(null);
       loadCategories();
@@ -958,8 +958,8 @@ export default function Settings() {
           )}
 
           {activeTab === "system" && (
-            <div className="space-y-6">
-              <div className="grid gap-6 lg:grid-cols-12">
+            <div className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-12">
                 {/* ── Backend Connection — system health panel ── */}
                 <Panel className="lg:col-span-5">
                   <PanelHeader
@@ -1004,8 +1004,8 @@ export default function Settings() {
                     <MetricRow icon={Globe} label="Server IP" value="127.0.0.1:8001" />
 
                     {/* Live system metrics — real host + backend usage. */}
-                    <div className="mt-8 rounded-xl bg-muted/40 px-4 py-5 ring-1 ring-inset ring-border/40">
-                      <div className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <div className="mt-5 rounded-xl bg-muted/40 px-3 py-3 ring-1 ring-inset ring-border/40">
+                      <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         <Activity className="h-3.5 w-3.5" /> System metrics
                         {metricsState !== "paused" && metrics && (
                           <span className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal text-muted-foreground/70">
@@ -1030,7 +1030,7 @@ export default function Settings() {
                           </button>
                         )}
                       </div>
-                      <div className="space-y-3.5">
+                      <div className="space-y-2.5">
                         <MetricBar
                           icon={Cpu}
                           label="CPU"
@@ -1426,7 +1426,7 @@ export default function Settings() {
       <Dialog open={deleteCategoryOpen} onOpenChange={setDeleteCategoryOpen}>
         <DialogContent onClose={() => { setDeleteCategoryOpen(false); setCategoryToDelete(null); }}>
           <DialogHeader>
-            <DialogTitle>Delete category "{categoryToDelete?.name}"?</DialogTitle>
+            <DialogTitle>Delete category "{categoryToDelete}"?</DialogTitle>
             <DialogDescription>Choose a category to reassign existing transactions to.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -1437,7 +1437,7 @@ export default function Settings() {
               className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
               data-testid="reassign-category-select"
             >
-              {categories.filter((c) => c !== categoryToDelete?.name).map((cat) => (
+              {categories.filter((c) => c !== categoryToDelete).map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
