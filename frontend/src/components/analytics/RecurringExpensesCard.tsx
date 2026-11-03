@@ -21,7 +21,7 @@ export default function RecurringExpensesCard({ refreshKey = 0 }) {
     setRecurring(null);
     setFailed(false);
     api
-      .get("/recurring")
+      .get("/recurring/")
       .then((r) => active && setRecurring(r.data.recurring || []))
       .catch(() => {
         if (active) {
