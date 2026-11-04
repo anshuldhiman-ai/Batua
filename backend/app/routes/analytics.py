@@ -27,7 +27,7 @@ async def analytics_timeline(start_month: str | None = None, end_month: str | No
         else:
             db_query["date"] = {"$lte": f"{end_month}-31"}
     # Fetch with generous limit; pre_bucket handles month grouping server-side
-    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000)
+    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000, fields=("date", "amount", "payment_method", "txn_type"))
     # Use pre-bucketed data for efficiency
     by_month = pre_bucket_transactions(txns)
     
@@ -62,7 +62,7 @@ async def category_breakdown(month: str | None = None):
     db_query: dict = {}
     if month:
         db_query["date"] = {"$gte": f"{month}-01", "$lte": f"{month}-31"}
-    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000)
+    txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000, fields=("date", "amount", "category"))
     totals: dict[str, float] = defaultdict(float)
     for t in txns:
         if month and month_key(t.get("date", "")) != month:
@@ -81,7 +81,7 @@ async def category_breakdown(month: str | None = None):
 @router.get("/top-merchants")
 async def top_merchants(limit: int = 10):
     storage = get_storage()
-    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000, fields=("amount", "description"))
     totals: dict[str, float] = defaultdict(float)
     for t in txns:
         amount = t.get("amount", 0)
@@ -99,7 +99,7 @@ async def top_merchants(limit: int = 10):
 async def heatmap():
     """Daily expense totals for calendar heatmap (GitHub-style)."""
     storage = get_storage()
-    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000, fields=("date", "amount"))
     by_date: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)
     for t in txns:
@@ -124,7 +124,7 @@ async def payment_method_totals():
     """Spend split into just Online vs Cash, parsing mixed modes like
     '₹5 Cash + ₹291 UPI' and dropping amounts paid by someone else."""
     storage = get_storage()
-    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000, fields=("amount", "payment_method"))
     totals = {"Online": 0.0, "Cash": 0.0}
     counts = {"Online": 0, "Cash": 0}
     for t in txns:
@@ -147,7 +147,7 @@ async def payment_method_totals():
 @router.get("/treemap")
 async def treemap():
     storage = get_storage()
-    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000)
+    txns = await storage.all("transactions", order_by="date", order_desc=True, limit=5000, fields=("amount", "category", "description"))
     nested: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for t in txns:
         amount = t.get("amount", 0)

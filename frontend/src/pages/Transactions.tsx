@@ -38,8 +38,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import NLInputBar from "@/components/NLInputBar";
 import PageHeader from "@/components/PageHeader";
 import UploadProgress from "@/components/UploadProgress";
-import ReceiptScanner from "@/components/ReceiptScanner";
-import ExportDialog from "@/components/ExportDialog";
+const ReceiptScanner = React.lazy(() => import("@/components/ReceiptScanner"));
+const ExportDialog = React.lazy(() => import("@/components/ExportDialog"));
 import { useNavSearch } from "@/components/Layout";
 import { parseReceiptText, type ParsedReceipt } from "@/lib/parse-receipt";
 
@@ -759,13 +759,15 @@ export default function Transactions() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <ExportDialog
-                trigger={
-                  <Button variant="outline" size="sm" data-testid="export-btn">
-                    <Download className="h-4 w-4" /> Export
-                  </Button>
-                }
-              />
+              <React.Suspense fallback={<Button variant="outline" size="sm" disabled><Download className="h-4 w-4" /> Export</Button>}>
+                <ExportDialog
+                  trigger={
+                    <Button variant="outline" size="sm" data-testid="export-btn">
+                      <Download className="h-4 w-4" /> Export
+                    </Button>
+                  }
+                />
+              </React.Suspense>
               <Button variant="outline" size="sm" onClick={() => setReceiptModalOpen(true)} data-testid="scan-receipt-btn">
                 <Camera className="h-4 w-4" /> Scan Receipt
               </Button>
@@ -1077,10 +1079,12 @@ export default function Transactions() {
           data-testid="receipt-modal"
           className="max-w-2xl"
         >
-          <ReceiptScanner
-            onTextExtracted={handleReceiptTextExtracted}
-            onClose={() => setReceiptModalOpen(false)}
-          />
+          <React.Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Loading scanner...</div>}>
+            <ReceiptScanner
+              onTextExtracted={handleReceiptTextExtracted}
+              onClose={() => setReceiptModalOpen(false)}
+            />
+          </React.Suspense>
         </DialogContent>
       </Dialog>
 

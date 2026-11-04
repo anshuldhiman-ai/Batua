@@ -15,7 +15,8 @@ async def dashboard_metrics():
     if cached:
         return cached
     
-    txns = await get_all_txns()
+    # Fetch only columns needed for dashboard metrics to avoid deserializing unneeded text
+    txns = await get_all_txns(fields=("date", "amount", "category", "payment_method", "txn_type"))
     if not txns:
         return {
             "income": 0, "expense": 0, "net": 0, "savings_rate": 0,
@@ -44,14 +45,27 @@ async def dashboard_metrics():
     net = income - expense  # funds left this month (negative = overspent)
     p_net = p_income - p_expense
     savings_rate = round(net / income * 100, 1) if income > 0 else 0.0
-    investments_total = -sum(
-        t.get("amount", 0) for t in txns
-        if t.get("amount", 0) < 0 and t.get("category") == "Investments"
-    )
 
-    # All-time totals + monthly averages.
-    total_income = sum(t.get("amount", 0) for t in txns if t.get("amount", 0) > 0)
-    total_expense = -sum(t.get("amount", 0) for t in txns if t.get("amount", 0) < 0)
+    # Single-pass accumulation for all-time totals and category breakdown
+    investments_total = 0.0
+    total_income = 0.0
+    total_expense = 0.0
+    cat_totals: dict[str, float] = defaultdict(float)
+
+    for t in txns:
+        amount = t.get("amount", 0.0)
+        cat = t.get("category", "Other")
+        d = t.get("date", "")
+        if amount > 0:
+            total_income += amount
+        elif amount < 0:
+            abs_amt = -amount
+            total_expense += abs_amt
+            if cat == "Investments":
+                investments_total += abs_amt
+            if month_key(d) == current:
+                cat_totals[cat] += abs_amt
+
     total_savings = total_income - total_expense
     total_savings_rate = round(total_savings / total_income * 100, 1) if total_income > 0 else 0.0
     
@@ -61,11 +75,6 @@ async def dashboard_metrics():
     rates = [(v["income"] - v["expense"]) / v["income"] * 100 for v in by_month.values() if v["income"] > 0]
     avg_savings_rate = round(sum(rates) / len(rates), 1) if rates else 0.0
 
-    cat_totals: dict[str, float] = defaultdict(float)
-    for t in txns:
-        amount = t.get("amount", 0)
-        if month_key(t.get("date", "")) == current and amount < 0:
-            cat_totals[t.get("category", "Other")] += -amount
     top = sorted(cat_totals.items(), key=lambda kv: kv[1], reverse=True)[:5]
 
     result = {

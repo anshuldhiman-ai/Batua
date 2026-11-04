@@ -221,7 +221,15 @@ class SQLiteStorage:
             async with self._engine.begin() as conn:
                 result = await conn.execute(text("PRAGMA index_list(transactions)"))
                 existing = {row[1] for row in result}
-                needed = ["idx_transactions_date", "idx_transactions_category", "idx_transactions_payment_method", "idx_transactions_txn_type"]
+                needed = [
+                    "idx_transactions_date",
+                    "idx_transactions_category",
+                    "idx_transactions_payment_method",
+                    "idx_transactions_txn_type",
+                    "idx_transactions_date_desc",
+                    "idx_transactions_cat_date",
+                    "idx_transactions_type_date",
+                ]
                 for idx_name in needed:
                     if idx_name not in existing:
                         if idx_name == "idx_transactions_date":
@@ -232,6 +240,12 @@ class SQLiteStorage:
                             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_payment_method ON transactions(payment_method)"))
                         elif idx_name == "idx_transactions_txn_type":
                             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_txn_type ON transactions(txn_type)"))
+                        elif idx_name == "idx_transactions_date_desc":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_date_desc ON transactions(date DESC)"))
+                        elif idx_name == "idx_transactions_cat_date":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_cat_date ON transactions(category, date DESC)"))
+                        elif idx_name == "idx_transactions_type_date":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(txn_type, date DESC)"))
             self._indexes_ready = True
 
     @staticmethod

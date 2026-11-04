@@ -9,11 +9,11 @@ def month_key(date_str: str) -> str:
     return (date_str or "")[:7]  # YYYY-MM
 
 
-async def get_all_txns() -> list[dict]:
+async def get_all_txns(fields: tuple[str, ...] | None = None) -> list[dict]:
     """Shared helper to fetch all transactions using global storage dependency."""
     from app.dependencies import get_storage
     storage = get_storage()
-    return await storage.all("transactions")
+    return await storage.all("transactions", fields=fields)
 
 
 async def get_txns_filtered(
@@ -167,10 +167,11 @@ def _with_kind(txn: dict) -> dict:
 
 
 def _default_month(months: list[str]) -> str:
-    """Pick the 'current' month for dashboards: always returns the current month
-    regardless of whether there's transaction data. This ensures budgets and
-    insights always show the current month's context."""
-    return datetime.now().strftime("%Y-%m")
+    """Pick the default month: returns the latest non-future month if months are provided,
+    otherwise falls back to the current calendar month."""
+    now = datetime.now().strftime("%Y-%m")
+    valid = [m for m in months if m <= now]
+    return max(valid) if valid else now
 
 
 def _txn_key(t: dict) -> tuple:

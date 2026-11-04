@@ -8,7 +8,6 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDataLoaded } from "@/hooks/useDataLoaded";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/components/Auth";
-import LoginPage from "@/components/LoginPage";
 import {
   applyAccent,
   revealTheme,
@@ -18,7 +17,8 @@ import {
 } from "@/lib/themes";
 import type { SetLocalStorageValue } from "@/hooks/useLocalStorage";
 
-// Code split route components for better performance
+// Code split components for better performance
+const LoginPage = React.lazy(() => import("@/components/LoginPage"));
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const Transactions = React.lazy(() => import("./pages/Transactions"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
@@ -172,7 +172,13 @@ function Gate({
     return <SplashScreen onHide={() => setSplashVisible(false)} hold />;
   }
   if (!user) {
-    return <LoginPage />;
+    return (
+      <React.Suspense
+        fallback={<SplashScreen onHide={() => setSplashVisible(false)} hold />}
+      >
+        <LoginPage />
+      </React.Suspense>
+    );
   }
   return (
     <>

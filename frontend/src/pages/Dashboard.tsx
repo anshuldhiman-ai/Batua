@@ -169,7 +169,8 @@ export default function Dashboard() {
     }
   });
 
-  const currentMonth = metricsQuery.data?.current_month;
+  const defaultMonth = React.useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const currentMonth = metricsQuery.data?.current_month || defaultMonth;
   const breakdownQuery = useQuery({
     queryKey: ["category_breakdown", currentMonth],
     queryFn: async () => {
@@ -178,7 +179,6 @@ export default function Dashboard() {
       });
       return res.data;
     },
-    enabled: !!metricsQuery.data,
   });
 
   // Derived properties from queries
@@ -187,11 +187,11 @@ export default function Dashboard() {
   const breakdown = breakdownQuery.data?.data || [];
   const insights = insightsQuery.data;
   
-  // Loading flag aggregated from all individual queries
+  // Loading flag aggregated from all individual queries (all fire in parallel)
   const loading = metricsQuery.isLoading || 
                   timelineQuery.isLoading || 
                   insightsQuery.isLoading || 
-                  (!!currentMonth && breakdownQuery.isLoading);
+                  breakdownQuery.isLoading;
 
   // Discover once whether Gemini is enabled - defer until after paint for faster startup
   React.useEffect(() => {

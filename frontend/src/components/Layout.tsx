@@ -22,8 +22,8 @@ import {
   LayoutGrid,
 } from "lucide-react";
 
-import Tour from "@/components/Tour";
-import { TOUR_STEPS } from "@/tour-steps";
+// Lazy-load Tour & its steps so initial dashboard paint is not blocked by tour bundle
+const Tour = React.lazy(() => import("@/components/Tour"));
 
 import { ThemeContext } from "@/App";
 import Logo from "@/components/Logo";
@@ -508,7 +508,15 @@ export default function Layout({ splashVisible }: LayoutProps) {
   const [collapsed, setCollapsed] = useLocalStorage("batua-sidebar-collapsed", false);
   const [tourSeen, setTourSeen] = useLocalStorage("batua-tour-seen", false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [tourSteps, setTourSteps] = useState<any[] | null>(null);
   const location = useLocation();
+
+  // Lazy-load tour steps only when tour is triggered
+  useEffect(() => {
+    if (tourOpen && !tourSteps) {
+      import("@/tour-steps").then((mod) => setTourSteps(mod.TOUR_STEPS));
+    }
+  }, [tourOpen, tourSteps]);
 
   // Update document title based on current route
   useEffect(() => {
@@ -561,8 +569,10 @@ export default function Layout({ splashVisible }: LayoutProps) {
       {!splashVisible && <MobileNav />}
 
       <AnimatePresence>
-        {tourOpen && (
-          <Tour steps={TOUR_STEPS} open onClose={closeTour} onFinish={closeTour} />
+        {tourOpen && tourSteps && (
+          <React.Suspense fallback={null}>
+            <Tour steps={tourSteps} open onClose={closeTour} onFinish={closeTour} />
+          </React.Suspense>
         )}
       </AnimatePresence>
 

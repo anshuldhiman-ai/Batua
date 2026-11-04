@@ -15,6 +15,7 @@ from fastapi import FastAPI, APIRouter  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 
 import storage as storage_mod  # noqa: E402
 import ai  # noqa: E402
@@ -348,6 +349,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Gzip compression for all JSON / text payloads >= 500 bytes (75-85% size reduction over wire)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 if __name__ == "__main__":
