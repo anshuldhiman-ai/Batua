@@ -102,9 +102,11 @@ async def list_transactions(
     if start_date or end_date:
         db_query["date"] = {}
         if start_date:
-            db_query["date"]["$gte"] = start_date
+            db_query["date"]["$gte"] = start_date[:10] if len(start_date) >= 10 else start_date
         if end_date:
-            db_query["date"]["$lte"] = end_date
+            # If end_date is YYYY-MM-DD (10 chars), extend to end of day
+            # so timestamped transactions on that day are not omitted.
+            db_query["date"]["$lte"] = f"{end_date[:10]}~" if len(end_date) >= 10 else end_date
 
     # Transaction type filtering
     if txn_type == "income":

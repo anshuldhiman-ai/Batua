@@ -1148,14 +1148,13 @@ input:checked + .auth-check-glyph .auth-check-path {
   }
 
   body {
-    background: #ffffff !important;
-    color: #111827 !important;
     padding: 0 !important;
     margin: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
+  /* Document theme matching: Light (Paper) vs Dark (Native) */
   #printable-statement {
     display: block !important;
     position: relative !important;
@@ -1163,10 +1162,22 @@ input:checked + .auth-check-glyph .auth-check-path {
     max-width: 100% !important;
     padding: 1.5rem !important;
     margin: 0 auto !important;
-    background: #ffffff !important;
-    color: #111827 !important;
     box-shadow: none !important;
     border: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #printable-statement[data-theme="light"],
+  body:has(#printable-statement[data-theme="light"]) {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  #printable-statement[data-theme="dark"],
+  body:has(#printable-statement[data-theme="dark"]) {
+    background: #09090b !important;
+    color: #f4f4f5 !important;
   }
 }
 
