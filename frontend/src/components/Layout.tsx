@@ -34,6 +34,8 @@ import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { api } from "@/lib/utils-finance";
 import { useDebounce } from "@/hooks/useDebounce";
+import UserGuide from "@/components/UserGuide";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
 /**
  * Cross-page transaction search, shared by the top navbar and any page
@@ -267,7 +269,17 @@ function DesktopTopNav() {
 }
 
 /* ─── Desktop sidebar ─────────────────────────────────────────────── */
-function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
+function DesktopSidebar({
+  collapsed,
+  onToggle,
+  onLaunchTour,
+  onHelp,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  onLaunchTour: () => void;
+  onHelp?: () => void;
+}) {
   const location = useLocation();
   const { logout } = useAuth();
 
@@ -343,10 +355,10 @@ function DesktopSidebar({ collapsed, onToggle, onLaunchTour }) {
         <ManageProfileMenu variant="bottom-left" onSignOut={() => void logout()} />
         <button
           type="button"
-          onClick={onLaunchTour}
-          aria-label="Take the tour"
-          data-testid="tour-launch"
-          title="Guided tour"
+          onClick={() => (onHelp ? onHelp() : onLaunchTour())}
+          aria-label="User Guide & Shortcuts (Press ?)"
+          data-testid="sidebar-help"
+          title="User Guide & Shortcuts (Press ?)"
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <CircleHelp className="h-[18px] w-[18px]" />
@@ -509,7 +521,17 @@ export default function Layout({ splashVisible }: LayoutProps) {
   const [tourSeen, setTourSeen] = useLocalStorage("batua-tour-seen", false);
   const [tourOpen, setTourOpen] = useState(false);
   const [tourSteps, setTourSteps] = useState<any[] | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const location = useLocation();
+
+  // Enable productivity keyboard shortcuts
+  useKeyboardShortcuts();
+
+  useEffect(() => {
+    const handleShowHelp = () => setHelpOpen(true);
+    window.addEventListener("shortcut:show-help", handleShowHelp);
+    return () => window.removeEventListener("shortcut:show-help", handleShowHelp);
+  }, []);
 
   // Lazy-load tour steps only when tour is triggered
   useEffect(() => {
@@ -564,9 +586,12 @@ export default function Layout({ splashVisible }: LayoutProps) {
           collapsed={collapsed}
           onToggle={() => setCollapsed((c) => !c)}
           onLaunchTour={() => setTourOpen(true)}
+          onHelp={() => setHelpOpen(true)}
         />
       )}
       {!splashVisible && <MobileNav />}
+
+      <UserGuide open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       <AnimatePresence>
         {tourOpen && tourSteps && (

@@ -41,6 +41,7 @@ import {
   Tags,
   Settings2,
   Server,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -66,6 +67,8 @@ import { useAuth } from "@/components/Auth";
 import { api } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import UserGuide from "@/components/UserGuide";
+import { parseBackupFile } from "@/lib/backupValidation";
 
 /* ────────────────────────────────────────────────────────────────
    Settings — premium, enterprise-grade preferences page.
@@ -388,6 +391,9 @@ export default function Settings() {
   const [deleteCategoryOpen, setDeleteCategoryOpen] = React.useState(false);
   const [categoryToDelete, setCategoryToDelete] = React.useState(null);
   const [reassignTo, setReassignTo] = React.useState("");
+  
+  // User guide state
+  const [userGuideOpen, setUserGuideOpen] = React.useState(false);
 
   // Change password form state
   const [pwCurrent, setPwCurrent] = React.useState("");
@@ -709,14 +715,16 @@ export default function Settings() {
     if (!file) return;
     setRestoring(true);
     try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (parsed?.app !== "batua" || (!parsed.transactions && !parsed.budgets)) {
-        throw new Error("Not a Batua backup file");
+      const result = await parseBackupFile(file);
+      if (!result.valid) {
+        throw new Error(result.error || "Invalid backup file");
       }
-      // Stage the parsed backup and ask for typed confirmation — same guardrail
+      if (result.warnings?.length) {
+        result.warnings.forEach((w) => toast.warning(w));
+      }
+      // Stage the validated backup and ask for typed confirmation — same guardrail
       // as the destructive delete flow, never a browser-native confirm().
-      setRestorePending(parsed);
+      setRestorePending(result.data);
       setRestoreText("");
     } catch (e) {
       toast.error(e?.response?.data?.detail || e.message || "Restore failed");
@@ -1235,6 +1243,31 @@ export default function Settings() {
                 />
               </Panel>
 
+              {/* Help & Support */}
+              <Panel>
+                <PanelHeader
+                  icon={HelpCircle}
+                  title="Help & Support"
+                  desc="Learn how to use Batua effectively."
+                />
+                <PanelContent className="space-y-1">
+                  <ActionRow
+                    icon={BookOpen}
+                    title="User Guide"
+                    desc="Comprehensive guide to all features and keyboard shortcuts."
+                    buttonLabel="Open Guide"
+                    onAction={() => setUserGuideOpen(true)}
+                  />
+                  <ActionRow
+                    icon={Github}
+                    title="GitHub Repository"
+                    desc="Report issues, view source code, or contribute to the project."
+                    buttonLabel="Visit"
+                    onAction={() => window.open("https://github.com/anshuldhiman-ai/Batua", "_blank")}
+                  />
+                </PanelContent>
+              </Panel>
+
               {/* Custom Categories */}
               <Panel>
                 <PanelHeader
@@ -1457,6 +1490,8 @@ export default function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <UserGuide open={userGuideOpen} onClose={() => setUserGuideOpen(false)} />
     </div>
   );
 }
