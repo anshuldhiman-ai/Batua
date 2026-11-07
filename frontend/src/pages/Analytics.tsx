@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { RefreshCw, AlertCircle, Download } from "lucide-react";
+import { RefreshCw, AlertCircle, Download, FileSpreadsheet } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsFilter from "@/components/analytics/AnalyticsFilter";
 import AnalyticsSummaryCards from "@/components/analytics/AnalyticsSummaryCards";
@@ -107,6 +107,15 @@ export default function Analytics() {
             >
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => window.dispatchEvent(new CustomEvent("statement:open"))}
+              data-testid="statement-btn"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-primary" /> Statement
             </Button>
             <ExportDialog
               trigger={

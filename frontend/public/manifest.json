@@ -1,45 +1,29 @@
 {
+  "name": "Batua — Smart Personal Finance",
   "short_name": "Batua",
-  "name": "Batua — Personal Finance",
-  "description": "Smart Money. Simple Life.",
+  "description": "Privacy-first personal finance tracker with offline vision and smart insights",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "16x16 32x32 48x48 64x64",
-      "type": "image/x-icon",
-      "purpose": "any"
-    },
-    {
-      "src": "app-icon-light-192.png",
-      "type": "image/png",
+      "src": "/app-icon-dark-192.png",
       "sizes": "192x192",
-      "purpose": "any",
-      "media": "(prefers-color-scheme: light)"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "app-icon-light-512.png",
-      "type": "image/png",
+      "src": "/app-icon-dark-512.png",
       "sizes": "512x512",
-      "purpose": "any",
-      "media": "(prefers-color-scheme: light)"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "app-icon-dark-192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any",
-      "media": "(prefers-color-scheme: dark)"
-    },
-    {
-      "src": "app-icon-dark-512.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "any",
-      "media": "(prefers-color-scheme: dark)"
+      "src": "/b_logo_dark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#176B5C",
-  "background_color": "#ffffff"
+  ]
 }
