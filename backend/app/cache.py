@@ -140,4 +140,9 @@ def pre_bucket_transactions(txns: list[dict]) -> dict[str, dict]:
             if t.get("category") == "Investments":
                 by_month[month]["investments"] += -amount
     
+    for month, data in by_month.items():
+        data["income"] = round(data["income"], 2)
+        data["expense"] = round(data["expense"], 2)
+        data["investments"] = round(data["investments"], 2)
+
     return dict(by_month)

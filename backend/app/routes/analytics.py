@@ -500,8 +500,8 @@ def compute_trends_analysis(txns, start_str: str, end_str: str, categories: list
     if expenses:
         l_txn = min(expenses, key=lambda x: x.get("amount", 0.0))
         s_txn = max(expenses, key=lambda x: x.get("amount", 0.0))
-        largest = {"amount": abs(l_txn.get("amount", 0.0)), "category": l_txn.get("category", "Other"), "description": l_txn.get("description", "")}
-        smallest = {"amount": abs(s_txn.get("amount", 0.0)), "category": s_txn.get("category", "Other"), "description": s_txn.get("description", "")}
+        largest = {"amount": round(abs(l_txn.get("amount", 0.0)), 2), "category": l_txn.get("category", "Other"), "description": l_txn.get("description", "")}
+        smallest = {"amount": round(abs(s_txn.get("amount", 0.0)), 2), "category": s_txn.get("category", "Other"), "description": s_txn.get("description", "")}
         
     # Fastest growing category — real growth, comparing each category's spend in
     # the second half of the period against its spend in the first half.

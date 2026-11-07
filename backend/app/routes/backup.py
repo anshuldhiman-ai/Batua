@@ -135,7 +135,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
                     await storage.insert_many(collection, rows)
                     if collection not in touched:
                         touched.append(collection)
-    except (RuntimeError, ValueError, TypeError, KeyError) as exc:
+    except Exception as exc:
         logger.error("Restore failed; rolling back %s", touched or "nothing", exc_info=True)
         # Roll back defensively: whatever broke the restore may well break the rollback too
         unrecovered = []
@@ -144,7 +144,7 @@ async def restore_backup(payload: BackupPayload, replace: bool = True):
                 await storage.clear(collection)
                 if previous[collection]:
                     await storage.insert_many(collection, previous[collection])
-            except (RuntimeError, ValueError, TypeError, KeyError):
+            except Exception:
                 logger.critical("Rollback failed for %r — data may be lost", collection, exc_info=True)
                 unrecovered.append(collection)
         invalidate_analytics_cache()

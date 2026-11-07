@@ -89,25 +89,6 @@ async def list_transactions(
     sort_field = sort_by if sort_by in _SORTABLE_FIELDS else "date"
     descending = sort_order != "asc"
 
-    def _matches_search(t) -> bool:
-        """Search across the whole record — description, notes,
-        category, payment method, and the date in several formats."""
-        s = search.lower().strip()
-        parts = [
-            t.get("description", ""), t.get("notes", ""),
-            t.get("category", ""), t.get("payment_method", ""),
-            (t.get("date", "") or "")[:10],
-        ]
-        hay = " ".join(p for p in parts if p).lower()
-        try:
-            from datetime import datetime
-
-            dt = datetime.strptime((t.get("date") or "")[:10], "%Y-%m-%d")
-            hay += " " + dt.strftime("%d %b %Y %B %A").lower()
-        except (ValueError, TypeError):
-            pass
-        return s in hay
-
     # Build database-level query for filterable fields.
     # SQLite's storage understands the $-operators too, so
     # both backends push these predicates down to the DB.
@@ -131,45 +112,18 @@ async def list_transactions(
     elif txn_type == "expense":
         db_query["amount"] = {"$lt": 0}
 
-    # Search must narrow the *full* set BEFORE pagination — otherwise
-    # page N only ever matches rows that were already on page N, so a
-    # search silently returns fewer/no results and the counts are wrong.
-    # Search has no database-level predicate (it spans several fields),
-    # so the matching rows are selected here and paginated after.
-    #
-    # The scan is bounded to the SEARCH_SCAN_LIMIT most recent rows:
-    # matching happens across description/notes/category/method/date,
-    # which neither backend can push down, so the whole-collection
-    # scan is what made typing feel laggy. Recent rows are the ones
-    # a search is almost always after; the cap keeps each keystroke
-    # O(limit) instead of O(collection).
+    # Database-level search pushed down via SQL LIKE across core fields.
+    # Eliminates full-collection memory scans and bounds search cost to DB index/scan.
     if search and search.strip():
-        all_txns = await storage.all(
-            "transactions",
-            query=db_query,
-            order_by="date",
-            order_desc=True,
-            limit=SEARCH_SCAN_LIMIT,
-        )
-        matched = [t for t in all_txns if _matches_search(t)]
-        total = len(matched)
-        matched = _sort_txns(matched, sort_field, sort_order)
-        page = max(1, page)
-        page_size = max(1, min(page_size, MAX_PAGE_SIZE))
-        offset = (page - 1) * page_size
-        txns = matched[offset : offset + page_size]
-        items = [_with_kind(t) for t in txns]
-        return {
-            "items": items,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "pages": (total + page_size - 1) // page_size,
-            # Tells the client the match set may be a prefix of the
-            # collection when the cap kicked in — so it can show
-            # "searching recent entries" instead of a wrong count.
-            "scan_limited": len(all_txns) >= SEARCH_SCAN_LIMIT,
-        }
+        s = search.strip()
+        like_pat = f"%{s}%"
+        db_query["$or"] = [
+            {"description": {"$like": like_pat}},
+            {"notes": {"$like": like_pat}},
+            {"category": {"$like": like_pat}},
+            {"payment_method": {"$like": like_pat}},
+            {"date": {"$like": like_pat}},
+        ]
 
     # Get total count for pagination
     total = await storage.count("transactions", query=db_query)
@@ -355,7 +309,12 @@ async def delete_transaction(txn_id: str):
 
 @router.delete("", include_in_schema=False)
 @router.delete("/")
-async def wipe_transactions():
+async def wipe_transactions(confirm: str | None = None):
+    if confirm != "CONFIRM_DELETE_ALL":
+        raise HTTPException(
+            400,
+            "Wipe confirmation required. Pass confirm=CONFIRM_DELETE_ALL to delete all transactions.",
+        )
     storage = get_storage()
     n = await storage.clear("transactions")
     invalidate_analytics_cache()  # Invalidate cache on wipe

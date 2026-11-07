@@ -470,7 +470,11 @@ def test_wipe_transactions(client):
     client.post("/api/transactions", json={"date": "2026-06-19", "description": "T1", "amount": -10})
     client.post("/api/transactions", json={"date": "2026-06-19", "description": "T2", "amount": -20})
     
-    response = client.delete("/api/transactions")
+    # Missing confirmation must be rejected
+    unconfirmed = client.delete("/api/transactions")
+    assert unconfirmed.status_code == 400
+
+    response = client.delete("/api/transactions?confirm=CONFIRM_DELETE_ALL")
     assert response.status_code == 200
     assert response.json()["deleted"] == 2
     assert client.get("/api/transactions").json()["total"] == 0

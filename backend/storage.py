@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Any, Dict
 
-from sqlmodel import SQLModel, Field, select
+from sqlmodel import SQLModel, Field, select, or_, and_
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import update as sqlalchemy_update
@@ -178,6 +178,80 @@ def _to_model(doc: Dict[str, Any], collection: str) -> Any:
     return model_class(**clean_doc)
 
 
+def _build_where_clauses(model_class: Any, query: Optional[dict]) -> list:
+    """Translate MongoDB-style query dictionaries into SQLAlchemy / SQLModel predicates."""
+    if not query:
+        return []
+
+    clauses = []
+    for key, value in query.items():
+        if key == "$or" and isinstance(value, list):
+            or_parts = []
+            for sub_condition in value:
+                if isinstance(sub_condition, dict):
+                    sub_clauses = _build_where_clauses(model_class, sub_condition)
+                    if len(sub_clauses) == 1:
+                        or_parts.append(sub_clauses[0])
+                    elif len(sub_clauses) > 1:
+                        or_parts.append(and_(*sub_clauses))
+            if or_parts:
+                clauses.append(or_(*or_parts))
+            continue
+
+        attr = getattr(model_class, key, None)
+        if attr is None:
+            continue
+
+        if isinstance(value, dict):
+            if "$gte" in value:
+                clauses.append(attr >= value["$gte"])
+            if "$lte" in value:
+                clauses.append(attr <= value["$lte"])
+            if "$gt" in value:
+                clauses.append(attr > value["$gt"])
+            if "$lt" in value:
+                clauses.append(attr < value["$lt"])
+            if "$like" in value:
+                clauses.append(attr.ilike(value["$like"]))
+            if "$contains" in value:
+                clauses.append(attr.ilike(f"%{value['$contains']}%"))
+            if "$in" in value and isinstance(value["$in"], (list, tuple, set)):
+                clauses.append(attr.in_(value["$in"]))
+        else:
+            clauses.append(attr == value)
+
+    return clauses
+
+
+def _normalize_mongo_query(query: Optional[dict]) -> dict:
+    """Normalize query dict for MongoDB Motor client (handling $like and $contains)."""
+    if not query:
+        return {}
+    import re
+    normalized = {}
+    for k, v in query.items():
+        if k == "$or" and isinstance(v, list):
+            normalized["$or"] = [_normalize_mongo_query(item) for item in v]
+        elif isinstance(v, dict):
+            sub = {}
+            for op, val in v.items():
+                if op == "$like":
+                    clean = re.escape(str(val).strip("%"))
+                    sub["$regex"] = clean
+                    sub["$options"] = "i"
+                elif op == "$contains":
+                    clean = re.escape(str(val))
+                    sub["$regex"] = clean
+                    sub["$options"] = "i"
+                else:
+                    sub[op] = val
+            normalized[k] = sub
+        else:
+            normalized[k] = v
+    return normalized
+
+
+
 # --------------------------------------------------------------------------- #
 # SQLite SQLModel-backed Storage Wrapper
 # --------------------------------------------------------------------------- #
@@ -229,6 +303,7 @@ class SQLiteStorage:
                     "idx_transactions_date_desc",
                     "idx_transactions_cat_date",
                     "idx_transactions_type_date",
+                    "idx_transactions_description",
                 ]
                 for idx_name in needed:
                     if idx_name not in existing:
@@ -246,6 +321,8 @@ class SQLiteStorage:
                             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_cat_date ON transactions(category, date DESC)"))
                         elif idx_name == "idx_transactions_type_date":
                             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(txn_type, date DESC)"))
+                        elif idx_name == "idx_transactions_description":
+                            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_transactions_description ON transactions(description)"))
             self._indexes_ready = True
 
     @staticmethod
@@ -317,33 +394,8 @@ class SQLiteStorage:
             else:
                 statement = select(model_class)
             if query:
-                for key, value in query.items():
-                    # Handle complex MongoDB-style queries for SQLite
-                    if isinstance(value, dict):
-                        # Apply EVERY operator present, not just the first.
-                        # A combined range ({"$gte": start, "$lte": end}) is the
-                        # normal date-filter shape; an if/elif chain silently
-                        # dropped the upper bound (and any second operator).
-                        if "$gte" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr >= value["$gte"])
-                        if "$lte" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr <= value["$lte"])
-                        if "$gt" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr > value["$gt"])
-                        if "$lt" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr < value["$lt"])
-                    else:
-                        attr = getattr(model_class, key, None)
-                        if attr is not None:
-                            statement = statement.where(attr == value)
+                for clause in _build_where_clauses(model_class, query):
+                    statement = statement.where(clause)
 
             # Add ordering
             if order_by:
@@ -384,33 +436,8 @@ class SQLiteStorage:
             statement = select(func.count()).select_from(model_class)
             
             if query:
-                for key, value in query.items():
-                    # Handle complex MongoDB-style queries for SQLite
-                    if isinstance(value, dict):
-                        # Apply EVERY operator present, not just the first.
-                        # A combined range ({"$gte": start, "$lte": end}) is the
-                        # normal date-filter shape; an if/elif chain silently
-                        # dropped the upper bound (and any second operator).
-                        if "$gte" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr >= value["$gte"])
-                        if "$lte" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr <= value["$lte"])
-                        if "$gt" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr > value["$gt"])
-                        if "$lt" in value:
-                            attr = getattr(model_class, key, None)
-                            if attr is not None:
-                                statement = statement.where(attr < value["$lt"])
-                    else:
-                        attr = getattr(model_class, key, None)
-                        if attr is not None:
-                            statement = statement.where(attr == value)
+                for clause in _build_where_clauses(model_class, query):
+                    statement = statement.where(clause)
             
             result = await session.exec(statement)
             return result.first() or 0
@@ -658,7 +685,8 @@ class MongoStorage:
         projection = {"_id": 0}
         if fields:
             projection.update({f: 1 for f in fields})
-        cursor = self._db[collection].find(query or {}, projection)
+        mongo_query = _normalize_mongo_query(query)
+        cursor = self._db[collection].find(mongo_query, projection)
         
         # Add ordering
         if order_by:
@@ -676,7 +704,8 @@ class MongoStorage:
     async def count(self, collection: str, query: Optional[dict] = None) -> int:
         """Count documents matching a query."""
         await self._ensure_indexes()
-        return await self._db[collection].count_documents(query or {})
+        mongo_query = _normalize_mongo_query(query)
+        return await self._db[collection].count_documents(mongo_query)
 
     async def get(self, collection: str, _id: str) -> Optional[dict]:
         return await self._db[collection].find_one({"id": _id}, {"_id": 0})
