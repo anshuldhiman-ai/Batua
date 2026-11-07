@@ -59,10 +59,9 @@ export function useKeyboardShortcuts() {
     {
       key: 'k',
       ctrl: true,
-      description: 'Focus search',
+      description: 'Open Universal Command Palette',
       action: () => {
-        const searchInput = document.querySelector('[data-testid="nav-search"]') as HTMLInputElement;
-        searchInput?.focus();
+        window.dispatchEvent(new CustomEvent('command-palette:open'));
       },
     },
     {
@@ -78,6 +77,13 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K / Ctrl+K always opens command palette from anywhere
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('command-palette:open'));
+        return;
+      }
+
       // Don't trigger shortcuts when typing in inputs or select dropdowns
       const target = e.target as HTMLElement;
       if (

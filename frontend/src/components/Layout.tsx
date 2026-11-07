@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
@@ -32,10 +32,12 @@ import { useAuth } from "@/components/Auth";
 import { cn } from "@/lib/utils";
 import { spring } from "@/lib/motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { api } from "@/lib/utils-finance";
 import { useDebounce } from "@/hooks/useDebounce";
 import UserGuide from "@/components/UserGuide";
+import CommandPalette from "@/components/CommandPalette";
+import MonthlyStatementModal from "@/components/MonthlyStatementModal";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useScrollDirection } from "@/hooks/useScrollDirection";
 
 /**
  * Cross-page transaction search, shared by the top navbar and any page
@@ -212,45 +214,88 @@ function DesktopTopNav() {
   const location = useLocation();
   const showSearch = routeHasSearch(location.pathname);
   const pageTitle = PAGE_TITLES[location.pathname];
+  const { isVisible } = useScrollDirection({ threshold: 12, topOffset: 45 });
+  const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
   return (
-    <header
+    <motion.header
       aria-label="Top navigation"
-      className="fixed inset-x-0 top-0 z-40 hidden border-b border-border/50 bg-card/80 backdrop-blur-xl lg:block"
+      initial={false}
+      animate={{
+        y: isVisible ? 0 : -85,
+        opacity: isVisible ? 1 : 0,
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 350,
+        damping: 28,
+        mass: 0.6,
+      }}
+      className="fixed inset-x-0 top-0 z-40 hidden pointer-events-none lg:block pt-3 px-6"
     >
-      <div className="mx-auto flex h-16 w-full max-w-[calc(1600px+1.5rem)] items-center gap-4 px-6">
-        {/* Brand — left. The wordmark sits on the logo's optical baseline:
-            Rostex's metrics leave extra space under "Batua", so leading-none
-            alone reads a touch high; the small translate centres it. */}
-        <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
-          <Logo className="h-11 w-11 shrink-0" />
-          <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
-            Batua
-          </span>
-        </NavLink>
+      <div className="mx-auto flex h-14 w-full max-w-[calc(1600px+1.5rem)] items-center justify-between gap-4">
+        {/* Brand Floating Pill */}
+        <div className="pointer-events-auto flex items-center rounded-2xl border border-border/60 bg-card/85 px-3.5 py-1.5 shadow-sm backdrop-blur-md transition-colors hover:border-primary/40">
+          <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2.5">
+            <Logo className="h-9 w-9 shrink-0" />
+            <span className="shrink-0 font-brand text-xl leading-none tracking-wide">
+              Batua
+            </span>
+          </NavLink>
+        </div>
 
-        {/* Middle — scoped search on Dashboard/Transactions; otherwise a
-            quiet page label so the bar never has a dead gap. */}
-        {showSearch ? (
-          <NavSearchBar
-            className="mx-auto w-full max-w-md"
-            placeholder={
-              location.pathname.startsWith("/dashboard")
-                ? "Search dashboard…"
-                : "Search transactions…"
-            }
-          />
-        ) : pageTitle ? (
-          <div className="mx-auto flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-            <span>{pageTitle}</span>
-          </div>
-        ) : (
-          <div className="mx-auto" />
-        )}
+        {/* Center Floating Pill: Search or Page Label */}
+        <div className="pointer-events-auto flex-1 max-w-md mx-auto">
+          {showSearch ? (
+            <div className="flex items-center rounded-2xl border border-border/60 bg-card/85 p-1 shadow-sm backdrop-blur-md">
+              <NavSearchBar
+                className="w-full"
+                placeholder={
+                  location.pathname.startsWith("/dashboard")
+                    ? "Search dashboard…"
+                    : "Search transactions…"
+                }
+              />
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
+                title={`Open Command Palette (${isMac ? "⌘" : "Ctrl"}+K)`}
+                className="mr-1 hidden sm:flex shrink-0 items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-2 py-1 font-mono text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <kbd className="font-semibold">{isMac ? "⌘" : "Ctrl"}</kbd>
+                <span>K</span>
+              </button>
+            </div>
+          ) : pageTitle ? (
+            <div className="mx-auto flex w-fit items-center gap-2 rounded-2xl border border-border/60 bg-card/85 px-4 py-2 text-sm font-medium text-foreground shadow-sm backdrop-blur-md">
+              <LayoutGrid className="h-4 w-4 text-primary" aria-hidden="true" />
+              <span>{pageTitle}</span>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
+                title={`Open Command Palette (${isMac ? "⌘" : "Ctrl"}+K)`}
+                className="ml-2 flex items-center gap-1 rounded-lg border border-border/70 bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <kbd>{isMac ? "⌘" : "Ctrl"}</kbd>K
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
+        </div>
 
-        {/* Actions — right */}
-        <div className="flex shrink-0 items-center gap-2">
-          <ThemeToggle className="h-10 w-10" />
+        {/* Actions Floating Pill */}
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 rounded-2xl border border-border/60 bg-card/85 p-1.5 shadow-sm backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
+            aria-label="Universal Command Palette"
+            title={`Universal Command Palette (${isMac ? "⌘" : "Ctrl"}+K)`}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Search className="h-[17px] w-[17px]" />
+          </button>
+          <ThemeToggle className="h-9 w-9" />
           <ManageProfileMenu onSignOut={() => void logout()} />
           <button
             type="button"
@@ -258,13 +303,13 @@ function DesktopTopNav() {
             aria-label="Sign out"
             data-testid="sign-out"
             title="Sign out"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <LogOut className="h-[18px] w-[18px]" />
+            <LogOut className="h-[17px] w-[17px]" />
           </button>
         </div>
       </div>
-    </header>
+    </motion.header>
   );
 }
 
@@ -385,6 +430,7 @@ function MobileNav() {
   const { logout } = useAuth();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { isVisible } = useScrollDirection({ threshold: 12, topOffset: 45 });
 
   const activeIndex = Math.max(
     0,
@@ -405,23 +451,44 @@ function MobileNav() {
   }, [isOpen]);
 
   return (
-    <nav aria-label="Mobile navigation" className="fixed inset-x-0 top-0 z-50 lg:hidden">
+    <motion.nav
+      aria-label="Mobile navigation"
+      initial={false}
+      animate={{
+        y: isVisible || isOpen ? 0 : -85,
+        opacity: isVisible || isOpen ? 1 : 0,
+      }}
+      transition={{
+        type: "spring",
+        stiffness: 350,
+        damping: 28,
+        mass: 0.6,
+      }}
+      className="fixed inset-x-0 top-0 z-50 pointer-events-none lg:hidden px-3 pt-2"
+    >
       <div
         className={cn(
-          "flex items-center justify-between px-4 py-3",
-          "[padding-left:max(1rem,env(safe-area-inset-left))]",
-          "[padding-right:max(1rem,env(safe-area-inset-right))]",
-          "[padding-top:max(0.75rem,env(safe-area-inset-top))]",
-          "border-b border-border/40 bg-card/90 backdrop-blur-xl"
+          "pointer-events-auto flex items-center justify-between rounded-2xl border border-border/60 bg-card/90 px-3.5 py-2.5 shadow-md backdrop-blur-xl",
+          "[padding-left:max(0.875rem,env(safe-area-inset-left))]",
+          "[padding-right:max(0.875rem,env(safe-area-inset-right))]",
+          "[padding-top:max(0.625rem,env(safe-area-inset-top))]"
         )}
       >
-        <NavLink to="/dashboard" className="flex items-center gap-2.5">
-          <Logo className="h-11 w-11 shrink-0" />
+        <NavLink to="/dashboard" className="flex items-center gap-2">
+          <Logo className="h-9 w-9 shrink-0" />
           <span className="shrink-0 translate-y-px font-brand text-xl leading-none tracking-wide">
             Batua
           </span>
         </NavLink>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("command-palette:open"))}
+            aria-label="Open Command Palette"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-accent/50"
+          >
+            <Search className="h-[18px] w-[18px]" />
+          </button>
           <ThemeToggle className="h-9 w-9" data-testid="dark-mode-toggle-mobile" />
           <ManageProfileMenu onSignOut={() => void logout()} />
           <button
@@ -445,9 +512,7 @@ function MobileNav() {
 
       {/* Search — below the bar on small screens, Dashboard/Transactions only */}
       {showSearch && (
-        <div
-          className="border-b border-border/40 bg-card/90 px-4 py-2 [padding-left:max(1rem,env(safe-area-inset-left))] [padding-right:max(1rem,env(safe-area-inset-right))]"
-        >
+        <div className="pointer-events-auto mt-1.5 rounded-2xl border border-border/60 bg-card/90 px-3 py-1.5 shadow-md backdrop-blur-xl">
           <NavSearchBar
             placeholder={
               location.pathname.startsWith("/dashboard")
@@ -461,21 +526,21 @@ function MobileNav() {
       <div
         className={cn(
           "fixed inset-0 bg-background/60 backdrop-blur-sm transition-opacity lg:hidden",
-          isOpen ? "opacity-100" : "pointer-events-none opacity-0"
+          isOpen ? "opacity-100 pointer-events-auto" : "pointer-events-none opacity-0"
         )}
-        style={{ top: "calc(57px + env(safe-area-inset-top))" }}
+        style={{ top: "calc(64px + env(safe-area-inset-top))" }}
         onClick={() => setIsOpen(false)}
         aria-hidden="true"
       />
 
       <div
         className={cn(
-          "fixed inset-x-0 border-b border-border/40 bg-card/95 backdrop-blur-xl transition-all lg:hidden",
-          isOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
+          "fixed inset-x-3 rounded-2xl border border-border/60 bg-card/95 shadow-2xl backdrop-blur-xl transition-all lg:hidden",
+          isOpen ? "translate-y-0 opacity-100 pointer-events-auto" : "pointer-events-none -translate-y-2 opacity-0"
         )}
-        style={{ top: "calc(57px + env(safe-area-inset-top))" }}
+        style={{ top: "calc(64px + env(safe-area-inset-top))" }}
       >
-        <div className="space-y-0.5 px-3 py-2">
+        <div className="space-y-0.5 p-2.5">
           {NAV.map((tab, i) => {
             const isActive = i === activeIndex;
             const Icon = tab.icon;
@@ -486,7 +551,7 @@ function MobileNav() {
                 data-testid={`nav-mobile-${tab.label.toLowerCase().replace(/\s/g, "-")}`}
                 onClick={() => setIsOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium",
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
                   isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/40"
                 )}
               >
@@ -501,14 +566,14 @@ function MobileNav() {
               setIsOpen(false);
               void logout();
             }}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-accent/40"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent/40"
           >
             <LogOut size={18} />
             <span>Sign out</span>
           </button>
         </div>
       </div>
-    </nav>
+    </motion.nav>
   );
 }
 
@@ -522,6 +587,8 @@ export default function Layout({ splashVisible }: LayoutProps) {
   const [tourOpen, setTourOpen] = useState(false);
   const [tourSteps, setTourSteps] = useState<any[] | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const [statementOpen, setStatementOpen] = useState(false);
   const location = useLocation();
 
   // Enable productivity keyboard shortcuts
@@ -529,8 +596,17 @@ export default function Layout({ splashVisible }: LayoutProps) {
 
   useEffect(() => {
     const handleShowHelp = () => setHelpOpen(true);
+    const handleOpenCmd = () => setCmdPaletteOpen(true);
+    const handleOpenStatement = () => setStatementOpen(true);
+
     window.addEventListener("shortcut:show-help", handleShowHelp);
-    return () => window.removeEventListener("shortcut:show-help", handleShowHelp);
+    window.addEventListener("command-palette:open", handleOpenCmd);
+    window.addEventListener("statement:open", handleOpenStatement);
+    return () => {
+      window.removeEventListener("shortcut:show-help", handleShowHelp);
+      window.removeEventListener("command-palette:open", handleOpenCmd);
+      window.removeEventListener("statement:open", handleOpenStatement);
+    };
   }, []);
 
   // Lazy-load tour steps only when tour is triggered
@@ -592,6 +668,15 @@ export default function Layout({ splashVisible }: LayoutProps) {
       {!splashVisible && <MobileNav />}
 
       <UserGuide open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <CommandPalette
+        open={cmdPaletteOpen}
+        onClose={() => setCmdPaletteOpen(false)}
+        onOpenStatement={() => setStatementOpen(true)}
+      />
+      <MonthlyStatementModal
+        open={statementOpen}
+        onClose={() => setStatementOpen(false)}
+      />
 
       <AnimatePresence>
         {tourOpen && tourSteps && (
