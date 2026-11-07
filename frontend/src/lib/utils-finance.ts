@@ -97,6 +97,62 @@ export function formatDate(dateStr) {
 // Only digits/operators — never handed to Function() unless it matches this.
 const PRICE_EXPR_CHARS = /^[0-9+\-*/(). ]*$/;
 
+function parseMathTokens(tokens: string[]): number | null {
+  let pos = 0;
+
+  const parsePrimary = (): number => {
+    if (pos >= tokens.length) throw new Error("Unexpected end of expression");
+    const token = tokens[pos++];
+    if (token === "(") {
+      const val = parseExpression();
+      if (tokens[pos++] !== ")") throw new Error("Mismatched parentheses");
+      return val;
+    }
+    if (token === "-") {
+      return -parsePrimary();
+    }
+    if (token === "+") {
+      return parsePrimary();
+    }
+    const num = Number(token);
+    if (Number.isNaN(num)) throw new Error("Invalid number");
+    return num;
+  };
+
+  const parseFactor = (): number => {
+    let val = parsePrimary();
+    while (pos < tokens.length && (tokens[pos] === "*" || tokens[pos] === "/")) {
+      const op = tokens[pos++];
+      const next = parsePrimary();
+      if (op === "*") {
+        val *= next;
+      } else {
+        if (next === 0) throw new Error("Division by zero");
+        val /= next;
+      }
+    }
+    return val;
+  };
+
+  const parseExpression = (): number => {
+    let val = parseFactor();
+    while (pos < tokens.length && (tokens[pos] === "+" || tokens[pos] === "-")) {
+      const op = tokens[pos++];
+      const next = parseFactor();
+      if (op === "+") {
+        val += next;
+      } else {
+        val -= next;
+      }
+    }
+    return val;
+  };
+
+  const val = parseExpression();
+  if (pos !== tokens.length) return null;
+  return Number.isFinite(val) && val > 0 ? val : null;
+}
+
 /**
  * Safely evaluate an arithmetic price breakdown like "10+20+25" or "15*2+20".
  * Returns the numeric value, or null when the string isn't a pure arithmetic
@@ -112,60 +168,7 @@ export function evalPriceExpr(raw) {
   try {
     const tokens = s.match(/\d+(?:\.\d+)?|[+\-*/()]/g);
     if (!tokens) return null;
-
-    let pos = 0;
-
-    function parsePrimary(): number {
-      if (pos >= tokens.length) throw new Error("Unexpected end of expression");
-      const token = tokens[pos++];
-      if (token === "(") {
-        const val = parseExpression();
-        if (tokens[pos++] !== ")") throw new Error("Mismatched parentheses");
-        return val;
-      }
-      if (token === "-") {
-        return -parsePrimary();
-      }
-      if (token === "+") {
-        return parsePrimary();
-      }
-      const num = Number(token);
-      if (Number.isNaN(num)) throw new Error("Invalid number");
-      return num;
-    }
-
-    function parseFactor(): number {
-      let val = parsePrimary();
-      while (pos < tokens.length && (tokens[pos] === "*" || tokens[pos] === "/")) {
-        const op = tokens[pos++];
-        const next = parsePrimary();
-        if (op === "*") {
-          val *= next;
-        } else {
-          if (next === 0) throw new Error("Division by zero");
-          val /= next;
-        }
-      }
-      return val;
-    }
-
-    function parseExpression(): number {
-      let val = parseFactor();
-      while (pos < tokens.length && (tokens[pos] === "+" || tokens[pos] === "-")) {
-        const op = tokens[pos++];
-        const next = parseFactor();
-        if (op === "+") {
-          val += next;
-        } else {
-          val -= next;
-        }
-      }
-      return val;
-    }
-
-    const val = parseExpression();
-    if (pos !== tokens.length) return null;
-    return Number.isFinite(val) && val > 0 ? val : null;
+    return parseMathTokens(tokens);
   } catch {
     return null;
   }
