@@ -20,7 +20,7 @@ import logging
 import secrets
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, field_validator
@@ -402,7 +402,7 @@ async def login(payload: LoginRequest):
     # history entry (the old load → mutate → save-from-snapshot path).
     def _apply(account: dict) -> None:
         account["session_token"] = secrets.token_urlsafe(32)
-        account["session_expires_at"] = datetime.now(timezone.utc).isoformat()
+        account["session_expires_at"] = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
         history = list(account.get("login_history") or [])
         history.append({"at": datetime.now(timezone.utc).isoformat()})
         account["login_history"] = history[-LOGIN_HISTORY_LIMIT:]

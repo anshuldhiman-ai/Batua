@@ -1,5 +1,6 @@
 """Dependencies for route modules."""
 import secrets
+from datetime import datetime, timezone
 from typing import Optional
 
 # Global storage reference - set during startup
@@ -49,6 +50,7 @@ _PUBLIC_PATHS = {
     "/api/auth/login",
     "/api/auth/recovery-token",
     "/api/auth/reset",
+    "/api/auth/forgot-password",
 }
 
 
@@ -97,6 +99,19 @@ async def verify_session_token(request) -> Optional[dict]:
     if not expected:
         # Account exists but has no open session — reject.
         return None
+
+    # Enforce session expiration if set
+    expires_at = doc.get("session_expires_at")
+    if expires_at:
+        try:
+            if isinstance(expires_at, (int, float)):
+                exp_ts = float(expires_at)
+            else:
+                exp_ts = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")).timestamp()
+            if datetime.now(timezone.utc).timestamp() > exp_ts:
+                return None
+        except Exception:
+            pass
 
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
