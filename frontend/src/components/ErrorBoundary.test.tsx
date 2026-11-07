@@ -16,6 +16,8 @@ afterEach(() => {
 vi.mock("lucide-react", () => ({
   AlertTriangle: () => <span data-testid="alert-icon">⚠</span>,
   RefreshCw: () => <span data-testid="refresh-icon">↻</span>,
+  Home: () => <span data-testid="home-icon">🏠</span>,
+  Copy: () => <span data-testid="copy-icon">📋</span>,
 }));
 
 // Mock UI components

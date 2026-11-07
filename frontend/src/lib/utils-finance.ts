@@ -5,7 +5,13 @@ import axios from "axios";
 const baseUrl = String((import.meta as any).env.VITE_BACKEND_URL || "").trim();
 const BASE = baseUrl.replace(/\/+$/, "") + "/api";
 
-export const api = axios.create({ baseURL: BASE });
+export const api = axios.create({ 
+  baseURL: BASE,
+  timeout: 30000, // 30 second timeout
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
 
 // The server requires the session token on every /api call
 // except the auth flow itself (register/login/recovery).
@@ -29,6 +35,34 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Don't retry if it's an auth error or we've already retried
+    if (error.response?.status === 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+    
+    // Retry on network errors or 5xx errors (max 2 retries)
+    if (!error.response && !originalRequest._retryCount) {
+      originalRequest._retry = true;
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      
+      if (originalRequest._retryCount <= 2) {
+        // Exponential backoff: 1s, 2s
+        const delay = Math.pow(2, originalRequest._retryCount - 1) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return api(originalRequest);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Build an absolute API URL (used for file downloads / window.open).
 export const apiUrl = (path) => `${BASE}${path}`;
@@ -74,9 +108,63 @@ export function evalPriceExpr(raw) {
   // "₹15*2+20" or "1,200+80" evaluate the same as "15*2+20" / "1200+80".
   const s = (raw || "").trim().replace(/[₹$,]/g, "");
   if (!s || !PRICE_EXPR_CHARS.test(s)) return null;
+
   try {
-    // eslint-disable-next-line no-new-func
-    const val = Function(`"use strict"; return (${s});`)();
+    const tokens = s.match(/\d+(?:\.\d+)?|[+\-*/()]/g);
+    if (!tokens) return null;
+
+    let pos = 0;
+
+    function parsePrimary(): number {
+      if (pos >= tokens.length) throw new Error("Unexpected end of expression");
+      const token = tokens[pos++];
+      if (token === "(") {
+        const val = parseExpression();
+        if (tokens[pos++] !== ")") throw new Error("Mismatched parentheses");
+        return val;
+      }
+      if (token === "-") {
+        return -parsePrimary();
+      }
+      if (token === "+") {
+        return parsePrimary();
+      }
+      const num = Number(token);
+      if (Number.isNaN(num)) throw new Error("Invalid number");
+      return num;
+    }
+
+    function parseFactor(): number {
+      let val = parsePrimary();
+      while (pos < tokens.length && (tokens[pos] === "*" || tokens[pos] === "/")) {
+        const op = tokens[pos++];
+        const next = parsePrimary();
+        if (op === "*") {
+          val *= next;
+        } else {
+          if (next === 0) throw new Error("Division by zero");
+          val /= next;
+        }
+      }
+      return val;
+    }
+
+    function parseExpression(): number {
+      let val = parseFactor();
+      while (pos < tokens.length && (tokens[pos] === "+" || tokens[pos] === "-")) {
+        const op = tokens[pos++];
+        const next = parseFactor();
+        if (op === "+") {
+          val += next;
+        } else {
+          val -= next;
+        }
+      }
+      return val;
+    }
+
+    const val = parseExpression();
+    if (pos !== tokens.length) return null;
     return Number.isFinite(val) && val > 0 ? val : null;
   } catch {
     return null;
