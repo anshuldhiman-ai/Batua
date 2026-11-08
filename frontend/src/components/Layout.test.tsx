@@ -9,6 +9,11 @@ import Layout from './Layout'
 vi.mock('@/components/Auth', () => ({
   useAuth: () => ({
     logout: vi.fn(),
+    user: null,
+  }),
+  useOptionalAuth: () => ({
+    logout: vi.fn(),
+    user: null,
   }),
 }))
 
