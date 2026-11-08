@@ -1134,6 +1134,11 @@ input:checked + .auth-check-glyph .auth-check-path {
 }
 
 /* ── Clean Print & PDF Generation ── */
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm 12mm 12mm;
+}
+
 @media print {
   header,
   aside,
@@ -1150,6 +1155,8 @@ input:checked + .auth-check-glyph .auth-check-path {
   body {
     padding: 0 !important;
     margin: 0 !important;
+    font-size: 11pt;
+    line-height: 1.35;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -1160,7 +1167,7 @@ input:checked + .auth-check-glyph .auth-check-path {
     position: relative !important;
     width: 100% !important;
     max-width: 100% !important;
-    padding: 1.5rem !important;
+    padding: 0 !important;
     margin: 0 auto !important;
     box-shadow: none !important;
     border: none !important;
@@ -1171,13 +1178,35 @@ input:checked + .auth-check-glyph .auth-check-path {
   #printable-statement[data-theme="light"],
   body:has(#printable-statement[data-theme="light"]) {
     background: #ffffff !important;
-    color: #111827 !important;
+    color: #09090b !important;
   }
 
   #printable-statement[data-theme="dark"],
   body:has(#printable-statement[data-theme="dark"]) {
     background: #09090b !important;
     color: #f4f4f5 !important;
+  }
+
+  /* Page-break pagination rules for dense multi-page ledgers */
+  tr,
+  .statement-section,
+  .statement-kpi-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* Remove interactive outlines or focus indicators during print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 
