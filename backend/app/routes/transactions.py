@@ -23,9 +23,9 @@ _SORTABLE_FIELDS = {
     "quantity", "price", "amount",
 }
 _NUMERIC_SORT_FIELDS = {"quantity", "price", "amount"}
-# Upper bound on page size — without it a negative/oversized value reaches the
-# DB as a negative LIMIT (SQLite treats that as "no limit") or an unbounded scan.
-MAX_PAGE_SIZE = 500
+# Upper bound on page size — raised to 2,500 to support complete itemized
+# statement ledger exports across multi-month custom timelines without truncation.
+MAX_PAGE_SIZE = 2500
 
 
 def _sort_txns(txns: list[dict], sort_by: str, sort_order: str) -> list[dict]:

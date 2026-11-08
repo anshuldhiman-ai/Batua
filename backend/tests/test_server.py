@@ -479,6 +479,23 @@ def test_wipe_transactions(client):
     assert response.json()["deleted"] == 2
     assert client.get("/api/transactions").json()["total"] == 0
 
+def test_statement_large_page_size_and_date_range(client):
+    # Clean previous records
+    client.delete("/api/transactions?confirm=CONFIRM_DELETE_ALL")
+    client.post("/api/transactions", json={"date": "2026-06-01", "description": "Day 1", "amount": 1000})
+    client.post("/api/transactions", json={"date": "2026-06-15", "description": "Mid month", "amount": -250})
+    client.post("/api/transactions", json={"date": "2026-06-30T23:50:00", "description": "Last day night", "amount": -150})
+    client.post("/api/transactions", json={"date": "2026-07-01", "description": "Next month", "amount": -50})
+
+    res = client.get("/api/transactions?start_date=2026-06-01&end_date=2026-06-30&page_size=2000")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 3
+    descriptions = {t["description"] for t in data["items"]}
+    assert "Last day night" in descriptions
+    assert "Next month" not in descriptions
+    assert data["page_size"] == 2000
+
 def test_budgets_crud(client):
     # Create budget
     response = client.post("/api/budgets", json={"category": "Food & Dining", "limit": 5000.0})
