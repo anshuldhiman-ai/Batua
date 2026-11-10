@@ -114,6 +114,15 @@ export function useTheme(): ThemeContextValue {
  * unmounting theme state.
  */
 function AppRoutes({ splashVisible }: { splashVisible: boolean }) {
+  const [, setCurrencyKey] = useState(0);
+
+  // Re-render when currency format changes across the app
+  React.useEffect(() => {
+    const handler = () => setCurrencyKey((k) => k + 1);
+    window.addEventListener("batua-currency-change", handler);
+    return () => window.removeEventListener("batua-currency-change", handler);
+  }, []);
+
   return (
     <ErrorBoundary>
       <React.Suspense

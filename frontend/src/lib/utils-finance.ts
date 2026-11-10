@@ -67,22 +67,72 @@ api.interceptors.response.use(
 // Build an absolute API URL (used for file downloads / window.open).
 export const apiUrl = (path) => `${BASE}${path}`;
 
-export function formatINR(value, { compact = false } = {}) {
+export type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "CAD" | "AUD" | "JPY";
+
+export interface CurrencyConfig {
+  code: CurrencyCode;
+  label: string;
+  symbol: string;
+  locale: string;
+  flag: string;
+}
+
+export const SUPPORTED_CURRENCIES: CurrencyConfig[] = [
+  { code: "INR", label: "Indian Rupee", symbol: "₹", locale: "en-IN", flag: "🇮🇳" },
+  { code: "USD", label: "US Dollar", symbol: "$", locale: "en-US", flag: "🇺🇸" },
+  { code: "EUR", label: "Euro", symbol: "€", locale: "de-DE", flag: "🇪🇺" },
+  { code: "GBP", label: "British Pound", symbol: "£", locale: "en-GB", flag: "🇬🇧" },
+  { code: "CAD", label: "Canadian Dollar", symbol: "CA$", locale: "en-CA", flag: "🇨🇦" },
+  { code: "AUD", label: "Australian Dollar", symbol: "AU$", locale: "en-AU", flag: "🇦🇺" },
+  { code: "JPY", label: "Japanese Yen", symbol: "¥", locale: "ja-JP", flag: "🇯🇵" },
+];
+
+const CURRENCY_STORAGE_KEY = "batua-preferred-currency";
+
+export function getActiveCurrency(): CurrencyConfig {
+  try {
+    const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+    const found = SUPPORTED_CURRENCIES.find((c) => c.code === saved);
+    if (found) return found;
+  } catch {
+    // ignore
+  }
+  return SUPPORTED_CURRENCIES[0];
+}
+
+export function setActiveCurrency(code: CurrencyCode): void {
+  try {
+    localStorage.setItem(CURRENCY_STORAGE_KEY, code);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("batua-currency-change"));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function formatINR(value: any, { compact = false, currency }: { compact?: boolean; currency?: CurrencyCode } = {}) {
   const n = Number(value) || 0;
+  const active = currency
+    ? (SUPPORTED_CURRENCIES.find((c) => c.code === currency) || getActiveCurrency())
+    : getActiveCurrency();
+
   if (compact && Math.abs(n) >= 1000) {
-    return new Intl.NumberFormat("en-IN", {
+    return new Intl.NumberFormat(active.locale, {
       style: "currency",
-      currency: "INR",
+      currency: active.code,
       notation: "compact",
       maximumFractionDigits: 1,
     }).format(n);
   }
-  return new Intl.NumberFormat("en-IN", {
+  return new Intl.NumberFormat(active.locale, {
     style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
+    currency: active.code,
+    maximumFractionDigits: active.code === "JPY" ? 0 : (n % 1 === 0 ? 0 : 2),
   }).format(n);
 }
+
+export const formatCurrency = formatINR;
 
 export function formatDate(dateStr) {
   if (!dateStr) return "";
