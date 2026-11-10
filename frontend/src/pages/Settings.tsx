@@ -65,7 +65,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/components/Auth";
-import { api } from "@/lib/utils-finance";
+import { api, SUPPORTED_CURRENCIES, getActiveCurrency, setActiveCurrency, type CurrencyCode, type CurrencyConfig } from "@/lib/utils-finance";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import UserGuide from "@/components/UserGuide";
@@ -412,6 +412,56 @@ export default function Settings() {
   const [showKey, setShowKey] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
+  // Currency selection state
+  const [currentCurrency, setCurrentCurrency] = React.useState<CurrencyConfig>(() => getActiveCurrency());
+
+  const handleCurrencyChange = (code: CurrencyCode) => {
+    setActiveCurrency(code);
+    const updated = getActiveCurrency();
+    setCurrentCurrency(updated);
+    toast.success(`Currency changed to ${updated.label} (${updated.symbol})`);
+  };
+
+  // Database storage maintenance & demo data seeder
+  const [dbHealth, setDbHealth] = React.useState<any>(null);
+  const [vacuuming, setVacuuming] = React.useState(false);
+  const [seeding, setSeeding] = React.useState(false);
+
+  const fetchDbHealth = React.useCallback(async () => {
+    try {
+      const { data } = await api.get("/settings/db-health");
+      setDbHealth(data);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleVacuum = async () => {
+    setVacuuming(true);
+    try {
+      const { data } = await api.post("/settings/db-vacuum");
+      toast.success(data?.message || "Database defragmented and vacuumed successfully!");
+      await fetchDbHealth();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to optimize database");
+    } finally {
+      setVacuuming(false);
+    }
+  };
+
+  const handleSeedDemoData = async () => {
+    setSeeding(true);
+    try {
+      const { data } = await api.post("/settings/seed-demo-data");
+      queryClient.invalidateQueries();
+      toast.success(data?.message || "Sample portfolio data loaded with 35+ transactions!");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to seed demo data");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   // API endpoint checks — bump to re-run every check ("Test all APIs").
   const [runNonce, setRunNonce] = React.useState(0);
 
@@ -504,6 +554,12 @@ export default function Settings() {
     // metricsRetry lets a "Retry" button resume a paused poller.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, metricsRetry]);
+
+  React.useEffect(() => {
+    if (activeTab === "system") {
+      fetchDbHealth();
+    }
+  }, [activeTab, fetchDbHealth]);
 
   /* ── Gemini key ── */
 
@@ -908,6 +964,8 @@ export default function Settings() {
               customColor={customColor}
               setCustomColor={setCustomColor}
               customActive={customActive}
+              currentCurrency={currentCurrency}
+              onCurrencyChange={handleCurrencyChange}
             />
           )}
 
@@ -1125,6 +1183,54 @@ export default function Settings() {
                 onReplace={replaceKey}
               />
 
+              {/* ── Database Storage & Maintenance ── */}
+              <Panel>
+                <PanelHeader
+                  icon={HardDrive}
+                  title="Database Storage & Engine"
+                  desc="SQLite WAL journaling status, page defragmentation, and integrity verification."
+                  right={
+                    dbHealth ? (
+                      <Pill
+                        tone={dbHealth.integrity === "ok" ? "emerald" : "rose"}
+                        dot
+                        label={dbHealth.integrity === "ok" ? "Integrity OK" : "Needs Repair"}
+                      />
+                    ) : null
+                  }
+                />
+                <PanelContent className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-3.5">
+                      <div className="text-xs text-muted-foreground">Storage Engine</div>
+                      <div className="mt-1 text-sm font-semibold uppercase">{dbHealth?.storage || storageLabel}</div>
+                    </div>
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-3.5">
+                      <div className="text-xs text-muted-foreground">Journal Mode</div>
+                      <div className="mt-1 text-sm font-semibold">{dbHealth?.journal_mode || "WAL (Write-Ahead)"}</div>
+                    </div>
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-3.5">
+                      <div className="text-xs text-muted-foreground">Database Disk Size</div>
+                      <div className="mt-1 text-sm font-semibold">{dbHealth?.file_size_formatted || "—"}</div>
+                    </div>
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-3.5">
+                      <div className="text-xs text-muted-foreground">Page Count</div>
+                      <div className="mt-1 text-sm font-semibold">{dbHealth?.page_count ?? "—"} pages</div>
+                    </div>
+                  </div>
+
+                  <ActionRow
+                    icon={Zap}
+                    title="Optimize Database (VACUUM)"
+                    desc="Rebuilds database file, reclaims unallocated pages, defragments tables, and updates internal query planner statistics."
+                    buttonLabel={vacuuming ? "Optimizing…" : "Optimize DB"}
+                    buttonTestid="vacuum-db-btn"
+                    onAction={handleVacuum}
+                    buttonDisabled={vacuuming}
+                  />
+                </PanelContent>
+              </Panel>
+
               {/* ── Security & System Information ── */}
               <Panel>
                 <div className="grid gap-px overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
@@ -1193,7 +1299,13 @@ export default function Settings() {
                   desc="Your current runtime configuration."
                 />
                 <PanelContent className="space-y-1">
-                  <MetricRow icon={IndianRupee} label="Currency" value="Indian Rupee (₹) — INR" />
+                  <MetricRow
+                    icon={Landmark}
+                    label="Active Currency"
+                    value={`${currentCurrency.label} (${currentCurrency.symbol}) — ${currentCurrency.code}`}
+                    pill="blue"
+                    pillDot
+                  />
                   <MetricRow
                     icon={Database}
                     label="Storage backend"
@@ -1245,6 +1357,26 @@ export default function Settings() {
                   onChange={(e) => restoreBackup(e.target.files?.[0])}
                   data-testid="backup-restore-input"
                 />
+              </Panel>
+
+              {/* Sample Portfolio Dataset */}
+              <Panel>
+                <PanelHeader
+                  icon={Sparkles}
+                  title="Sample Portfolio Dataset"
+                  desc="Preload curated transactions, budgets, and goals to demonstrate full app capabilities."
+                />
+                <PanelContent className="space-y-1">
+                  <ActionRow
+                    icon={Sparkles}
+                    title="Seed Sample Portfolio Data"
+                    desc="Populate account with 35+ realistic transactions across income, dining, groceries, tech, goals, and budgets. Ideal for demonstrations and recruiter walkthroughs."
+                    buttonLabel={seeding ? "Seeding…" : "Seed Sample Data"}
+                    buttonTestid="seed-demo-data-btn"
+                    onAction={handleSeedDemoData}
+                    buttonDisabled={seeding}
+                  />
+                </PanelContent>
               </Panel>
 
               {/* Help & Support */}
@@ -1621,13 +1753,23 @@ function ShortcutsTab() {
 
 /* ── Appearance tab ───────────────────────────────────────────── */
 
-function AppearanceTab({ theme, toggle, accent, setAccent, customColor, setCustomColor, customActive }: any) {
+function AppearanceTab({
+  theme,
+  toggle,
+  accent,
+  setAccent,
+  customColor,
+  setCustomColor,
+  customActive,
+  currentCurrency,
+  onCurrencyChange,
+}: any) {
   return (
     <Panel>
       <PanelHeader
         icon={Palette}
-        title="Theme"
-        desc="Light/dark mode and the accent colour that tints the whole app."
+        title="Theme & Internationalization"
+        desc="Light/dark mode, accent color styling, and base currency localization."
       />
       <PanelContent className="space-y-6">
         {/* Mode — two selectable cards, premium segmented choice */}
@@ -1761,6 +1903,36 @@ function AppearanceTab({ theme, toggle, accent, setAccent, customColor, setCusto
               <circle cx="118" cy="8" r="3" fill="hsl(var(--primary))" />
             </svg>
             <span className="text-sm font-medium text-primary">Accent text</span>
+          </div>
+        </div>
+
+        {/* Base Currency */}
+        <div className="border-t border-border/50 pt-6">
+          <div className="mb-1 text-sm font-medium">Base Currency</div>
+          <div className="mb-3 text-xs text-muted-foreground">Select your primary currency format and locale for all transactions and statements.</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5" data-testid="currency-picker">
+            {SUPPORTED_CURRENCIES.map((c) => {
+              const active = currentCurrency?.code === c.code;
+              return (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => onCurrencyChange?.(c.code)}
+                  aria-pressed={active}
+                  data-testid={`currency-select-${c.code}`}
+                  className={cn(
+                    "group flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition-all duration-200",
+                    active
+                      ? "border-primary/50 bg-primary/10 shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.2)] text-primary font-medium ring-1 ring-primary/30"
+                      : "border-border/60 hover:border-border hover:bg-muted/40 text-foreground"
+                  )}
+                >
+                  <span className="text-xl" role="img" aria-label={c.label}>{c.flag}</span>
+                  <span className="text-sm font-bold tracking-tight">{c.symbol} {c.code}</span>
+                  <span className="text-[11px] text-muted-foreground truncate max-w-full">{c.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </PanelContent>
