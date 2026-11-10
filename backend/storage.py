@@ -263,7 +263,7 @@ class SQLiteStorage:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = asyncio.Lock()
-        
+
         # Async engine with SQLite WAL journaling
         self._engine = create_async_engine(
             f"sqlite+aiosqlite:///{self.path}",
@@ -359,6 +359,63 @@ class SQLiteStorage:
                     name VARCHAR
                 )
             """))
+
+    async def integrity_check(self) -> str:
+        """Run SQLite PRAGMA integrity_check."""
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(self.path), timeout=2.0)
+            try:
+                row = conn.execute("PRAGMA integrity_check").fetchone()
+                return str(row[0]) if row else "unknown"
+            finally:
+                conn.close()
+        except Exception as e:
+            return f"error: {str(e)}"
+
+    async def get_db_stats(self) -> dict:
+        """Get file size, page count, and journal settings."""
+        size_bytes = self.path.stat().st_size if self.path.exists() else 0
+        journal_mode = "UNKNOWN"
+        page_count = 0
+        page_size = 4096
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(self.path), timeout=2.0)
+            try:
+                row = conn.execute("PRAGMA journal_mode").fetchone()
+                if row:
+                    journal_mode = str(row[0]).upper()
+                row = conn.execute("PRAGMA page_count").fetchone()
+                if row:
+                    page_count = int(row[0])
+                row = conn.execute("PRAGMA page_size").fetchone()
+                if row:
+                    page_size = int(row[0])
+            finally:
+                conn.close()
+        except Exception:
+            pass
+        return {
+            "size_bytes": size_bytes,
+            "size_formatted": f"{round(size_bytes / (1024 * 1024), 2)} MB" if size_bytes >= 1024 * 1024 else f"{round(size_bytes / 1024, 1)} KB",
+            "journal_mode": journal_mode,
+            "page_count": page_count,
+            "page_size": page_size,
+        }
+
+    async def vacuum(self) -> bool:
+        """Reclaim unused pages and defragment database."""
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(self.path), timeout=2.0)
+            try:
+                conn.execute("VACUUM")
+                return True
+            finally:
+                conn.close()
+        except Exception:
+            return False
 
     async def distinct(self, collection: str, field: str) -> list:
         """Distinct values of one column (MongoDB-style distinct)."""
@@ -673,6 +730,21 @@ class MongoStorage:
         except (pymongo.errors.OperationFailure, pymongo.errors.ServerSelectionTimeoutError) as exc:
             logger.warning(f"Failed to create MongoDB indexes: {exc}")
 
+    async def integrity_check(self) -> str:
+        return "ok"
+
+    async def get_db_stats(self) -> dict:
+        return {
+            "size_bytes": 0,
+            "size_formatted": "0 KB",
+            "journal_mode": "MONGO",
+            "page_count": 0,
+            "page_size": 0,
+        }
+
+    async def vacuum(self) -> bool:
+        return True
+
     async def distinct(self, collection: str, field: str) -> list:
         await self._ensure_indexes()
         return await self._db[collection].distinct(field)
@@ -844,13 +916,14 @@ def _use_sqlite_first() -> bool:
         return (Path(__file__).parent / "data" / "store.json").exists()
     try:
         import sqlite3
-
-        with sqlite3.connect(str(_SQLITE_PATH)) as conn:
-            try:
-                row = conn.execute("SELECT 1 FROM transactions LIMIT 1").fetchone()
-            except sqlite3.OperationalError:
-                # Table not created yet (empty/incompatible file).
-                return False
+        conn = sqlite3.connect(str(_SQLITE_PATH), timeout=1.0)
+        try:
+            row = conn.execute("SELECT 1 FROM transactions LIMIT 1").fetchone()
+        except sqlite3.OperationalError:
+            # Table not created yet (empty/incompatible file).
+            return False
+        finally:
+            conn.close()
         return row is not None
     except (sqlite3.Error, OSError):
         return False

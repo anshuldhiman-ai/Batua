@@ -37,6 +37,7 @@ logo*.png
 
 # Local-machine / agent session artefacts (not for the repo)
 .claude/
+.agents/
 scratch/
 
 # AI / project docs (not for the repo)

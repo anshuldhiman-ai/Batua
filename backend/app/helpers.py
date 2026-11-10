@@ -132,10 +132,10 @@ def _pct_change(curr: float, prev: float) -> float:
 
 
 def _valid_date(date_str: str) -> bool:
-    if not date_str or len(date_str) != 10:
+    if not date_str or len(date_str[:10]) != 10:
         return False
     try:
-        datetime.strptime(date_str, "%Y-%m-%d")
+        datetime.strptime(date_str[:10], "%Y-%m-%d")
         y = int(date_str[:4])
         return 1900 <= y <= 2100
     except (ValueError, TypeError, IndexError):
@@ -152,7 +152,7 @@ def _clamp_date(date_str: str) -> str:
     if not date_str:
         return date_str
     today = datetime.now().strftime("%Y-%m-%d")
-    return date_str if date_str <= today else today
+    return date_str if date_str[:10] <= today else today
 
 
 def _kind(amount: float) -> str:

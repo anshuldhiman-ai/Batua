@@ -894,3 +894,40 @@ def test_people_summary_drops_fully_settled(client):
     assert data["totals"]["to_receive"] == 0.0
     assert data["totals"]["to_give"] == 0.0
     assert data["totals"]["net"] == 0.0
+
+
+def test_production_tracing_headers(client):
+    """Every response must carry X-Request-ID and X-Response-Time headers."""
+    response = client.get("/api/")
+    assert response.status_code == 200
+    assert "x-request-id" in response.headers or "X-Request-ID" in response.headers
+    assert "x-response-time" in response.headers or "X-Response-Time" in response.headers
+
+
+def test_db_health_and_vacuum(client):
+    """GET /api/settings/db-health and POST /api/settings/db-vacuum."""
+    health_res = client.get("/api/settings/db-health")
+    assert health_res.status_code == 200
+    data = health_res.json()
+    assert "integrity" in data
+    assert "is_healthy" in data
+
+    vacuum_res = client.post("/api/settings/db-vacuum")
+    assert vacuum_res.status_code == 200
+    assert vacuum_res.json()["success"] is True
+
+
+def test_seed_demo_data(client):
+    """POST /api/settings/seed-demo-data populates realistic records and invalidates cache."""
+    res = client.post("/api/settings/seed-demo-data")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["counts"]["transactions"] >= 30
+    assert data["counts"]["budgets"] >= 5
+    assert data["counts"]["goals"] >= 2
+
+    # Verify transactions are accessible via /api/transactions
+    txns = client.get("/api/transactions?page_size=100").json()
+    assert txns["total"] >= 30
+
