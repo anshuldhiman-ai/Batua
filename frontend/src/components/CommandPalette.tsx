@@ -20,10 +20,13 @@ import {
   CornerDownLeft,
   X,
   CreditCard,
+  Sparkles,
+  Landmark,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ThemeContext } from "@/App";
-import { api, formatINR } from "@/lib/utils-finance";
+import { api, formatINR, SUPPORTED_CURRENCIES, setActiveCurrency } from "@/lib/utils-finance";
 import { useDebounce } from "@/hooks/useDebounce";
 
 interface CommandItem {
@@ -277,6 +280,38 @@ export default function CommandPalette({ open, onClose, onOpenStatement }: Comma
           onClose();
         },
       },
+      {
+        id: "action-seed-demo-data",
+        title: "Seed Sample Portfolio Data",
+        subtitle: "Load 35+ realistic transactions, budgets, goals & analytics",
+        icon: Sparkles,
+        category: "Actions",
+        badge: "Demo",
+        onSelect: async () => {
+          try {
+            toast.loading("Seeding sample portfolio data...", { id: "seed-demo" });
+            const res = await api.post("/settings/seed-demo-data");
+            toast.success(res.data?.message || "Sample portfolio data loaded with 35+ transactions!", { id: "seed-demo" });
+            navigate("/dashboard");
+          } catch (err: any) {
+            toast.error(err.response?.data?.detail || "Failed to seed demo data", { id: "seed-demo" });
+          }
+          onClose();
+        },
+      },
+      ...(SUPPORTED_CURRENCIES || []).map((c) => ({
+        id: `action-currency-${c.code}`,
+        title: `Switch Currency to ${c.code} (${c.symbol})`,
+        subtitle: `Display all figures in ${c.label} ${c.flag}`,
+        icon: Landmark,
+        category: "Actions" as const,
+        badge: c.symbol,
+        onSelect: () => {
+          setActiveCurrency(c.code);
+          toast.success(`Currency changed to ${c.label} (${c.symbol})`);
+          onClose();
+        },
+      })),
     ],
     [navigate, onClose, onOpenStatement, theme, toggle]
   );

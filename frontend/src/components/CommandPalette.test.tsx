@@ -13,8 +13,15 @@ vi.mock("@/App", () => ({
 vi.mock("@/lib/utils-finance", () => ({
   api: {
     get: vi.fn().mockResolvedValue({ data: { items: [] } }),
+    post: vi.fn().mockResolvedValue({ data: { message: "Success" } }),
   },
   formatINR: vi.fn((v) => `₹${v}`),
+  SUPPORTED_CURRENCIES: [
+    { code: "INR", label: "Indian Rupee", symbol: "₹", locale: "en-IN", flag: "🇮🇳" },
+    { code: "USD", label: "US Dollar", symbol: "$", locale: "en-US", flag: "🇺🇸" },
+  ],
+  setActiveCurrency: vi.fn(),
+  getActiveCurrency: vi.fn(() => ({ code: "INR", label: "Indian Rupee", symbol: "₹", locale: "en-IN", flag: "🇮🇳" })),
 }));
 
 describe("CommandPalette", () => {
@@ -65,5 +72,11 @@ describe("CommandPalette", () => {
     const input = screen.getByPlaceholderText(/type a command/i);
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("renders sample portfolio data action and currency switch items", () => {
+    renderComponent(true);
+    expect(screen.getByText("Seed Sample Portfolio Data")).toBeInTheDocument();
+    expect(screen.getByText("Switch Currency to USD ($)")).toBeInTheDocument();
   });
 });
