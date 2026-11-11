@@ -83,3 +83,12 @@ Expenditure*.xlsx
 # Large original design exports (kept local)
 original-logo.png
 frontend/src/components/_brand_paths_raw.json
+
+# Design references / scratch artifacts (keep local, not in repo)
+ref.png
+new_deisgn_*.png
+frontend/public/_fav_check.png
+frontend/_gen_favicon.py
+frontend/dev.err
+frontend/dev.out
+atlas-credentials.env
