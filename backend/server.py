@@ -391,7 +391,7 @@ if not _origins.strip() or _allow_all:
     logger.warning("CORS_ORIGINS is wildcard/empty; set an explicit frontend origin before production.")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if _allow_all else [o.strip() for o in _origins.split(",")],
+    allow_origins=["*"] if _allow_all else [o.strip() for o in _origins.split(",") if o.strip()],
     # A wildcard origin and credentials are mutually exclusive per the CORS
     # spec; browsers reject the response (surfacing as a generic "Network
     # Error") if both are set. This app uses no cookies/auth, so only enable
