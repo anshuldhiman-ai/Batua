@@ -36,18 +36,46 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Backend reachability, broadcast so a global banner can say
+// "server not running" instead of every page spinning on its own.
+// Only transitions are emitted, so listeners re-render once.
+export const BACKEND_STATUS_EVENT = "batua:backend-status";
+let backendOnline = true;
+const setBackendOnline = (online: boolean) => {
+  if (online === backendOnline) return;
+  backendOnline = online;
+  window.dispatchEvent(new CustomEvent(BACKEND_STATUS_EVENT, { detail: { online } }));
+};
+export const isBackendOnline = () => backendOnline;
+
+// A dead backend behind a proxy still yields an HTTP response: nginx
+// answers 502/503/504, the Vite dev proxy a bodiless 500. FastAPI's own
+// errors always carry a JSON body, so those are "server up".
+const isGatewayFailure = (res?: { status: number; data?: unknown }) =>
+  !!res &&
+  ([502, 503, 504].includes(res.status) ||
+    (res.status === 500 && (res.data === "" || res.data == null)));
+
 // Response interceptor for better error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    setBackendOnline(true);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
-    
+    // An app-level HTTP error proves the server is up; a gateway failure
+    // means the proxy couldn't reach it. Cancelled requests say nothing.
+    if (error.response) setBackendOnline(!isGatewayFailure(error.response));
+
     // Don't retry if it's an auth error or we've already retried
-    if (error.response?.status === 401 || originalRequest._retry) {
+    if (error.response?.status === 401 || originalRequest?._retry) {
+      if (!error.response && !axios.isCancel(error)) setBackendOnline(false);
       return Promise.reject(error);
     }
     
     // Retry on network errors or 5xx errors (max 2 retries)
+    if (axios.isCancel(error) || !originalRequest) return Promise.reject(error);
     if (!error.response && !originalRequest._retryCount) {
       originalRequest._retry = true;
       originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;

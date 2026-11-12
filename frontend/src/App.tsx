@@ -7,6 +7,7 @@ import SplashScreen from "@/components/SplashScreen";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDataLoaded } from "@/hooks/useDataLoaded";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import OfflineBanner from "@/components/OfflineBanner";
 import { AuthProvider, useAuth } from "@/components/Auth";
 import {
   applyAccent,
@@ -213,6 +214,7 @@ export default function App() {
             setSplashVisible={setSplashVisible}
           />
         </AuthProvider>
+        <OfflineBanner />
         <Toaster
           position="top-right"
           richColors
