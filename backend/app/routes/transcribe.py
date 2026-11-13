@@ -101,7 +101,8 @@ async def transcribe_test(
             400, f"Audio too large. Maximum size is {MAX_AUDIO_SIZE // (1024 * 1024)}MB"
         )
 
-    suffix = os.path.splitext(file.filename or "")[1] or ".webm"
+    raw_suffix = os.path.splitext(file.filename or "")[1].lower()
+    suffix = raw_suffix if raw_suffix in {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac"} else ".webm"
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -146,17 +147,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
     # faster-whisper reads from a path (it decodes via PyAV/ffmpeg), so spool
     # the upload to a temp file. Suffix helps the decoder pick a demuxer.
-    suffix = os.path.splitext(file.filename or "")[1] or ".webm"
+    raw_suffix = os.path.splitext(file.filename or "")[1].lower()
+    # Only keep a small allow-list of audio extensions; anything else
+    # (including path separators or traversal fragments) falls back to .webm.
+    suffix = raw_suffix if raw_suffix in {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac"} else ".webm"
     tmp_path = None
     try:
-        # Save a copy to scratch/ for debugging
-        scratch_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scratch")
-        os.makedirs(scratch_dir, exist_ok=True)
-        debug_path = os.path.join(scratch_dir, "last_voice" + suffix)
-        with open(debug_path, "wb") as f:
-            f.write(content)
-        logger.info("Saved copy of voice upload to %s (%d bytes)", debug_path, len(content))
-
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
