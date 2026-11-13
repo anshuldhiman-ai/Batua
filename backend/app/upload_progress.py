@@ -47,8 +47,20 @@ class ProgressStore:
         #             "result": Any, "error": str, "updated_at": float}
         self._tasks: dict[str, dict] = {}
 
+    _MAX_TASKS = 1000
+
     def create(self) -> str:
         """Allocate a new task id and seed it as uploading."""
+        # Reap stale tasks first so the store cannot grow without bound.
+        now = time.time()
+        stale = [tid for tid, t in self._tasks.items() if now - t["updated_at"] > 600]
+        for tid in stale:
+            self._tasks.pop(tid, None)
+        # Hard backstop against memory exhaustion under abuse.
+        if len(self._tasks) >= 1000:
+            oldest = sorted(self._tasks.items(), key=lambda kv: kv[1]["updated_at"])[: len(self._tasks) - 1000 + 1]
+            for tid, _ in oldest:
+                self._tasks.pop(tid, None)
         task_id = uuid.uuid4().hex
         self._tasks[task_id] = {
             "stage": STAGE_UPLOADING,
