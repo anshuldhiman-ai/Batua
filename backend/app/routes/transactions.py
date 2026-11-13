@@ -329,8 +329,15 @@ async def scan_receipt(file: UploadFile = File(...)):
     if not ai.is_enabled():
         raise HTTPException(400, "Gemini is not configured. Set GOOGLE_API_KEY to enable receipt scanning.")
     
+    MAX_RECEIPT_SIZE = 10 * 1024 * 1024  # 10MB
     file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(400, "Empty file upload")
+    if len(file_bytes) > MAX_RECEIPT_SIZE:
+        raise HTTPException(400, f"File too large. Maximum size is {MAX_RECEIPT_SIZE // (1024 * 1024)}MB")
     content_type = file.content_type or "image/jpeg"
+    if not content_type.startswith("image/"):
+        raise HTTPException(400, "Uploaded file must be an image")
 
     # ai.analyze_receipt blocks on a synchronous HTTPS call (30s timeout).
     # Run it off the event loop so one receipt scan can't stall the server.
