@@ -2,6 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/utils-finance";
 import { resolveDateRange } from "@/lib/analytics-utils";
 
+interface UseAnalyticsDataArgs {
+  view?: string;
+  dateRange?: string;
+  customStartDate?: string;
+  customEndDate?: string;
+  singleMonth?: string;
+  rangeStartMonth?: string;
+  rangeEndMonth?: string;
+}
+
 /**
  * Loads pre-aggregated analytics from the server-side summary API.
  * Extremely efficient for large datasets as it avoids page-by-page client pagination.
@@ -14,11 +24,11 @@ export function useAnalyticsData({
   singleMonth = "",
   rangeStartMonth = "",
   rangeEndMonth = "",
-}) {
+}: UseAnalyticsDataArgs = {}) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  const [data, setData] = useState({
+  const [error, setError] = useState<string | null>(null);
+
+  const [data, setData] = useState<any>({
     series: [],
     monthlySeries: [],
     categories: [],
@@ -33,7 +43,7 @@ export function useAnalyticsData({
       highestExpenseDay: null,
       lowestExpenseDay: null,
       periodDays: 0,
-      periodMonths: 0
+      periodMonths: 0,
     },
     trends: {
       highestSpendingCategory: null,
@@ -41,15 +51,15 @@ export function useAnalyticsData({
       fastestGrowingCategory: null,
       avgTransactionAmount: 0,
       largestTransaction: null,
-      smallestTransaction: null
+      smallestTransaction: null,
     },
     weekdayPattern: [],
     recentTransactions: [],
-    comparisonSeries: null
+    comparisonSeries: null,
   });
-  
-  const [budgetRows, setBudgetRows] = useState([]);
-  const abortRef = useRef(null);
+
+  const [budgetRows, setBudgetRows] = useState<any[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
 
   const range = useMemo(
     () =>
@@ -71,27 +81,27 @@ export function useAnalyticsData({
     setError(null);
     try {
       const endMonth = range.endDate.slice(0, 7);
-      
+
       const [summaryRes, budgetRes] = await Promise.all([
         api.get("/analytics/summary", {
           params: {
             start: range.startDate,
             end: range.endDate,
-            granularity: view
+            granularity: view,
           },
           signal: controller.signal,
         }),
         api.get("/budgets/status", {
           params: { month: endMonth },
           signal: controller.signal,
-        })
+        }),
       ]);
 
       if (controller.signal.aborted) return;
-      
+
       setData(summaryRes.data);
       setBudgetRows(budgetRes.data?.rows || []);
-    } catch (err) {
+    } catch (err: any) {
       if (err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
       setError(err?.response?.data?.detail || err?.message || "Failed to load analytics");
     } finally {
@@ -106,22 +116,22 @@ export function useAnalyticsData({
 
   const health = useMemo(() => {
     const summary = data.summary;
-    const overBudget = budgetRows.filter((r) => r.status === "over").length;
-    const warnBudget = budgetRows.filter((r) => r.status === "warn").length;
+    const overBudget = budgetRows.filter((r: any) => r.status === "over").length;
+    const warnBudget = budgetRows.filter((r: any) => r.status === "warn").length;
     let score = 50;
-    
+
     if (summary.savingsRate >= 20) score += 25;
     else if (summary.savingsRate >= 10) score += 15;
     else if (summary.savingsRate >= 0) score += 5;
     else score -= 20;
-    
+
     if (overBudget === 0 && warnBudget === 0) score += 15;
     else score -= overBudget * 10 + warnBudget * 5;
-    
-    const totalBudget = budgetRows.reduce((s, r) => s + (r.limit || 0), 0);
-    const totalSpent = budgetRows.reduce((s, r) => s + (r.spent || 0), 0);
+
+    const totalBudget = budgetRows.reduce((s: number, r: any) => s + (r.limit || 0), 0);
+    const totalSpent = budgetRows.reduce((s: number, r: any) => s + (r.spent || 0), 0);
     const utilization = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-      
+
     if (utilization > 0 && utilization <= 80) score += 10;
     score = Math.max(0, Math.min(100, Math.round(score)));
 
@@ -150,3 +160,4 @@ export function useAnalyticsData({
     refetch: load,
   };
 }
+PY
