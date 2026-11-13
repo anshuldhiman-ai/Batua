@@ -342,6 +342,16 @@ async def _auth_rate_limit(request, call_next):
         client_ip = request.client.host if request.client else "127.0.0.1"
         now = time.time()
         window_start = now - _AUTH_WINDOW_SECONDS
+        # Drop stale entries for every IP so the limiter can't grow without
+        # bound under a distributed brute-force / IP-spoofing flood.
+        stale_ips = [ip for ip, ts in _AUTH_RATE_LIMITS.items() if not any(t > window_start for t in ts)]
+        for ip in stale_ips:
+            _AUTH_RATE_LIMITS.pop(ip, None)
+        # Hard cap on tracked IPs as a backstop against memory exhaustion.
+        if len(_AUTH_RATE_LIMITS) > 10000:
+            # Evict the oldest-tracked IPs first.
+            for ip in list(_AUTH_RATE_LIMITS.keys())[: len(_AUTH_RATE_LIMITS) - 10000]:
+                _AUTH_RATE_LIMITS.pop(ip, None)
         attempts = [t for t in _AUTH_RATE_LIMITS.get(client_ip, []) if t > window_start]
         if len(attempts) >= _MAX_AUTH_ATTEMPTS:
             return JSONResponse(
