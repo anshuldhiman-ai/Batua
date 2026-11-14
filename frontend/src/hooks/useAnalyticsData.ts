@@ -160,4 +160,3 @@ export function useAnalyticsData({
     refetch: load,
   };
 }
-PY
