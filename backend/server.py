@@ -397,16 +397,31 @@ async def _security_headers(request, call_next):
 
 _origins = os.environ.get("CORS_ORIGINS", "")
 _allow_all = _origins.strip() == "*"
-if not _origins.strip() or _allow_all:
-    logger.warning("CORS_ORIGINS is wildcard/empty; set an explicit frontend origin before production.")
+_configured_origins = [o.strip() for o in _origins.split(",") if o.strip()]
+_default_dev_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+]
+
+if _allow_all:
+    _cors_origins = ["*"]
+    _cors_credentials = False
+elif _configured_origins:
+    _cors_origins = _configured_origins
+    _cors_credentials = True
+else:
+    logger.warning("CORS_ORIGINS is empty; defaulting to local frontend origins.")
+    _cors_origins = _default_dev_origins
+    _cors_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if _allow_all else [o.strip() for o in _origins.split(",") if o.strip()],
-    # A wildcard origin and credentials are mutually exclusive per the CORS
-    # spec; browsers reject the response (surfacing as a generic "Network
-    # Error") if both are set. This app uses no cookies/auth, so only enable
-    # credentials when the origins are explicitly listed.
-    allow_credentials=not _allow_all,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
