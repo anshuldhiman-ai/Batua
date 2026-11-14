@@ -129,9 +129,11 @@ def _filter_by_scope(txns, month: str | None, from_: str | None, to: str | None)
         txns = [t for t in txns if str(t.get("date", "")).startswith(month)]
     else:
         if from_:
-            txns = [t for t in txns if str(t.get("date", "")) >= from_]
+            f_bound = from_[:10] if len(from_) >= 10 else from_
+            txns = [t for t in txns if str(t.get("date", ""))[:10] >= f_bound]
         if to:
-            txns = [t for t in txns if str(t.get("date", "")) <= to]
+            t_bound = to[:10] if len(to) >= 10 else to
+            txns = [t for t in txns if str(t.get("date", ""))[:10] <= t_bound]
     return txns
 
 

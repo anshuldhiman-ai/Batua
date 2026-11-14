@@ -120,6 +120,11 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
+    @field_validator("username")
+    @classmethod
+    def _strip_username(cls, v: str) -> str:
+        return v.strip()
+
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
@@ -391,7 +396,7 @@ async def login(payload: LoginRequest):
     doc = await _load_account(storage)
     if doc is None:
         raise HTTPException(404, "No account found — register first (POST /api/auth/register)")
-    if doc["username"] != payload.username:
+    if doc["username"].strip().casefold() != payload.username.strip().casefold():
         # Same error as a bad password so usernames aren't enumerable
         raise HTTPException(401, "Invalid username or password")
     if not await asyncio.to_thread(_verify_password, payload.password, doc.get("password_hash", "")):
@@ -588,7 +593,7 @@ async def mint_recovery_token(payload: RecoveryTokenRequest):
     doc = await _load_account(storage)
     if doc is None:
         raise HTTPException(404, "No account found — register first")
-    if doc["username"] != payload.username:
+    if doc["username"].strip().casefold() != payload.username.strip().casefold():
         raise HTTPException(404, "No account with that username")
     if not await asyncio.to_thread(_verify_password, payload.password, doc.get("password_hash", "")):
         raise HTTPException(401, "Incorrect password")
@@ -649,7 +654,7 @@ async def forgot_password(payload: ForgotPasswordRequest):
     doc = await _load_account(storage)
     if doc is None:
         raise HTTPException(404, "No account found — register first")
-    if doc["username"] != payload.username:
+    if doc["username"].strip().casefold() != payload.username.strip().casefold():
         raise HTTPException(404, "No account found with this username")
 
     new_hash = await asyncio.to_thread(_hash_password, payload.new_password)

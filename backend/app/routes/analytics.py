@@ -23,9 +23,9 @@ async def analytics_timeline(start_month: str | None = None, end_month: str | No
         db_query["date"] = {"$gte": f"{start_month}-01"}
     if end_month:
         if "date" in db_query and isinstance(db_query["date"], dict):
-            db_query["date"]["$lte"] = f"{end_month}-31"
+            db_query["date"]["$lte"] = f"{end_month}-31~"
         else:
-            db_query["date"] = {"$lte": f"{end_month}-31"}
+            db_query["date"] = {"$lte": f"{end_month}-31~"}
     # Fetch with generous limit; pre_bucket handles month grouping server-side
     txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000, fields=("date", "amount", "payment_method", "txn_type"))
     # Use pre-bucketed data for efficiency
@@ -61,7 +61,7 @@ async def category_breakdown(month: str | None = None):
     storage = get_storage()
     db_query: dict = {}
     if month:
-        db_query["date"] = {"$gte": f"{month}-01", "$lte": f"{month}-31"}
+        db_query["date"] = {"$gte": f"{month}-01", "$lte": f"{month}-31~"}
     txns = await storage.all("transactions", query=db_query, order_by="date", order_desc=True, limit=5000, fields=("date", "amount", "category"))
     totals: dict[str, float] = defaultdict(float)
     for t in txns:
