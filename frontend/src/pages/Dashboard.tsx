@@ -164,7 +164,7 @@ export default function Dashboard() {
   const insightsQuery = useQuery({
     queryKey: ["insights", insightsMode],
     queryFn: async () => {
-      const res = await api.get("/insights", { params: { mode: insightsMode } });
+      const res = await api.get("/insights/", { params: { mode: insightsMode } });
       return res.data;
     }
   });
@@ -234,7 +234,7 @@ export default function Dashboard() {
         await new Promise((r) => setTimeout(r, 1500));
         if (!mountedRef.current) return;
         try {
-          const { data } = await api.get("/insights");
+          const { data } = await api.get("/insights/");
           if (data.source === "gemini" && data.generated_at !== before) {
             queryClient.setQueryData(["insights", insightsMode], data);
             return;

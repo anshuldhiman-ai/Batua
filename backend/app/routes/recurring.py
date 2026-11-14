@@ -13,6 +13,7 @@ async def get_all_txns():
     return await storage.all("transactions")
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def recurring():
     txns = await get_all_txns()

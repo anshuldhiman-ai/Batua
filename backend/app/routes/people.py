@@ -60,6 +60,7 @@ def _validate_date(date: str) -> str:
     return date
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_entries():
     """Return every ledger entry, newest date first."""
@@ -70,6 +71,7 @@ async def list_entries():
     return {"entries": entries}
 
 
+@router.post("", include_in_schema=False)
 @router.post("/")
 async def create_entry(payload: PersonEntry):
     """Create a new ledger entry.

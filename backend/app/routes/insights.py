@@ -52,6 +52,7 @@ _LLM_TIMEOUT = 20.0  # generous: this runs in a background task, so it never
 # ~6-9s, so a tight cap here just guarantees the LLM result never lands.
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def insights(
     background_tasks: BackgroundTasks,

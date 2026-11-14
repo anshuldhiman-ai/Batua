@@ -8,12 +8,14 @@ from app.dependencies import get_storage
 router = APIRouter()
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_budgets():
     storage = get_storage()
     return {"budgets": await storage.all("budgets")}
 
 
+@router.post("", include_in_schema=False)
 @router.post("/")
 async def upsert_budget(payload: BudgetCreate):
     storage = get_storage()

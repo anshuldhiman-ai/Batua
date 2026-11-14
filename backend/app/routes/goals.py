@@ -7,6 +7,7 @@ from app.cache import invalidate_analytics_cache
 router = APIRouter()
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_goals():
     """List all savings goals."""
@@ -14,6 +15,7 @@ async def list_goals():
     return {"goals": await storage.all("goals")}
 
 
+@router.post("", include_in_schema=False)
 @router.post("/")
 async def create_goal(payload: GoalCreate):
     """Create a new savings goal."""

@@ -24,6 +24,7 @@ class CategoryDelete(BaseModel):
     reassign_to: str
 
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def categories():
     """Get all categories (default + custom + used)."""
