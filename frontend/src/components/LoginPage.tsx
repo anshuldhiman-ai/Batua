@@ -777,6 +777,48 @@ function ForgotPasswordDialog({
   );
 }
 
+function PrivacyPolicyDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md border border-emerald-500/20 bg-[#0B110E] text-emerald-50">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-emerald-400">
+            <ShieldCheck className="h-5 w-5" />
+            <DialogTitle className="text-base font-semibold">Privacy & Security Pledge</DialogTitle>
+          </div>
+          <DialogDescription className="text-xs text-slate-400">
+            Batua is built from the ground up as a private, local-first finance vault.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2 text-xs leading-relaxed text-slate-300">
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <div className="font-semibold text-emerald-400">100% Local Storage</div>
+            <div>All transactions, budgets, and personal ledgers are saved locally on your machine in a private SQLite store. Your financial records never leave your machine.</div>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <div className="font-semibold text-emerald-400">No Trackers or Third-Party Ads</div>
+            <div>We collect zero telemetry, tracking cookies, or user profiling data. No third-party analytics or external scripts are loaded.</div>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <div className="font-semibold text-emerald-400">Local Voice & AI Control</div>
+            <div>Speech recognition runs locally via faster-whisper or browser processing. AI insights only send aggregated anonymized category stats when you explicitly trigger them.</div>
+          </div>
+          <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2.5">
+            <div className="font-semibold text-emerald-400">Complete Data Ownership</div>
+            <div>Export your data to Excel or JSON anytime, or reset your database with one click in Settings.</div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* The page                                                           */
 /* ------------------------------------------------------------------ */
@@ -794,6 +836,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [succeeded, setSucceeded] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [banner, setBanner] = useState<{ kind: "error" | "warning"; text: string } | null>(null);
   const [deviceNotice, setDeviceNotice] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -1255,6 +1298,18 @@ export default function LoginPage() {
               </button>
             </div>
 
+            <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-slate-500">
+              <button
+                type="button"
+                onClick={() => setPrivacyOpen(true)}
+                className="hover:text-emerald-400 transition-colors underline-offset-2 hover:underline focus:outline-none cursor-pointer"
+              >
+                Privacy & Security Pledge
+              </button>
+              <span>•</span>
+              <span>100% Local Vault</span>
+            </div>
+
             {/* Popup celebration on succeeding */}
             <AnimatePresence>
               {succeeded && (
@@ -1294,6 +1349,11 @@ export default function LoginPage() {
               setForm((f) => ({ ...f, username: uname, password: "" }));
               setBanner({ kind: "warning", text: "Password reset successfully. Sign in with your new password." });
             }}
+          />
+
+          <PrivacyPolicyDialog
+            open={privacyOpen}
+            onClose={() => setPrivacyOpen(false)}
           />
         </motion.div>
       </main>

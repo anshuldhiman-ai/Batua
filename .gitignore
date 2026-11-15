@@ -43,6 +43,7 @@ scratch/
 # AI / project docs (not for the repo)
 CLAUDE.md
 TASK.md
+AUDIT.md
 
 # Android / Capacitor (mobile APK build)
 frontend/android/

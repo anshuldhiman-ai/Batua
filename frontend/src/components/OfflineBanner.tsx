@@ -23,9 +23,11 @@ export default function OfflineBanner() {
   }, [queryClient]);
 
   // While offline, probe quietly so the banner clears on its own.
+  // Pauses probing when the document is hidden to eliminate wasteful background polling.
   useEffect(() => {
     if (online) return;
     const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       api.get("/").catch(() => {});
     }, 5000);
     return () => window.clearInterval(id);
