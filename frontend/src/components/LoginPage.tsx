@@ -582,14 +582,16 @@ function BrandPanel() {
         <div className="flex w-full flex-col pt-14 sm:pt-20 lg:pt-[84px] xl:pt-[100px]">
           <motion.h2
             variants={item}
-            className="max-w-[700px] font-display text-[32px] font-bold leading-[1.06] tracking-[-0.025em] text-white sm:text-[40px] lg:text-[38px] xl:text-[42px]"
+            className="max-w-[680px] font-display text-[32px] font-bold leading-[1.06] tracking-[-0.025em] sm:text-[40px] lg:text-[38px] xl:text-[42px] [text-wrap:balance]"
           >
-            Take control of your money,{" "}
+            <span className="bg-gradient-to-r from-white via-white/95 to-neutral-400 bg-clip-text text-transparent">
+              Take control of your money,
+            </span>{" "}
             <span className="block text-[#4ADE80]">without giving up your privacy.</span>
           </motion.h2>
           <motion.p
             variants={item}
-            className="mt-7 max-w-[620px] text-[14.5px] leading-[1.7] text-[#8FA396] sm:text-[16px] lg:text-[17px]"
+            className="mt-7 max-w-[620px] text-[14.5px] leading-[1.7] text-[#8FA396] sm:text-[16px] lg:text-[17px] [text-wrap:pretty]"
           >
             A personal finance app that keeps your data on your device.
             <br />
@@ -1059,10 +1061,10 @@ export default function LoginPage() {
 
             {/* Heading — the card opens straight on the action */}
             <motion.div variants={item} className="flex flex-col items-center text-center">
-              <h1 className="font-display text-[26px] font-bold tracking-tight text-white sm:text-[30px]">
+              <h1 className="font-display text-[26px] font-bold tracking-tight sm:text-[30px] [text-wrap:balance] bg-gradient-to-r from-white via-white/95 to-neutral-400 bg-clip-text text-transparent">
                 {isLogin ? "Sign in" : "Create your vault"}
               </h1>
-              <p className="mt-1.5 text-[13.5px]" style={{ color: INK_3 }}>
+              <p className="mt-1.5 text-[13.5px] [text-wrap:pretty]" style={{ color: INK_3 }}>
                 {isLogin ? "Access your local finance vault." : "Set up your local finance vault."}
               </p>
             </motion.div>
@@ -1208,14 +1210,14 @@ export default function LoginPage() {
                 type="submit"
                 disabled={busy || succeeded}
                 whileHover={succeeded || busy ? undefined : { scale: 1.01 }}
-                whileTap={succeeded || busy ? undefined : { scale: 0.99 }}
+                whileTap={succeeded || busy ? undefined : { scale: 0.98 }}
                 aria-label={isLogin ? "Unlock Batua" : "Create Batua"}
                 className={cn(
                   "auth-sheen group relative mt-1 flex h-14 w-full items-center justify-center gap-2.5 overflow-hidden rounded-full",
-                  "text-[15px] font-bold tracking-tight transition-all duration-200 cursor-pointer",
+                  "text-[15px] font-bold tracking-tight transition-all duration-300 ease-decel cursor-pointer",
                   "bg-gradient-to-r from-[#34D399] via-[#10B981] to-[#059669] text-[#05231A]",
                   "shadow-[0_0_24px_rgba(74,222,128,0.4),0_2px_8px_rgba(16,185,129,0.3)]",
-                  "hover:brightness-105 hover:shadow-[0_0_34px_rgba(74,222,128,0.6)] active:translate-y-0",
+                  "hover:brightness-105 hover:shadow-[0_0_34px_rgba(74,222,128,0.6)] active:scale-[0.98]",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09110d]",
                   "disabled:pointer-events-none disabled:opacity-60"
                 )}
@@ -1266,7 +1268,7 @@ export default function LoginPage() {
                   className={cn(
                     "flex h-14 w-full items-center justify-center gap-2.5 rounded-full",
                     "border border-white/[0.14] bg-white/[0.02] text-[15px] font-semibold text-white",
-                    "transition-all duration-200 cursor-pointer hover:border-white/25 hover:bg-white/[0.05]",
+                    "transition-all duration-300 ease-decel cursor-pointer hover:border-white/25 hover:bg-white/[0.05] active:scale-[0.98]",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09110d]"
                   )}
                 >

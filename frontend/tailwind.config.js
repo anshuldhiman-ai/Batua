@@ -49,6 +49,9 @@ module.exports = {
         display: ['Nevera', 'Outfit', 'sans-serif'],
         sans: ['"Plus Jakarta Sans"', 'sans-serif'],
       },
+      transitionTimingFunction: {
+        decel: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
       keyframes: {
         shimmer: {
           "100%": { transform: "translateX(100%)" },

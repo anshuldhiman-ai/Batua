@@ -66,7 +66,7 @@ export default function KPICard({
           "relative group h-full overflow-hidden",
           hero ? "px-4 py-3.5" : "px-3 py-2.5",
           clickable &&
-            "cursor-pointer transition-shadow hover:shadow-[0_16px_40px_-16px_hsl(var(--foreground)/0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+            "cursor-pointer transition-all duration-300 ease-decel hover:shadow-[0_16px_40px_-16px_hsl(var(--foreground)/0.28)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
         )}
         data-testid={testId}
         onClick={onClick}
@@ -110,7 +110,7 @@ export default function KPICard({
                 </span>
               )}
               {clickable && (
-                <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 -translate-x-1 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
+                <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 -translate-x-1 transition-all duration-300 ease-decel group-hover:translate-x-0 group-hover:opacity-100" />
               )}
             </div>
           </div>
