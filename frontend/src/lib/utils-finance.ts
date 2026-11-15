@@ -33,6 +33,12 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // When payload is FormData, remove static Content-Type so browser can compute
+  // multipart/form-data with the correct boundary parameter.
+  if (config.data instanceof FormData && config.headers) {
+    delete config.headers["Content-Type"];
+    delete config.headers["content-type"];
+  }
   return config;
 });
 

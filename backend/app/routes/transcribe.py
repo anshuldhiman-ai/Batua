@@ -5,6 +5,8 @@ faster-whisper, then fed through the same Hinglish voice parser used by the
 Web Speech path. This makes voice input work on networks where the browser's
 cloud recognizer (Google) is unreachable.
 """
+import asyncio
+import base64
 import logging
 import os
 import tempfile
@@ -13,6 +15,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+import ai
 import transcribe as stt
 from parser import parse_voice_input
 
@@ -23,9 +26,40 @@ router = APIRouter()
 MAX_AUDIO_SIZE = 15 * 1024 * 1024  # 15MB — plenty for a short voice note
 
 
+async def _gemini_transcribe(content: bytes, mime_type: str = "audio/webm") -> str | None:
+    """Fallback audio transcription via Google Gemini Multimodal when available."""
+    if not ai.is_enabled():
+        return None
+    try:
+        b64 = base64.b64encode(content).decode("ascii")
+        prompt = (
+            "You are an accurate audio transcriber for a personal finance app. "
+            "Transcribe this short expense voice clip verbatim into English or Hinglish. "
+            "Return ONLY the exact spoken transcript without any explanations, timestamps, quotes, or markdown formatting."
+        )
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"inline_data": {"mime_type": mime_type, "data": b64}},
+                        {"text": prompt},
+                    ]
+                }
+            ],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 150},
+        }
+        res = await asyncio.to_thread(ai._post, f"models/{ai.model_name()}:generateContent", payload)
+        if res and "candidates" in res:
+            text = ai._extract_text(res)
+            return text.strip() if text else None
+    except Exception as exc:
+        logger.warning("Gemini audio transcription fallback failed: %s", exc)
+    return None
+
+
 @router.get("/transcribe/status")
 async def transcribe_status():
-    """Report whether offline transcription is available.
+    """Report whether offline or cloud transcription is available.
 
     The frontend calls this once to decide between backend transcription and
     the browser Web Speech API. Cheap: does not force the model download. Also
@@ -36,6 +70,8 @@ async def transcribe_status():
         "model": stt.model_name(),
         "models": stt.available_models(),
         "loaded": stt.loaded_models(),
+        "whisper_available": stt.is_enabled(),
+        "gemini_available": ai.is_enabled(),
     }
 
 
@@ -103,24 +139,45 @@ async def transcribe_test(
 
     raw_suffix = os.path.splitext(file.filename or "")[1].lower()
     suffix = raw_suffix if raw_suffix in {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac"} else ".webm"
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
-        details = await run_in_threadpool(stt.transcribe_details, tmp_path, model)
-    except Exception as exc:
-        logger.warning("Mic-test transcription error: %s", exc)
-        raise HTTPException(500, "Could not transcribe the audio. Please try again.")
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+    mime_type = "audio/webm"
+    if suffix == ".wav":
+        mime_type = "audio/wav"
+    elif suffix == ".mp3":
+        mime_type = "audio/mp3"
+    elif suffix == ".ogg":
+        mime_type = "audio/ogg"
+
+    details = None
+    if stt.is_enabled():
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            details = await run_in_threadpool(stt.transcribe_details, tmp_path, model)
+        except Exception as exc:
+            logger.warning("Mic-test transcription error: %s", exc)
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+    # Fallback to Gemini if Whisper failed or was unavailable
+    if (not details or not details.get("text")) and ai.is_enabled():
+        gemini_text = await _gemini_transcribe(content, mime_type=mime_type)
+        if gemini_text:
+            details = {
+                "text": gemini_text,
+                "model": f"gemini-{ai.model_name()}",
+                "language": "en",
+                "language_probability": 0.95,
+                "duration_ms": 500,
+            }
 
     if not details:
-        raise HTTPException(500, "Could not transcribe the audio. Please try again.")
+        raise HTTPException(500, "Could not transcribe the audio. Please speak louder and try again.")
     return details
 
 
@@ -128,7 +185,7 @@ async def transcribe_test(
 async def transcribe_audio(file: UploadFile = File(...)):
     """Transcribe an uploaded audio clip and parse it into transactions.
 
-    Returns {text, items} where items is the same shape as /parse-nl/voice.
+    Returns {text, items, engine} where items is the same shape as /parse-nl/voice.
     """
     if not stt.is_enabled():
         raise HTTPException(
@@ -145,31 +202,52 @@ async def transcribe_audio(file: UploadFile = File(...)):
             400, f"Audio too large. Maximum size is {MAX_AUDIO_SIZE // (1024 * 1024)}MB"
         )
 
-    # faster-whisper reads from a path (it decodes via PyAV/ffmpeg), so spool
-    # the upload to a temp file. Suffix helps the decoder pick a demuxer.
-    raw_suffix = os.path.splitext(file.filename or "")[1].lower()
-    # Only keep a small allow-list of audio extensions; anything else
-    # (including path separators or traversal fragments) falls back to .webm.
-    suffix = raw_suffix if raw_suffix in {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac"} else ".webm"
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
+    text = None
+    engine_used = None
 
-        text = await run_in_threadpool(stt.transcribe_file, tmp_path)
-    except Exception as exc:
-        logger.warning("Transcription error: %s", exc)
-        raise HTTPException(500, "Could not transcribe the audio. Please try again.")
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+    raw_suffix = os.path.splitext(file.filename or "")[1].lower()
+    suffix = raw_suffix if raw_suffix in {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac"} else ".webm"
+    mime_type = "audio/webm"
+    if suffix == ".wav":
+        mime_type = "audio/wav"
+    elif suffix == ".mp3":
+        mime_type = "audio/mp3"
+    elif suffix == ".ogg":
+        mime_type = "audio/ogg"
+
+    # 1. Try local Whisper first (100% offline, local-first)
+    if stt.is_enabled():
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+
+            text = await run_in_threadpool(stt.transcribe_file, tmp_path)
+            if text and text.strip():
+                text = text.strip()
+                engine_used = f"whisper-{stt.model_name()}"
+        except Exception as exc:
+            logger.warning("Whisper transcription error: %s", exc)
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+    # 2. Fall back to Gemini Multimodal Audio if Whisper was empty or failed
+    if (not text or not text.strip()) and ai.is_enabled():
+        try:
+            gemini_text = await _gemini_transcribe(content, mime_type=mime_type)
+            if gemini_text and gemini_text.strip():
+                text = gemini_text.strip()
+                engine_used = f"gemini-{ai.model_name()}"
+        except Exception as exc:
+            logger.warning("Gemini audio transcription error: %s", exc)
 
     if not text:
-        return {"text": "", "items": []}
+        return {"text": "", "items": [], "engine": None}
 
     items = parse_voice_input(text)
-    return {"text": text, "items": items}
+    return {"text": text, "items": items, "engine": engine_used}

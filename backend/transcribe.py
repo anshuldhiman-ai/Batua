@@ -213,7 +213,8 @@ def transcribe_details(path: str, model_size: str | None = None) -> dict | None:
                 path,
                 language=_LANGUAGE,
                 beam_size=_BEAM,
-                vad_filter=False,
+                vad_filter=True,
+                initial_prompt="Batua personal expense tracker: chai 20 rupees, auto 50 cash, groceries 200 UPI, Swiggy, Zomato, paid, spent, transfer.",
             )
             text = " ".join(seg.text for seg in segments).strip()
             elapsed_ms = int((time.perf_counter() - started) * 1000)

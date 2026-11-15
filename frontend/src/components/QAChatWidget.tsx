@@ -465,10 +465,10 @@ export default function QAChatWidget() {
         toast.error("Recording failed. Please try again.");
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       setRecording(true);
-      setInterim("Local mode active...");
-      toast.info("Listening (Local Whisper)… ask your question", { duration: 2500 });
+      setInterim("Listening (Offline Voice)…");
+      toast.info("Listening (Offline Voice)… ask your question", { duration: 2500 });
     } catch (err) {
       console.error(err);
       if (err.name === "NotAllowedError") {

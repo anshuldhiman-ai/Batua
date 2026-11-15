@@ -669,11 +669,11 @@ function InputRow({ value, onChange, onPick, lastPicked = "", onParse, onVoiceRe
 
       setWhisperAvailable(backendReady);
 
-      if (SpeechRecognitionClass) {
-        setSttMode("browser");
-        setSupported(true);
-      } else if (backendReady) {
+      if (backendReady) {
         setSttMode("backend");
+        setSupported(true);
+      } else if (SpeechRecognitionClass) {
+        setSttMode("browser");
         setSupported(true);
       } else {
         setSttMode("browser");
@@ -977,6 +977,10 @@ function InputRow({ value, onChange, onPick, lastPicked = "", onParse, onVoiceRe
         return;
       }
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      if (blob.size < 300) {
+        toast.error("Audio recording was too short. Speak a little longer and try again.");
+        return;
+      }
       onAudioResult?.(blob);
     };
 
@@ -989,10 +993,10 @@ function InputRow({ value, onChange, onPick, lastPicked = "", onParse, onVoiceRe
       mediaRecorderRef.current = null;
     };
 
-    recorder.start();
+    recorder.start(250);
     setRecording(true);
-    setInterim("Local mode active...");
-    toast.info("Recording (Local Whisper)… tap the mic again when you're done", { duration: 2500 });
+    setInterim("Listening (Offline Voice)…");
+    toast.info("Recording (Offline Voice)… tap the mic again when done", { duration: 2500 });
   };
 
   const toggleBackendRecording = () => {

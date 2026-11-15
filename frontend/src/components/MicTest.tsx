@@ -156,6 +156,11 @@ export default function MicTest({ className }: { className?: string }) {
         return;
       }
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      if (blob.size < 300) {
+        setPhase("idle");
+        toast.error("Recording was too short. Speak a little longer and try again.");
+        return;
+      }
       uploadClip(blob);
     };
     recorder.onerror = () => {
@@ -164,7 +169,7 @@ export default function MicTest({ className }: { className?: string }) {
       toast.error("Recording error. Please try again.");
     };
 
-    recorder.start();
+    recorder.start(250);
     setPhase("recording");
   };
 
