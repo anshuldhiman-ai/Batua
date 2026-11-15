@@ -28,6 +28,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.dependencies import get_storage
+from app.rate_limiter import check_rate_limit, reset_rate_limit
 
 logger = logging.getLogger("batua.auth")
 
@@ -365,9 +366,10 @@ async def validation_to_400(request: Request, exc: RequestValidationError):
 # --------------------------------------------------------------------------- #
 
 @router.post("/auth/register")
-async def register(payload: RegisterRequest):
+async def register(payload: RegisterRequest, request: Request):
     """Create the local account. One account per install — registering
     again updates the credentials (the account is the owner's)."""
+    check_rate_limit(request, scope="register", max_requests=5, window_seconds=60)
     if not payload.username or len(payload.username) < 3:
         raise HTTPException(400, "username must be at least 3 characters")
     storage = get_storage()
@@ -390,8 +392,9 @@ async def register(payload: RegisterRequest):
 
 
 @router.post("/auth/login")
-async def login(payload: LoginRequest):
+async def login(payload: LoginRequest, request: Request):
     """Authenticate and issue a short-lived session token."""
+    check_rate_limit(request, scope="login", max_requests=10, window_seconds=60)
     storage = get_storage()
     doc = await _load_account(storage)
     if doc is None:
@@ -401,6 +404,8 @@ async def login(payload: LoginRequest):
         raise HTTPException(401, "Invalid username or password")
     if not await asyncio.to_thread(_verify_password, payload.password, doc.get("password_hash", "")):
         raise HTTPException(401, "Invalid username or password")
+
+    reset_rate_limit(request, scope="login")
 
     # Token + login-history entry are written in one locked mutation —
     # two logins racing each other can no longer lose one another's
@@ -648,8 +653,9 @@ async def reset_password(payload: ResetRequest):
 
 
 @router.post("/auth/forgot-password")
-async def forgot_password(payload: ForgotPasswordRequest):
+async def forgot_password(payload: ForgotPasswordRequest, request: Request):
     """Direct local password reset by username (current mode, additional security to be expanded)."""
+    check_rate_limit(request, scope="forgot-password", max_requests=5, window_seconds=60)
     storage = get_storage()
     doc = await _load_account(storage)
     if doc is None:

@@ -20,13 +20,14 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Query, Request
 
 import ai
 import local_llm
 from parser import CATEGORIES
 from app.cache import get_cache
 from app.dependencies import get_storage
+from app.rate_limiter import check_rate_limit
 from app.routes.analytics import analytics_timeline, category_breakdown
 from app.routes.dashboard import dashboard_metrics
 
@@ -228,13 +229,14 @@ async def _refresh_mixed_insights() -> None:
 
 
 @router.post("/refresh")
-async def refresh_ai_insights(background_tasks: BackgroundTasks):
+async def refresh_ai_insights(background_tasks: BackgroundTasks, request: Request):
     """Kick off a Gemini refresh in the background.
 
     Returns immediately with a status flag so the UI doesn't block.
     Routed through the pending-flag guard so rapid refreshes don't
     fan out into concurrent 20s Gemini calls.
     """
+    check_rate_limit(request, scope="ai-refresh", max_requests=4, window_seconds=60)
     if not ai.is_enabled():
         return {"status": "disabled", "message": "Gemini is not configured."}
     _schedule_llm_refresh(background_tasks, "insights_llm", _refresh_gemini_insights)
