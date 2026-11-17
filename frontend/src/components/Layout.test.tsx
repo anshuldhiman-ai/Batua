@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './Layout'
 
@@ -141,6 +141,17 @@ describe('Layout - Responsive Behavior', () => {
       // This test verifies the mapping exists, actual title updates are tested in integration
       const { container } = renderLayout()
       expect(container).toBeInTheDocument()
+    })
+  })
+
+  describe('Sign Out Confirmation', () => {
+    it('should open confirmation dialog when sign out button is clicked', () => {
+      renderLayout()
+      const signOutBtn = screen.getByTestId('sign-out')
+      expect(signOutBtn).toBeInTheDocument()
+      fireEvent.click(signOutBtn)
+      expect(screen.getByText(/Sign out of Batua\?/i)).toBeInTheDocument()
+      expect(screen.getByText(/Are you sure you want to sign out\?/i)).toBeInTheDocument()
     })
   })
 })
