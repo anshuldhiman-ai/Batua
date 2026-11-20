@@ -534,59 +534,19 @@ def _parse_with_rules(text: str) -> Dict[str, Any]:
 
 
 class LocalNLPParser:
-    """Local NLP parser using spaCy for transaction parsing."""
+    """Fast local NLP parser for transaction parsing."""
 
     def __init__(self):
         self._nlp = None
-        self._initialized = False
+        self._initialized = True
 
     def _initialize(self):
-        """Lazy initialize spaCy model."""
-        if self._initialized:
-            return True
-        try:
-            import spacy
-            try:
-                self._nlp = spacy.load("en_core_web_sm")
-            except OSError:
-                logger.info("spaCy model en_core_web_sm is not installed; using rules-only fallback")
-                return False
-            self._initialized = True
-            logger.info("Local NLP parser initialized with spaCy")
-            return True
-        except Exception as exc:
-            logger.warning(f"Failed to initialize spaCy: {exc}")
-            return False
+        return True
 
     def parse_transaction(self, text: str) -> Optional[Dict[str, Any]]:
         """Parse natural language transaction text into structured data."""
-        if not self._initialize():
-            return _parse_with_rules(text)
         try:
-            doc = self._nlp(text.lower())
-            result = {
-                "description": "",
-                "amount": 0.0,
-                "date": "",
-                "category": "Other",
-                "payment_method": "",
-            }
-            amount = _extract_amount(text)
-            if amount is not None:
-                result["amount"] = amount
-            date_keywords = {
-                "today", "yesterday", "tomorrow",
-                "this week", "last week", "next week",
-                "this month", "last month", "next month",
-            }
-            for token in doc:
-                if token.text in date_keywords:
-                    result["date"] = token.text
-                    break
-            result["payment_method"] = _detect_payment_method(text)
-            result["description"] = _clean_description(text)
-            result["category"] = keyword_category(text) or "Other"
-            return result
+            return _parse_with_rules(text)
         except Exception as exc:
             logger.error(f"Error parsing transaction: {exc}")
             return None
@@ -1891,10 +1851,12 @@ class TransactionClassifier:
                     self._model = getattr(bundle, "named_steps", {}).get("clf", bundle)
                     self._training_fingerprint = fingerprint
                     self._initialized = True
+                    classes = getattr(bundle, "classes_", None)
+                    n_classes = len(classes) if classes is not None else 0
                     logger.info(
                         "Loaded custom ML pipeline classifier from %s (%d classes)",
                         path,
-                        len(getattr(bundle, "classes_", None) or []),
+                        n_classes,
                     )
                     return True
                 if isinstance(bundle, dict):
@@ -2044,6 +2006,7 @@ class TransactionClassifier:
             best_idx = int(proba.argmax())
             best_proba = float(proba[best_idx])
             best_label = str(classes[best_idx])
+            best_label = {"Healthcare": "Health", "Travel": "Transportation"}.get(best_label, best_label)
             # Margin between top-1 and top-2 — if they're close, abstain.
             sorted_proba = sorted(proba, reverse=True)
             margin = sorted_proba[0] - sorted_proba[1] if len(sorted_proba) > 1 else sorted_proba[0]
@@ -2124,8 +2087,10 @@ class TransactionClassifier:
                         threshold = 0.40
                     else:
                         threshold = 0.25
+                    raw_label = str(classes[best_idx])
+                    mapped_label = {"Healthcare": "Health", "Travel": "Transportation"}.get(raw_label, raw_label)
                     label = ("Other" if (best_proba < threshold or margin < 0.08)
-                             else str(classes[best_idx]))
+                             else mapped_label)
                     result[d] = label
                     self._predict_cache.set(d.lower(), label)
             except Exception as exc:
