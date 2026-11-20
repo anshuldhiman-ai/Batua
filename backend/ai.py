@@ -8,6 +8,7 @@ fall back to rule-based logic.
 """
 import os
 import json
+import time
 import base64
 import logging
 from pathlib import Path
@@ -19,6 +20,12 @@ logger = logging.getLogger("batua.ai")
 _API_KEY = os.environ.get("GOOGLE_API_KEY", "").strip()
 _MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
 _API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+# Circuit breaker to prevent hanging requests when Gemini API is down or unreachable
+_circuit_broken: bool = False
+_last_failure_time: float = 0.0
+_consecutive_failures: int = 0
+_CIRCUIT_COOLDOWN_SECONDS: float = 60.0
 
 
 def _auth_headers(key: str) -> dict[str, str]:
@@ -32,7 +39,12 @@ def _auth_headers(key: str) -> dict[str, str]:
 
 
 def is_enabled() -> bool:
-    return bool(_API_KEY)
+    if not _API_KEY:
+        return False
+    # If the circuit breaker is active and cooldown hasn't elapsed, treat as disabled
+    if _circuit_broken and (time.time() - _last_failure_time < _CIRCUIT_COOLDOWN_SECONDS):
+        return False
+    return True
 
 
 def model_name() -> str:
@@ -125,17 +137,27 @@ def set_api_key(key: str) -> None:
         logger.warning("Could not persist GOOGLE_API_KEY to .env", exc_info=True)
 
 
-def _post(path: str, payload: dict) -> dict | None:
+def _post(path: str, payload: dict, timeout: float = 4.0) -> dict | None:
     """POST to the Gemini REST API and return the JSON response, or None."""
+    global _circuit_broken, _last_failure_time, _consecutive_failures
     if not _API_KEY:
         return None
+    # Fast circuit breaker: if Gemini recently failed repeatedly, do not block
+    if _circuit_broken and (time.time() - _last_failure_time < _CIRCUIT_COOLDOWN_SECONDS):
+        return None
+
     url = f"{_API_BASE}/{path}"
     try:
-        resp = requests.post(url, json=payload, headers=_auth_headers(_API_KEY), timeout=30)
+        resp = requests.post(url, json=payload, headers=_auth_headers(_API_KEY), timeout=timeout)
         resp.raise_for_status()
+        _consecutive_failures = 0
+        _circuit_broken = False
         return resp.json()
     except Exception as exc:
-        logger.warning("Gemini API call failed (%s): %s", path, exc)
+        _consecutive_failures += 1
+        _last_failure_time = time.time()
+        _circuit_broken = True
+        logger.warning("Gemini circuit breaker opened for %.0fs: %s", _CIRCUIT_COOLDOWN_SECONDS, exc)
         return None
 
 
@@ -151,22 +173,23 @@ def _extract_text(data: dict | None) -> str | None:
         return None
 
 
-def chat(system_message: str, user_text: str) -> str | None:
+def chat(system_message: str, user_text: str, timeout: float = 4.0) -> str | None:
     """Send a single-turn message. Returns text or None on any failure."""
     payload = {
         "contents": [{"parts": [{"text": f"{system_message}\n\n{user_text}"}]}],
         "generationConfig": {"temperature": 0.4},
     }
-    data = _post(f"models/{_MODEL}:generateContent", payload)
+    data = _post(f"models/{_MODEL}:generateContent", payload, timeout=timeout)
     return _extract_text(data)
 
 
-def chat_json(system_message: str, user_text: str) -> dict | None:
+def chat_json(system_message: str, user_text: str, timeout: float = 4.0) -> dict | None:
     """Send a message expecting JSON back; parse and return a dict or None."""
     raw = chat(
         system_message
         + " Respond with ONLY valid minified JSON, no markdown fences, no prose.",
         user_text,
+        timeout=timeout,
     )
     if not raw:
         return None
@@ -214,7 +237,7 @@ def analyze_receipt(file_bytes: bytes, mime_type: str) -> dict | None:
         }],
         "generationConfig": {"temperature": 0.2},
     }
-    data = _post(f"models/{_MODEL}:generateContent", payload)
+    data = _post(f"models/{_MODEL}:generateContent", payload, timeout=15.0)
     raw_text = _extract_text(data)
     if not raw_text:
         return None
