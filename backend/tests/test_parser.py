@@ -590,3 +590,25 @@ def test_typed_each_patterns_use_total_and_clean_description():
         assert result["description"] == description
         assert result["quantity"] == quantity
         assert result["amount"] == amount
+
+
+def test_parse_nl_input_lru_cache():
+    from parser import _PARSE_CACHE, parse_nl_input
+    today = datetime(2026, 6, 19)
+    _PARSE_CACHE.clear()
+    res1 = parse_nl_input("coffee 150 yesterday", today)
+    assert "coffee 150 yesterday||2026-06-19" in _PARSE_CACHE
+    res2 = parse_nl_input("coffee 150 yesterday", today)
+    assert res1 == res2
+    # Ensure cache returns deepcopy so mutations don't corrupt the cache
+    res2["description"] = "Tampered"
+    res3 = parse_nl_input("coffee 150 yesterday", today)
+    assert res3["description"] != "Tampered"
+
+
+def test_gemini_circuit_breaker_bypass():
+    import ai
+    from parser import _gemini_parse
+    with patch("ai.is_enabled", return_value=False):
+        assert _gemini_parse("test query", datetime(2026, 6, 19)) is None
+
