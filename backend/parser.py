@@ -7,8 +7,10 @@ leftover becomes a clean description.
 import re
 import ast
 import calendar
+import copy
 import time
 import logging
+from collections import OrderedDict
 from datetime import datetime, timedelta
 
 
@@ -16,6 +18,9 @@ import ai
 import ml_nlp
 
 logger = logging.getLogger("batua.parser")
+
+_PARSE_CACHE: OrderedDict[str, dict] = OrderedDict()
+_MAX_PARSE_CACHE = 1000
 
 # --------------------------------------------------------------------------- #
 # Keyword dictionaries
@@ -935,6 +940,8 @@ def _set_unit_price(parsed: dict) -> dict:
 
 
 def _gemini_parse(text: str, today: datetime) -> dict | None:
+    if not ai.is_enabled():
+        return None
     system = (
         "You are a finance transaction parser for an Indian personal finance "
         "app. Currency is INR. Categories must be one of: Income, Food & Dining, "
@@ -945,7 +952,11 @@ def _gemini_parse(text: str, today: datetime) -> dict | None:
         "category, payment_method."
     )
     payload = f"Today is {today.strftime('%Y-%m-%d')}. Parse: {text!r}"
-    return ai.chat_json(system, payload)
+    try:
+        return ai.chat_json(system, payload, timeout=3.0)
+    except Exception as exc:
+        logger.debug("Gemini parse failed or timed out: %s", exc)
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -1175,8 +1186,19 @@ def parse_nl_input(text: str, today: datetime | None = None) -> dict:
     original = text.strip()
     if not original:
         raise ValueError("Empty input")
+
+    cache_key = f"{original.lower()}||{today.strftime('%Y-%m-%d')}"
+    if cache_key in _PARSE_CACHE:
+        _PARSE_CACHE.move_to_end(cache_key)
+        return copy.deepcopy(_PARSE_CACHE[cache_key])
+
     if _is_recurring(original):
-        return parse_recurring(original, today)
+        res = parse_recurring(original, today)
+        _PARSE_CACHE[cache_key] = copy.deepcopy(res)
+        while len(_PARSE_CACHE) > _MAX_PARSE_CACHE:
+            _PARSE_CACHE.popitem(last=False)
+        return res
+
     result = parse_transaction(original, today)
     result["kind"] = "single"
     fragments = fragment_transactions(original, today)
@@ -1190,6 +1212,10 @@ def parse_nl_input(text: str, today: datetime | None = None) -> dict:
         result["quantity"] = 1
         result["txn_type"] = "credit" if result["amount"] >= 0 else "debit"
         _set_unit_price(result)
+
+    _PARSE_CACHE[cache_key] = copy.deepcopy(result)
+    while len(_PARSE_CACHE) > _MAX_PARSE_CACHE:
+        _PARSE_CACHE.popitem(last=False)
     return result
 
 
