@@ -403,6 +403,15 @@ _DATE_WORDS_RE = {
     "tomorrow": re.compile(r"\btomorrow\b", re.IGNORECASE),
 }
 
+_RELATIVE_DATE_PATTERNS = [
+    (re.compile(r"\b(?:the\s+)?day\s+before\s+yesterday\b", re.IGNORECASE), -2),
+    (re.compile(r"\b(?:parso|parson|parsoo)\b", re.IGNORECASE), -2),
+    (re.compile(r"\b(?:tarso|tarson)\b", re.IGNORECASE), -3),
+    (re.compile(r"\byesterday\b", re.IGNORECASE), -1),
+    (re.compile(r"\btoday\b", re.IGNORECASE), 0),
+    (re.compile(r"\btomorrow\b", re.IGNORECASE), 1),
+]
+
 # Pre-sorted replacements for _normalise_spoken_text
 _SPOKEN_DEVANAGARI_REPLACEMENTS_SORTED = sorted(
     _SPOKEN_DEVANAGARI_REPLACEMENTS.items(), key=lambda item: len(item[0]), reverse=True
@@ -687,9 +696,9 @@ def _detect_date(text: str, today: datetime) -> tuple[str, str]:
     def fmt(d: datetime) -> str:
         return d.strftime("%Y-%m-%d")
 
-    # today / yesterday / tomorrow - use pre-compiled patterns
-    for word, delta in (("today", 0), ("yesterday", -1), ("tomorrow", 1)):
-        m = _DATE_WORDS_RE[word].search(lower)
+    # Relative day offsets (handles 'day before yesterday', 'parso', 'yesterday', 'today', 'tomorrow')
+    for pat, delta in _RELATIVE_DATE_PATTERNS:
+        m = pat.search(lower)
         if m:
             return fmt(today + timedelta(days=delta)), _remove(text, m.start(), m.end())
 
@@ -714,11 +723,20 @@ def _detect_date(text: str, today: datetime) -> tuple[str, str]:
         diff = (target - today.weekday()) % 7
         return fmt(today + timedelta(days=diff)), _remove(text, m.start(), m.end())
 
-    # dd/mm/yyyy or dd/mm
-    m = re.search(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", text)
+    # ISO yyyy-mm-dd or yyyy/mm/dd
+    m = re.search(r"\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b", text)
     if m:
-        day, month = int(m.group(1)), int(m.group(2))
-        year = m.group(3)
+        year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return fmt(datetime(year, month, day)), _remove(text, m.start(), m.end())
+        except ValueError:
+            pass
+
+    # dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy, dd/mm, dd-mm, dd.mm
+    m = re.search(r"\b(\d{1,2})([/.-])(\d{1,2})(?:\2(\d{2,4}))?\b", text)
+    if m:
+        day, month = int(m.group(1)), int(m.group(3))
+        year = m.group(4)
         if year:
             year = int(year)
             if year < 100:
@@ -1323,7 +1341,7 @@ def _has_date_indicator(text: str) -> bool:
     worth inheriting, or merely the parser's default for the sub-item.
     """
     lower = text.lower()
-    if re.search(r"\btoday\b|\byesterday\b|\btomorrow\b", lower):
+    if re.search(r"\btoday\b|\byesterday\b|\btomorrow\b|\bday\s+before\s+yesterday\b|\bparso\b|\btarso\b", lower):
         return True
     if re.search(r"\b\d+\s+days?\s+ago\b", lower):
         return True
@@ -1331,7 +1349,7 @@ def _has_date_indicator(text: str) -> bool:
         r"\b(?:last|this|coming|next)\s+(" + "|".join(WEEKDAYS) + r")\b", lower
     ):
         return True
-    if re.search(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", lower):
+    if re.search(r"\b(?:\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?)\b", lower):
         return True
     if re.search(
         r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:" + _MONTH_NAMES + r")\b|\b(?:" + _MONTH_NAMES + r")\s+\d{1,2}(?:st|nd|rd|th)?\b",
