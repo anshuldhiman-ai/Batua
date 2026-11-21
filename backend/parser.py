@@ -28,16 +28,16 @@ _MAX_PARSE_CACHE = 1000
 
 # Payment method -> list of detection keywords (matched as whole words).
 PAYMENT_METHODS = {
-    "UPI": ["upi", "gpay", "google pay", "phonepe", "phone pe", "paytm", "bhim"],
+    "UPI": ["upi", "gpay", "google pay", "phonepe", "phone pe", "paytm", "bhim", "cred"],
     "Credit Card": ["credit card", "creditcard", "cc"],
     "Debit Card": ["debit card", "debitcard", "card"],
     "HDFC": ["hdfc"],
     "SBI": ["sbi"],
     "ICICI": ["icici"],
     "Axis": ["axis"],
-    "Cash": ["cash"],
+    "Cash": ["cash", "cod", "cash on delivery"],
     "Wallet": ["wallet", "amazon pay", "mobikwik", "freecharge"],
-    "Net Banking": ["net banking", "netbanking", "neft", "imps", "rtgs", "bank", "online", "auto debit", "auto-debit"],
+    "Net Banking": ["net banking", "netbanking", "neft", "imps", "rtgs", "bank", "online", "auto debit", "auto-debit", "cheque", "check"],
 }
 
 INCOME_WORDS = [
@@ -208,7 +208,12 @@ WEEKDAYS = {
 MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
 MONTHS.update({m.lower(): i for i, m in enumerate(calendar.month_abbr) if m})
 
-FILLER_WORDS = {"for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in", "rs", "inr", "rupees", "rupee", "rupaye", "rupiya", "i", "we", "my"}
+FILLER_WORDS = {
+    "for", "on", "at", "the", "to", "paid", "spent", "of", "a", "an", "in",
+    "rs", "inr", "rupees", "rupee", "rupaye", "rupiya", "i", "we", "my",
+    "via", "by", "using", "through", "thru", "with", "from", "worth", "cost",
+    "total", "amount", "and", "&", "ka", "ke", "ki", "ko", "se", "dwara"
+}
 
 # Container / counting units used to detect quantity, e.g. "2 packet", "3 plate".
 # The leading number is captured as the quantity; the unit word stays in the
@@ -532,7 +537,16 @@ def _detect_payment(text: str) -> tuple[str, str]:
         for pattern in patterns:
             m = pattern.search(lower)
             if m:
-                text = _remove(text, m.start(), m.end())
+                s, e = m.start(), m.end()
+                # Also strip preceding prepositions (e.g. "via upi", "by gpay", "with card", "using phonepe")
+                prep = re.search(r"\b(?:via|by|using|through|thru|with|from)\s+$", lower[:s])
+                if prep:
+                    s = prep.start()
+                # Also strip succeeding postpositions (e.g. "upi se", "cash se")
+                post = re.match(r"^\s+(?:se|dwara|karke)", lower[e:])
+                if post:
+                    e += post.end()
+                text = _remove(text, s, e)
                 return method, text
     return "", text
 
@@ -816,7 +830,7 @@ def _detect_category(text: str) -> str:
 def _clean_description(text: str, fallback: str) -> str:
     tokens = [t for t in re.split(r"\s+", text.strip()) if t]
     tokens = [t for t in tokens if t.lower() not in FILLER_WORDS]
-    desc = " ".join(tokens).strip(" -")
+    desc = " ".join(tokens).strip(" -:;,./")
     desc = re.sub(r"\s{2,}", " ", desc)
     if not desc:
         return fallback if fallback != "Other" else "Transaction"
@@ -883,6 +897,8 @@ def parse_transaction(text: str, today: datetime | None = None) -> dict:
         if ml_result:
             for key in ("description", "payment_method"):
                 if ml_result.get(key) and (key != "description" or not each_enum):
+                    if key == "description" and result["description"] not in ("Transaction", "Other", ""):
+                        continue
                     result[key] = ml_result[key]
             if ml_result.get("category") and ml_result["category"] != "Other":
                 result["category"] = ml_result["category"]
