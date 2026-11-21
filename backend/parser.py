@@ -658,18 +658,26 @@ def _detect_amount(text: str) -> tuple[float | None, bool, bool, str]:
             return val, am.group(1) == "+", am.group(1) == "-", text
     # Explicit sign first, e.g. +85000, -250, +5k
     for m in _EXPLICIT_SIGN_RE.finditer(text):
+        s, e = m.start(), m.end()
         # A spaced "l" is a litre unit, not lakh — don't scale ("2 l" ≠ 2 lakh).
         if _is_litre_unit(text, m, 3):
             continue
+        slash_dash = re.match(r"^\s*/[-=]", text[e:])
+        if slash_dash:
+            e += slash_dash.end()
         sign = m.group(1)
         num = _apply_suffix(float(m.group(2).replace(",", "")), m.group(3))
-        text = _remove(text, m.start(), m.end())
+        text = _remove(text, s, e)
         return num, sign == "+", sign == "-", text
     # Plain number, optionally with currency prefix and k/l/cr suffix (not part of a date like 10/05 or 5th)
     for m in _PLAIN_AMOUNT_RE.finditer(text):
         s, e = m.start(), m.end()
-        # Skip if part of a dd/mm date (before or after /)
-        if text[e : e + 1] == "/" or (s > 0 and text[s - 1 : s] == "/"):
+        # Handle Indian currency marker "/-" or "/=" (e.g. 500/- or 250 /=)
+        slash_dash = re.match(r"^\s*/[-=]", text[e:])
+        if slash_dash:
+            e += slash_dash.end()
+        elif text[e : e + 1] == "/" or (s > 0 and text[s - 1 : s] == "/"):
+            # Skip if part of a dd/mm date (before or after /)
             continue
         # Skip if part of a dd-mm[-yyyy] date or numeric range ("10-05",
         # "1-1-2026") so the hyphen is never read as a minus sign.
