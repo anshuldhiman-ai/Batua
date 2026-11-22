@@ -1058,6 +1058,15 @@ RECURRING_SIGNALS = [
     r"\ball\s+months\b",
     r"\bper\s+month\b",
     r"\bfor\s+(?:all\s+)?(?:the\s+)?months\b",
+    r"\bevery\s*quarter\b",
+    r"\bquarterly\b",
+    r"\bevery\s*year\b",
+    r"\byearly\b",
+    r"\bannually\b",
+    r"\bevery\s*day\b",
+    r"\bdaily\b",
+    r"\bevery\s*week\b",
+    r"\bweekly\b",
     r"\bfrom\s+(?:" + _MONTH_NAMES + r")\b",
     r"\bsince\s+(?:" + _MONTH_NAMES + r")\b",
     r"\b(?:to|till|until)\s+(?:now|today|present|date)\b",
@@ -1073,6 +1082,15 @@ SCHEDULE_STRIP_PATTERNS = [
     r"\ball\s+months\b",
     r"\bper\s+month\b",
     r"\bfor\s+(?:all\s+)?(?:the\s+)?months\b",
+    r"\bevery\s*quarter\b",
+    r"\bquarterly\b",
+    r"\bevery\s*year\b",
+    r"\byearly\b",
+    r"\bannually\b",
+    r"\bevery\s*day\b",
+    r"\bdaily\b",
+    r"\bevery\s*week\b",
+    r"\bweekly\b",
     r"\bfrom\s+(?:" + _MONTH_NAMES + r")\s*(?:\d{4})?\s+(?:to|till|until|through|upto|up\s+to)\s+(?:now|today|present|date|currently|so\s*far)\b",
     r"\bfrom\s+(?:" + _MONTH_NAMES + r")\s*(?:\d{4})?\s+(?:to|till|until|through)\s+(?:" + _MONTH_NAMES + r")\s*(?:\d{4})?\b",
     r"\bfor\s+(?:the\s+)?(?:year\s+)?\d{4}\b",
@@ -1334,10 +1352,10 @@ def _typed_item_fragments(text: str) -> list[str]:
     if not text:
         return []
 
-    # (a) and/aur separated items — same rule as the voice path. Every fragment
-    # must carry a price AND a description word, so "zomato 450 and 500" (a bare
-    # number as a "second item") never fragments.
-    parts = [p.strip(" -") for p in _ITEM_SPLIT_RE.split(text) if p.strip(" -")]
+    # (a) and/aur/comma/plus separated items — Every fragment must carry a price
+    # AND a description word, so "zomato 450 and 500" (a bare number as a "second item") never fragments.
+    _typed_split = re.compile(r"(?:\s+(?:and|aur|\+)\s*|(?<!\d),\s*(?!\d))", re.IGNORECASE)
+    parts = [p.strip(" -") for p in _typed_split.split(text) if p.strip(" -")]
     if len(parts) >= 2:
         items: list[str] = []
         buffer = ""
