@@ -299,6 +299,15 @@ _SPOKEN_DEVANAGARI_REPLACEMENTS = {
     "वाले": "wale",
     "रुपये": "rs",
     "रुपया": "rs",
+    "परसों": "parso",
+    "परसो": "parso",
+    "तरसों": "tarso",
+    "सौ": "sau",
+    "हजार": "hazar",
+    "हज़ार": "hazar",
+    "लाख": "lakh",
+    "करोड़": "crore",
+    "करोड": "crore",
 }
 
 _SPOKEN_NUMBER_WORDS = {
@@ -468,6 +477,41 @@ def _normalise_spoken_text(text: str) -> str:
         out = re.sub(pattern, target, out, flags=re.IGNORECASE)
     for word, number in _SPOKEN_NUMBER_WORDS_SORTED:
         out = re.sub(r"\b" + re.escape(word) + r"\b", number, out, flags=re.IGNORECASE)
+
+    # Compound colloquial idioms and spoken multipliers
+    out = re.sub(r"\bdedh\s*(?:sau|hundred)\b", "150", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bdhai\s*(?:sau|hundred)\b", "250", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bdedh\s*(?:hazar|hazaar|thousand)\b", "1500", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bdhai\s*(?:hazar|hazaar|thousand)\b", "2500", out, flags=re.IGNORECASE)
+
+    out = re.sub(
+        r"\b(\d+(?:\.\d+)?)\s*(?:sau|hundred)\b",
+        lambda m: str(int(float(m.group(1)) * 100)),
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(
+        r"\b(\d+(?:\.\d+)?)\s*(?:hazar|hazaar|thousand)\b",
+        lambda m: str(int(float(m.group(1)) * 1000)),
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(
+        r"\b(\d+(?:\.\d+)?)\s*(?:lakh|lac)\b",
+        lambda m: str(int(float(m.group(1)) * 100000)),
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(
+        r"\b(\d+(?:\.\d+)?)\s*(?:crore|cr)\b",
+        lambda m: str(int(float(m.group(1)) * 10000000)),
+        out,
+        flags=re.IGNORECASE,
+    )
+
+    out = re.sub(r"\b(?:ek\s+)?(?:sau|hundred)\b", "100", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b(?:ek\s+)?(?:hazar|hazaar|thousand)\b", "1000", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b(?:ek\s+)?(?:lakh|lac)\b", "100000", out, flags=re.IGNORECASE)
     # A comma between items ("chai 10, samosa 15") separates transactions, but a
     # comma inside a number ("50,000") does not. Convert only the former.
     out = re.sub(r"(?<!\d),(?!\d)", " aur ", out)
