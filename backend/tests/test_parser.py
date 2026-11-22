@@ -612,3 +612,108 @@ def test_gemini_circuit_breaker_bypass():
     with patch("ai.is_enabled", return_value=False):
         assert _gemini_parse("test query", datetime(2026, 6, 19)) is None
 
+
+def test_indian_currency_notation_slash_dash():
+    today = datetime(2026, 6, 19)
+    res = parse_transaction("coffee 250/-", today)
+    assert res["amount"] == -250.0
+    assert res["description"] == "Coffee"
+
+    res = parse_transaction("shoes rs. 1500/-", today)
+    assert res["amount"] == -1500.0
+    assert res["description"] == "Shoes"
+
+    res = parse_transaction("salary +85k/-", today)
+    assert res["amount"] == 85000.0
+    assert res["description"] == "Salary"
+
+
+def test_hyphenated_and_iso_dates():
+    today = datetime(2026, 6, 19)
+    res = parse_transaction("swiggy 350 15-06-2024", today)
+    assert res["date"] == "2024-06-15"
+    assert res["description"] == "Swiggy"
+
+    res = parse_transaction("uber 450 2024-05-10", today)
+    assert res["date"] == "2024-05-10"
+    assert res["description"] == "Uber"
+
+    res = parse_transaction("dinner 600 day before yesterday", today)
+    assert res["date"] == "2026-06-17"
+    assert res["description"] == "Dinner"
+
+    res = parse_transaction("dinner 600 parso", today)
+    assert res["date"] == "2026-06-17"
+    assert res["description"] == "Dinner"
+
+
+def test_preposition_cleaning_and_payment_methods():
+    today = datetime(2026, 6, 19)
+    res = parse_transaction("chai 20 via upi", today)
+    assert res["description"] == "Chai"
+    assert res["payment_method"] == "UPI"
+
+    res = parse_transaction("coffee 100 by gpay", today)
+    assert res["description"] == "Coffee"
+    assert res["payment_method"] == "UPI"
+
+    res = parse_transaction("dinner 800 through cred", today)
+    assert res["description"] == "Dinner"
+    assert res["payment_method"] == "UPI"
+
+    res = parse_transaction("pizza 500 with card", today)
+    assert res["description"] == "Pizza"
+    assert res["payment_method"] == "Debit Card"
+
+    res = parse_transaction("groceries 1200 using phonepe", today)
+    assert res["description"] == "Groceries"
+    assert res["payment_method"] == "UPI"
+
+    res = parse_transaction("shoes 1200 cod", today)
+    assert res["description"] == "Shoes"
+    assert res["payment_method"] == "Cash"
+
+    res = parse_transaction("tuition 5000 cheque", today)
+    assert res["description"] == "Tuition"
+    assert res["payment_method"] == "Net Banking"
+
+
+def test_voice_spoken_number_normalisation():
+    res = parse_voice_input("chai paanch sau")
+    assert res[0]["description"] == "Chai"
+    assert res[0]["amount"] == -500.0
+
+    res = parse_voice_input("groceries do hazar")
+    assert res[0]["description"] == "Groceries"
+    assert res[0]["amount"] == -2000.0
+
+    res = parse_voice_input("rent two thousand")
+    assert res[0]["description"] == "Rent"
+    assert res[0]["amount"] == -2000.0
+
+    res = parse_voice_input("shopping five hundred")
+    assert res[0]["description"] == "Shopping"
+    assert res[0]["amount"] == -500.0
+
+    res = parse_voice_input("petrol sau rupaye")
+    assert res[0]["description"] == "Petrol"
+    assert res[0]["amount"] == -100.0
+
+    res = parse_voice_input("chai dedh sau")
+    assert res[0]["description"] == "Chai"
+    assert res[0]["amount"] == -150.0
+
+
+def test_comma_separated_item_fragments():
+    today = datetime(2026, 6, 19)
+    res = parse_nl_input("chai 10 upi, samosa 20 cash", today)
+    assert res["amount"] == -30.0
+    assert len(res["fragments"]) == 2
+    assert res["fragments"][0]["description"] == "Chai"
+    assert res["fragments"][0]["amount"] == -10.0
+    assert res["fragments"][0]["payment_method"] == "UPI"
+    assert res["fragments"][1]["description"] == "Samosa"
+    assert res["fragments"][1]["amount"] == -20.0
+    assert res["fragments"][1]["payment_method"] == "Cash"
+
+
